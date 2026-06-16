@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ScriptList } from './components/ScriptList';
 import { ScriptEditor } from './components/ScriptEditor';
 import { Teleprompter } from './components/Teleprompter';
@@ -21,6 +21,18 @@ export default function App() {
   const [resetNotice, setResetNotice] = useState(false);
 
   const active = scripts.find((s) => s.id === activeId) ?? null;
+
+  // 编辑/提词中防误退出（桌面端有效，移动端受限）
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (view !== 'list') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [view]);
 
   const openPrompter = (id: string) => {
     setActiveId(id);
