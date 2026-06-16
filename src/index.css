@@ -11,3 +11,23 @@ body {
   font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
   overscroll-behavior: none;
 }
+
+/* 逐字三态高亮 */
+.word {
+  display: inline-block;
+  transition: color 0.25s ease, transform 0.25s ease;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 1px;
+}
+.word[data-state='read'] {
+  color: #525252; /* neutral-600 */
+}
+.word[data-state='current'] {
+  color: #eab308; /* yellow-500 */
+  font-weight: 800;
+  transform: scale(1.08);
+}
+.word[data-state='unread'] {
+  color: #a3a3a3; /* neutral-400 */
+}
