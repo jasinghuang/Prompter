@@ -1,0 +1,17 @@
+# 参考实现（非本项目源码，仅作开发参考）
+ref_code/
+
+# 头脑风暴可视化临时文件
+.superpowers/
+
+# 依赖与构建产物
+node_modules/
+dist/
+build/
+
+# 环境变量
+.env
+.env.local
+
+# 系统文件
+.DS_Store
