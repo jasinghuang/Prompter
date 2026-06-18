@@ -5,8 +5,8 @@ export const SPEED_PRESETS = [
   { id: 'very-fast', name: '极速', wpn: 320 },
 ] as const;
 
-export const SPEED_MIN = 60;
-export const SPEED_MAX = 360;
+export const SPEED_MIN = 30;
+export const SPEED_MAX = 600;
 
 /** 每推进一个字符需要的毫秒数。 */
 export function msPerChar(wpn: number): number {

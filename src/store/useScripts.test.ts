@@ -42,6 +42,22 @@ describe('useScripts', () => {
     expect(result.current.scripts).toHaveLength(0);
   });
 
+  it('clearAll 清空所有稿件', () => {
+    const { result } = renderHook(() => useScripts());
+    act(() => result.current.addScript());
+    act(() => result.current.addScript());
+    act(() => result.current.clearAll());
+    expect(result.current.scripts).toHaveLength(0);
+  });
+
+  it('importScript 新增带标题与正文的稿件', () => {
+    const { result } = renderHook(() => useScripts());
+    act(() => result.current.importScript('标题', '内容'));
+    expect(result.current.scripts).toHaveLength(1);
+    expect(result.current.scripts[0].title).toBe('标题');
+    expect(result.current.scripts[0].content).toBe('内容');
+  });
+
   it('初始读取已持久化的稿件', () => {
     localStorage.setItem('prompter_scripts', JSON.stringify([
       { id: 'x', title: 't', content: 'c', createdAt: 1, updatedAt: 1 },

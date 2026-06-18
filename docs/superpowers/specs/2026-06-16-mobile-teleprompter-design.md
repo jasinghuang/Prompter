@@ -255,3 +255,58 @@ interface TeleprompterSettings {
 - **编辑返回定位：** 改动未跨位置保持、跨越则重置到开头
 - **进度/计时：** 计时器随播放累加、暂停停止；预估总时长 = 字数 ÷ WPN
 - 手动/E2E 验证：Chrome（Mac/Android）Wake Lock 与全屏；iOS 降级提示路径
+
+---
+
+## 11. v2 优化（2026-06-18）
+
+基于实际使用反馈，对提词器做以下优化与重构（覆盖上方 v1 的相关条款，以本节为准）：
+
+### 11.1 滚动：丝滑无极（重构）
+
+- **问题：** v1 用「逐字推进 currentIndex → 缓动 scrollTop 到该字」。currentIndex 离散跳变导致一顿一顿；且 scrollTop 被浏览器量化为整数像素，低速（每帧 < 1px）时累积跳跃，卡顿明显。
+- **新方案：** 改为 **CSS `transform: translate3d(0, -offset, 0)`** 驱动内容位移，走 GPU 合成层、支持亚像素，任何速度（含 30 WPN 极慢）都丝滑。
+- **滚动模型反转：** 滚动位移 `offset` 为源头（`useAutoScroll` 用 rAF 按 `pxPerSec` 连续累加 `offset` 并写 transform）；高亮位置由 `offset` 反推（中线对应的字）。不再有"逐字推进 + 缓动"。
+- **像素速度换算：** `pxPerSec = (maxOffset ÷ 可读字数) × (WPN ÷ 60)`。
+- 容器结构：`viewport(overflow hidden)` + `content(transform 位移, position relative, willChange transform)`。
+
+### 11.2 逐行高亮（取代逐字）
+
+- 由逐字改为**逐视觉折行行**高亮：纯函数 `computeLineIndices(offsetTops)` 把相同 `offsetTop`（容差 1px）归为同一行；当前字所在行整行高亮（黄字加粗），其上为已读（暗）、其下为未读（亮）。
+- 测量在 `ScriptText` 的 `useLayoutEffect` 中完成，依赖 `layoutKey`（字号/字间距/行距/对齐/内边距/宽度）变化时重测；tokenize 用 `useMemo` 缓存。
+
+### 11.3 阅读区色块
+
+- v1 的 1px 中线改为 **2 行高的淡黄色带**（`rgba(234,179,8,0.07)` 底 + 上下淡边线），当前行落在带内，提供稳定注视区。
+
+### 11.4 设置项扩展
+
+`TeleprompterSettings` 新增：
+- `horizontalPadding: number`（左右内边距 %，4–20，默认 8）
+- `textAlign: 'left' | 'center' | 'right'`（默认 **left**）
+
+设置面板新增「两边间距」滑块与「对齐方式」三按钮。`loadSettings` 合并默认值的容错使旧数据自动补齐新字段。
+
+### 11.5 速度：直调 + 扩范围
+
+- 自动模式下，**控制条内置速度滑块**（无需进设置即可调）。
+- 范围由 60–360 扩至 **30–600 WPN**（`SPEED_MIN/MAX`）。
+- 快捷键：**空格** 播放/暂停、**↑/↓** 调速度（步进 20，Shift 微调 5）。
+
+### 11.6 交互统一
+
+- 手动浏览：**统一 pointer 事件**实现拖拽自由滚动（区分 tap/drag，6px 阈值）。
+- **双击 / 双指轻触**（300ms 内两次未拖拽）→ 播放/暂停。
+- 点击按钮后自动失焦，避免空格被按钮拦截或双重 toggle。
+
+### 11.7 稿件管理增强
+
+- **一键清空全部**（`clearAll`，二次确认）。
+- **导入稿件**（`importScript`）：导入面板支持 ① 粘贴文本 ② 选择 `.txt/.md` 文件（多选，每个文件建一篇）。用于从苹果备忘录导入（备忘录全选复制粘贴，或「发送副本→存储到文件」导出 txt）。
+- > 注：v1 第 9 节"导入/导出稿件文件（首期不做）"在 v2 调整为「导入」已实现；导出仍不做。
+
+### 11.8 测试
+
+- 新增 `lib/lines.test.ts`（computeLineIndices）、`hooks/useAutoScroll.test.ts`（transform 位移、亚像素、到顶到底）。
+- 全量 94 测试通过；逐行/滚动的真实视觉行为靠浏览器手动验证（jsdom 无布局）。
+

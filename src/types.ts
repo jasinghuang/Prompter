@@ -6,15 +6,21 @@ export interface Script {
   updatedAt: number;
 }
 
+export type ScrollMode = 'manual' | 'auto';
+
+export type TextAlign = 'left' | 'center' | 'right';
+
 export interface TeleprompterSettings {
   fontSize: number;
   letterSpacing: number;
   lineHeight: number;
   scrollSpeed: number;
   mirror: boolean;
+  /** 阅读区左右内边距（百分比），默认 8 */
+  horizontalPadding: number;
+  /** 文本对齐，默认 left */
+  textAlign: TextAlign;
 }
-
-export type ScrollMode = 'manual' | 'auto';
 
 export const DEFAULT_SETTINGS: TeleprompterSettings = {
   fontSize: 64,
@@ -22,6 +28,8 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
   lineHeight: 1.6,
   scrollSpeed: 160,
   mirror: false,
+  horizontalPadding: 8,
+  textAlign: 'left',
 };
 
 export const FONT_SIZE_MIN = 24;
@@ -30,3 +38,5 @@ export const LETTER_SPACING_MIN = 0;
 export const LETTER_SPACING_MAX = 0.3;
 export const LINE_HEIGHT_MIN = 1.0;
 export const LINE_HEIGHT_MAX = 2.5;
+export const PADDING_MIN = 4;
+export const PADDING_MAX = 20;

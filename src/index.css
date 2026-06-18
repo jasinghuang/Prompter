@@ -12,10 +12,10 @@ body {
   overscroll-behavior: none;
 }
 
-/* 逐字三态高亮 */
+/* 逐字/逐行三态高亮 */
 .word {
   display: inline-block;
-  transition: color 0.25s ease, transform 0.25s ease;
+  transition: color 0.25s ease;
   cursor: pointer;
   border-radius: 4px;
   padding: 0 1px;
@@ -26,10 +26,16 @@ body {
 .word[data-state='current'] {
   color: #eab308; /* yellow-500 */
   font-weight: 800;
-  transform: scale(1.08);
 }
 .word[data-state='unread'] {
   color: #a3a3a3; /* neutral-400 */
+}
+
+/* 阅读区色块：2 行高的淡黄带，上下淡边线 */
+.reading-band {
+  background: rgba(234, 179, 8, 0.07);
+  border-top: 1px solid rgba(234, 179, 8, 0.18);
+  border-bottom: 1px solid rgba(234, 179, 8, 0.18);
 }
 
 /* 镜像翻转（分光镜反射） */
@@ -38,6 +44,10 @@ body {
 }
 
 /* 提词器内禁用长按选择文字，避免误触 */
+.teleprompter-touch {
+  /* 允许垂直滚动，但禁用双击缩放，使双击能可靠触发暂停 */
+  touch-action: pan-y manipulation;
+}
 .teleprompter-touch, .teleprompter-touch * {
   -webkit-user-select: none;
   user-select: none;

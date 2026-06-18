@@ -9,7 +9,7 @@ import { resolveIndexAfterEdit } from './lib/editResolve';
 type View = 'list' | 'prompter' | 'editor';
 
 export default function App() {
-  const { scripts, addScript, updateScript, deleteScript } = useScripts();
+  const { scripts, addScript, updateScript, deleteScript, clearAll, importScript } = useScripts();
   const { settings, updateSettings } = useSettings();
 
   const [view, setView] = useState<View>('list');
@@ -97,13 +97,19 @@ export default function App() {
     );
   }
 
+  const handleImport = (title: string, content: string) => {
+    importScript(title, content);
+  };
+
   return (
     <ScriptList
       scripts={scripts}
       onOpen={openPrompter}
       onEdit={(id) => { setActiveId(id); setEditSnapshot(null); setView('editor'); }}
       onDelete={deleteScript}
+      onDeleteAll={clearAll}
       onCreate={handleCreate}
+      onImport={handleImport}
     />
   );
 }

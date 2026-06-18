@@ -1,5 +1,5 @@
-import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal } from 'lucide-react';
-import { TeleprompterSettings, FONT_SIZE_MIN, FONT_SIZE_MAX, LETTER_SPACING_MIN, LETTER_SPACING_MAX, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, } from '../types';
+import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { TeleprompterSettings, TextAlign, FONT_SIZE_MIN, FONT_SIZE_MAX, LETTER_SPACING_MIN, LETTER_SPACING_MAX, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, PADDING_MIN, PADDING_MAX } from '../types';
 import { SPEED_MIN, SPEED_MAX, SPEED_PRESETS } from '../lib/speed';
 
 interface Props {
@@ -37,6 +37,12 @@ function Slider({
   );
 }
 
+const ALIGN_OPTIONS: { value: TextAlign; Icon: typeof AlignLeft; label: string }[] = [
+  { value: 'left', Icon: AlignLeft, label: '左对齐' },
+  { value: 'center', Icon: AlignCenter, label: '居中对齐' },
+  { value: 'right', Icon: AlignRight, label: '右对齐' },
+];
+
 export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
   if (!open) return null;
   return (
@@ -62,6 +68,9 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
           <Slider label="行距" icon={<AlignJustify size={16} />} value={settings.lineHeight}
             min={LINE_HEIGHT_MIN} max={LINE_HEIGHT_MAX} step={0.1}
             onChange={(v) => onChange({ lineHeight: v })} />
+          <Slider label="两边间距" icon={<Move size={16} />} value={settings.horizontalPadding}
+            min={PADDING_MIN} max={PADDING_MAX} step={1} suffix="%"
+            onChange={(v) => onChange({ horizontalPadding: v })} />
           <Slider label="滚动速度" icon={<Gauge size={16} />} value={settings.scrollSpeed}
             min={SPEED_MIN} max={SPEED_MAX} step={20} suffix=" WPN"
             onChange={(v) => onChange({ scrollSpeed: v })} />
@@ -79,6 +88,28 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
                 {p.name}
               </button>
             ))}
+          </div>
+
+          {/* 对齐方式 */}
+          <div className="space-y-2">
+            <span className="flex items-center gap-2 text-sm text-neutral-400"><AlignLeft size={16} />对齐方式</span>
+            <div className="flex gap-2">
+              {ALIGN_OPTIONS.map(({ value, Icon, label }) => (
+                <button
+                  key={value}
+                  title={label}
+                  aria-label={label}
+                  onClick={() => onChange({ textAlign: value })}
+                  className={`flex flex-1 items-center justify-center rounded-lg py-2 transition-colors ${
+                    settings.textAlign === value
+                      ? 'bg-yellow-500/15 text-yellow-500'
+                      : 'bg-neutral-800 text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <Icon size={18} />
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex items-center justify-between rounded-xl bg-neutral-800 p-4">

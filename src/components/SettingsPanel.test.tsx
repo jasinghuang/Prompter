@@ -19,9 +19,22 @@ describe('SettingsPanel', () => {
   it('拖动字号滑块调用 onChange({ fontSize })', () => {
     const onChange = vi.fn();
     render(<SettingsPanel {...baseProps} onChange={onChange} />);
-    const sliders = screen.getAllByLabelText('字号');
-    fireEvent.change(sliders[0], { target: { value: '90' } });
+    fireEvent.change(screen.getByLabelText('字号'), { target: { value: '90' } });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ fontSize: 90 }));
+  });
+
+  it('拖动两边间距滑块调用 onChange({ horizontalPadding })', () => {
+    const onChange = vi.fn();
+    render(<SettingsPanel {...baseProps} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText('两边间距'), { target: { value: '15' } });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ horizontalPadding: 15 }));
+  });
+
+  it('点击居中对齐按钮调用 onChange({ textAlign: "center" })', () => {
+    const onChange = vi.fn();
+    render(<SettingsPanel {...baseProps} onChange={onChange} />);
+    fireEvent.click(screen.getByLabelText('居中对齐'));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ textAlign: 'center' }));
   });
 
   it('镜像开关点击切换', () => {

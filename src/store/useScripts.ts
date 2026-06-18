@@ -38,5 +38,22 @@ export function useScripts() {
     setScripts((prev) => prev.filter((s) => s.id !== id));
   }, []);
 
-  return { scripts, addScript, updateContent, updateScript, deleteScript };
+  const clearAll = useCallback(() => {
+    setScripts([]);
+  }, []);
+
+  const importScript = useCallback((title: string, content: string) => {
+    const now = Date.now();
+    const s: Script = {
+      id: crypto.randomUUID(),
+      title: title || '导入的稿件',
+      content,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setScripts((prev) => [s, ...prev]);
+    return s.id;
+  }, []);
+
+  return { scripts, addScript, updateContent, updateScript, deleteScript, clearAll, importScript };
 }

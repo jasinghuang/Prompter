@@ -12,9 +12,9 @@ describe('speed 常量', () => {
   it('包含 4 个预设档', () => {
     expect(SPEED_PRESETS.map((p) => p.wpn)).toEqual([80, 160, 240, 320]);
   });
-  it('范围 60–360', () => {
-    expect(SPEED_MIN).toBe(60);
-    expect(SPEED_MAX).toBe(360);
+  it('范围 30–600', () => {
+    expect(SPEED_MIN).toBe(30);
+    expect(SPEED_MAX).toBe(600);
   });
 });
 

@@ -9,6 +9,7 @@ const baseProps = {
   onSetMode: vi.fn(),
   onTogglePlay: vi.fn(),
   onJump: vi.fn(),
+  onSpeedChange: vi.fn(),
 };
 
 describe('Controls', () => {
@@ -35,11 +36,18 @@ describe('Controls', () => {
     expect(onJump).toHaveBeenNthCalledWith(2, 20);
   });
 
-  it('速度档仅在 auto 模式显示', () => {
+  it('速度滑块仅在 auto 模式显示', () => {
     const { rerender } = render(<Controls {...baseProps} mode="manual" />);
-    expect(screen.queryByTitle('速度')).toBeNull();
+    expect(screen.queryByLabelText('速度')).toBeNull();
     rerender(<Controls {...baseProps} mode="auto" />);
-    expect(screen.getByText(/160/)).toBeInTheDocument();
+    expect(screen.getByLabelText('速度')).toBeInTheDocument();
+  });
+
+  it('拖动速度滑块调用 onSpeedChange', () => {
+    const onSpeedChange = vi.fn();
+    render(<Controls {...baseProps} mode="auto" onSpeedChange={onSpeedChange} />);
+    fireEvent.change(screen.getByLabelText('速度'), { target: { value: '240' } });
+    expect(onSpeedChange).toHaveBeenCalledWith(240);
   });
 
   it('播放中按钮标题为"暂停"', () => {
