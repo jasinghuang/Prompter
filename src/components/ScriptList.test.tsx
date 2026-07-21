@@ -31,7 +31,7 @@ describe('ScriptList', () => {
     render(
       <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={onCreate} />
     );
-    fireEvent.click(screen.getByRole('button', { name: /新建|稿/ }));
+    fireEvent.click(screen.getByRole('button', { name: /新建稿件/ }));
     expect(onCreate).toHaveBeenCalled();
   });
 

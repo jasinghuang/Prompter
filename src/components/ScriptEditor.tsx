@@ -44,12 +44,6 @@ export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, onSav
           placeholder="稿件标题"
           className="w-full rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-xl font-bold text-white focus:border-yellow-500/50 focus:outline-none"
         />
-        <textarea
-          value={content}
-          onChange={(e) => onContentChange(e.target.value)}
-          placeholder="在此输入或粘贴提词稿件..."
-          className="min-h-[40dvh] flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-900 p-6 text-lg leading-relaxed text-neutral-300 focus:border-yellow-500/50 focus:outline-none"
-        />
 
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
           <div className="mb-3 flex items-center gap-2">
@@ -64,6 +58,13 @@ export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, onSav
             className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
           />
         </div>
+
+        <textarea
+          value={content}
+          onChange={(e) => onContentChange(e.target.value)}
+          placeholder="在此输入或粘贴提词稿件..."
+          className="min-h-[40dvh] flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-900 p-6 text-lg leading-relaxed text-neutral-300 focus:border-yellow-500/50 focus:outline-none"
+        />
       </main>
     </div>
   );

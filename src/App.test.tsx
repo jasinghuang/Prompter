@@ -13,7 +13,7 @@ describe('App', () => {
   it('新建稿件 → 进入编辑视图', () => {
     render(<App />);
     // 新建按钮：桌面端显示"新建"，移动端显示"稿"
-    const btn = screen.getByRole('button', { name: /新建|稿/ });
+    const btn = screen.getByRole('button', { name: /新建稿件/ });
     fireEvent.click(btn);
     // 编辑器正文输入框存在
     expect(screen.getByPlaceholderText('在此输入或粘贴提词稿件...')).toBeInTheDocument();
@@ -21,7 +21,7 @@ describe('App', () => {
 
   it('编辑后返回提词器应能渲染', async () => {
     render(<App />);
-    const btn = screen.getByRole('button', { name: /新建|稿/ });
+    const btn = screen.getByRole('button', { name: /新建稿件/ });
     fireEvent.click(btn);
     // 输入正文
     const content = screen.getByPlaceholderText('在此输入或粘贴提词稿件...');

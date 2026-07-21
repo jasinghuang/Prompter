@@ -43,7 +43,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
             onClick={onCreate}
             className="flex shrink-0 items-center gap-1 rounded-full bg-yellow-500 px-3 py-2 text-xs font-bold text-black active:scale-95 sm:gap-2 sm:px-4 sm:text-sm"
           >
-            <Plus size={16} /><span className="hidden sm:inline">新建</span><span className="sm:hidden">稿</span>
+            <Plus size={16} />新建稿件
           </button>
         </div>
       </header>
