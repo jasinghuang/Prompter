@@ -53,12 +53,17 @@
 
 ## 🚀 怎么用（最终用户）
 
-1. 拿到 [`teleprompter.html`](teleprompter.html)（项目根目录下的单文件产物）
-2. 用 **Chrome**（或任意现代浏览器）双击打开
-3. 点「新建稿件」输入文案 → 返回列表点稿件进入提词器
-4. 横放设备，按空格或点播放开始念稿
+### 推荐：网页版 PWA（iPhone 全屏 + 离线）
 
-> 这个 HTML 文件是自包含的（JS/CSS 全部内联），可以拷到任何地方、AirDrop 给别人、放手机里随时打开。稿件和设置存在浏览器的 `localStorage`，刷新不丢。
+1. 在手机 Safari 打开 **https://jasinghuang.github.io/Prompter/**
+2. 点 Safari 底部「分享」→「添加到主屏幕」
+3. 以后从桌面图标启动 → **全屏无浏览器外壳**，断网也能用（首次访问后离线缓存生效）
+
+> 微信里点链接打不开全屏：点右上角「…」→「在 Safari 中打开」再做第 2 步。
+
+### 兜底：单 HTML 文件（离线/临时）
+
+拿到 [`teleprompter.html`](teleprompter.html)，浏览器打开即用。注意：本地 `file://` 下无 PWA 全屏/离线能力，iPhone 体验不如网页版，仅供无网应急。
 
 ---
 
@@ -146,6 +151,10 @@ npm run build
 cp dist/index.html ./teleprompter.html
 ```
 
+### 部署（GitHub Pages，自动）
+
+push 到 `main` 即触发 `.github/workflows/deploy.yml` 自动构建并发布。首次需在仓库 **Settings → Pages → Source 选「GitHub Actions」**（一次性）。部署地址：`https://jasinghuang.github.io/Prompter/`。
+
 ### 测试
 
 ```bash
@@ -173,6 +182,7 @@ npm run test:watch # 监听模式
 | iOS 屏幕常亮 | Wake Lock API 在 iOS（Safari / iOS Chrome）的 `file://` 下基本不工作，会显示「请到系统设置调长自动锁屏」的降级提示。Chrome on Mac/Win/Android 正常。 |
 | 强制横屏 | iOS 不允许网页强制旋转屏幕，只能提示用户横放设备 + UI 自适应。 |
 | 跨设备同步 | 不支持。各设备的 `localStorage` 独立，换设备要重新粘贴 / 导入稿件。 |
+| iOS 全屏 | 仅 PWA「添加到主屏幕」可全屏；iPhone Safari 不支持普通网页的 Fullscreen API。 |
 
 ---
 
