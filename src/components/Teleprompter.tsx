@@ -288,7 +288,7 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
   return (
     <div className="relative h-[100dvh] w-screen overflow-hidden bg-black">
       {/* 顶部栏 */}
-      <div className="absolute inset-x-0 top-0 z-50 flex items-center justify-between bg-gradient-to-b from-black/90 to-transparent p-3">
+      <div className="absolute inset-x-0 top-0 z-50 flex items-center justify-between bg-gradient-to-b from-black/90 to-transparent px-3 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
         <div className="flex items-center gap-2">
           <button onClick={handleBack} className="rounded-full bg-neutral-900/60 p-2 text-neutral-400 hover:text-white"><ChevronLeft size={18} /></button>
           <div className="flex items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1">

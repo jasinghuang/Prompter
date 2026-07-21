@@ -29,7 +29,7 @@ export function ScriptEditor({ script, onSave, onBack }: Props) {
 
   return (
     <div className="flex min-h-screen flex-col bg-black">
-      <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-neutral-900 bg-black/70 px-4 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 flex items-center justify-between border-b border-neutral-900 bg-black/70 px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-xl">
         <button title="返回" onClick={onBack} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white">
           <ChevronLeft size={20} />
         </button>

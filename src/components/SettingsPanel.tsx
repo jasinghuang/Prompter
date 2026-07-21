@@ -48,7 +48,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
   return (
     <div className="absolute inset-0 z-[70] flex justify-end">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative h-full w-80 max-w-[85vw] overflow-y-auto border-l border-neutral-800 bg-neutral-900 p-6 shadow-2xl">
+      <div className="relative h-full w-80 max-w-[85vw] overflow-y-auto border-l border-neutral-800 bg-neutral-900 px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))] shadow-2xl">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
             <Settings size={20} /> 提词设置

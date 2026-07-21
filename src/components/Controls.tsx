@@ -14,7 +14,7 @@ interface Props {
 
 export function Controls({ mode, isPlaying, wpn, onSetMode, onTogglePlay, onJump, onSpeedChange }: Props) {
   return (
-    <div className="absolute bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border border-neutral-800 bg-neutral-900/85 p-2 shadow-2xl backdrop-blur-xl">
+    <div className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border border-neutral-800 bg-neutral-900/85 p-2 shadow-2xl backdrop-blur-xl">
       {/* 模式 */}
       <div className="flex items-center gap-1 px-2">
         <button
