@@ -1,4 +1,4 @@
-import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight, CirclePause } from 'lucide-react';
 import { TeleprompterSettings, TextAlign, FONT_SIZE_MIN, FONT_SIZE_MAX, LETTER_SPACING_MIN, LETTER_SPACING_MAX, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, PADDING_MIN, PADDING_MAX } from '../types';
 import { SPEED_MIN, SPEED_MAX, SPEED_PRESETS } from '../lib/speed';
 
@@ -130,15 +130,19 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
           </div>
 
           {/* 自动暂停关键词 */}
-          <div className="space-y-2 rounded-xl bg-neutral-800 p-4">
-            <div className="flex items-center gap-2 text-sm text-neutral-400">
-              <span className="text-[10px] uppercase tracking-wider text-neutral-500">⏸ 自动暂停</span>
+          <div className="space-y-3 rounded-xl bg-neutral-800 p-4">
+            <div className="flex items-center gap-3">
+              <CirclePause size={18} className="text-neutral-400" />
+              <div>
+                <span className="block text-sm text-white">自动暂停</span>
+                <span className="text-[10px] text-neutral-500">滚动到关键词时自动暂停</span>
+              </div>
             </div>
             <input
               type="text"
               value={settings.pauseKeyword}
               onChange={(e) => onChange({ pauseKeyword: e.target.value })}
-              placeholder="输入关键词，滚动到时自动暂停（留空关闭）"
+              placeholder="输入关键词（留空关闭）"
               className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
             />
           </div>
