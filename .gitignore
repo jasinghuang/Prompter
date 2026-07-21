@@ -4,6 +4,11 @@ ref_code/
 # 头脑风暴可视化临时文件
 .superpowers/
 
+# 开发工具临时文件
+.playwright-mcp/
+.impeccable/
+*.png
+
 # 依赖与构建产物
 node_modules/
 dist/

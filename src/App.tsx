@@ -9,6 +9,19 @@ import { resolveIndexAfterEdit } from './lib/editResolve';
 
 type View = 'list' | 'prompter' | 'editor';
 
+const POS_KEY = 'prompter_pos_';
+
+function loadPosition(id: string): number {
+  try {
+    const v = localStorage.getItem(POS_KEY + id);
+    return v ? parseInt(v, 10) : 0;
+  } catch { return 0; }
+}
+
+function savePosition(id: string, index: number) {
+  try { localStorage.setItem(POS_KEY + id, String(index)); } catch { /* quota exceeded */ }
+}
+
 export default function App() {
   const { scripts, addScript, updateScript, deleteScript, clearAll, importScript } = useScripts();
   const { settings, updateSettings } = useSettings();
@@ -37,7 +50,7 @@ export default function App() {
 
   const openPrompter = (id: string) => {
     setActiveId(id);
-    setPrompterIndex(0);
+    setPrompterIndex(loadPosition(id));
     setEditSnapshot(null);
     setView('prompter');
   };
@@ -62,7 +75,7 @@ export default function App() {
           script={active}
           settings={settings}
           index={prompterIndex}
-          onIndexChange={setPrompterIndex}
+          onIndexChange={(i) => { setPrompterIndex(i); savePosition(active.id, i); }}
           onChangeSettings={updateSettings}
           onBack={() => setView('list')}
           onEdit={openEditorFromPrompter}

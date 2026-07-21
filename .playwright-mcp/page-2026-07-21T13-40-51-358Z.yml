@@ -1,7 +1,0 @@
-- generic [ref=e29]:
-  - banner [ref=e30]:
-    - button "返回" [ref=e31]
-    - generic [ref=e34]: 自动保存
-  - main [ref=e35]:
-    - textbox "稿件标题" [ref=e36]: 未命名稿件
-    - textbox "在此输入或粘贴提词稿件..." [ref=e37]

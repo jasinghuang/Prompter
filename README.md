@@ -1,197 +1,137 @@
-# 📱 提词器（Prompter）
+# 提词器
 
-一个为**短视频 / Vlog 拍摄**设计的手机提词器。
+手机提词器 —— 把手机横放架在三脚架上，大字号文字匀速滚动，省去背稿。
 
-把手机或 iPad 横放架在三脚架上、对着镜头念稿，屏幕上大字号文字匀速滚动、当前行高亮停在视线中线，省去背稿。纯前端、单 HTML 文件，浏览器打开即用，无需联网、无需服务器、无需安装。
+**纯前端、零后端**，浏览器打开即用。支持 PWA 全屏 + 离线。
 
 ---
 
-## ✨ 功能特性
+## 怎么用
 
-### 提词核心
-- **丝滑无极滚动**：用 CSS `transform` 驱动（GPU 合成、亚像素），从 30 WPN 极慢到 600 WPN 极快都不卡顿
-- **逐行高亮**：当前念到的整行高亮（黄字加粗），已读行变暗、未读行正常，视线容易锁定
-- **阅读色块**：屏幕中线一条 2 行高的淡黄色「注视带」，当前行始终落在带内
-- **自动 / 手动两种模式**：
-  - 自动模式：按速度匀速滚动，可随时暂停
-  - 手动模式：手指拖拽自由浏览，松手后高亮跟随中线
+### 推荐：PWA（全屏 + 离线）
 
-### 速度与排版调节
-- **速度**：30–600 WPN（字/分钟），控制条上直接拖滑块调节，也支持预设档（龟速 80 / 标准 160 / 快语 240 / 极速 320）
-- **字号**（24–120 px）、**字间距**（0–0.3 em）、**行距**（1.0–2.5）、**两边间距**（4–20%）
-- **文本对齐**：左 / 居中 / 右（默认左对齐）
-- **镜像翻转**：水平翻转文字，供分光镜反射玻璃使用
-- 所有设置**实时生效**，所见即所得
+1. iPhone Safari 打开 **<https://jasinghuang.github.io/Prompter/>**
+2. 点底部「分享」→「添加到主屏幕」
+3. 从桌面图标启动 → 全屏无浏览器外壳，断网也能用
 
-### 进度与计时
-- **录制计时器**：从播放起算的实际时长，暂停即停
-- **进度条**：可拖拽跳转任意位置；右端显示按字数 ÷ 速度估算的「预估总时长」
+> 微信里点链接：右上角「…」→「在 Safari 中打开」再做第 2 步。
 
-### 快捷键与手势
-| 操作 | 效果 |
+### 开发模式
+
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm test         # 95 个单元测试
+npm run build    # 输出 dist/
+```
+
+Push 到 `main` 自动通过 GitHub Actions 部署到 GitHub Pages。
+
+---
+
+## 功能
+
+### 提词
+
+- **点击屏幕** 开始 / 暂停滚动
+- **手指拖拽** 自由浏览（原生惯性滚动，丝滑）
+- 屏幕中线两侧有**黄色发光竖线**标记阅读区
+- 顶部**红色指示灯**：播放时亮红 + 发光，暂停时灰色
+- 自动保持**屏幕常亮**（Wake Lock），防止拍摄中锁屏
+
+### 调节
+
+底部工具栏（仅暂停时显示，播放中自动隐藏）：
+
+| 控制 | 范围 |
 |------|------|
-| `空格` | 播放 / 暂停 |
-| `↑` / `↓` | 加速 / 减速（步进 20，按住 `Shift` 微调 5） |
-| 双击 / 双指轻触 | 播放 / 暂停 |
-| 拖拽 | 手动自由浏览 |
+| 字号 | 24–120 px |
+| 速度 | 60–380 WPN（字/分钟） |
+
+完整设置面板（点右上角齿轮）：字间距、行距、两边间距、对齐方式、镜像翻转。
 
 ### 稿件管理
-- **多稿管理**：卡片列表、搜索（按标题 + 正文）、新建、编辑、删除（二次确认）
-- **自动保存**：编辑即存，无保存按钮
-- **导入稿件**：支持粘贴文本，或选择 `.txt` / `.md` 文件（可多选）
-  - 从**苹果备忘录**导入：备忘录里全选复制 → 提词器导入面板粘贴；或备忘录「发送副本 → 存储到文件」导出 txt 后选文件
-- **一键清空全部**（二次确认）
 
-### 移动端体验
-- **屏幕常亮**（Wake Lock）：拍摄中防自动锁屏
-- **全屏模式**：隐藏浏览器工具栏，最大化显示
-- **横屏自适应**：竖屏进入时提示「建议横放设备」
-- **触控优化**：禁用长按选词、防误触
-- **防误退出**：编辑 / 提词中拦截意外关闭（桌面端）
+- 多稿卡片列表、搜索、新建、编辑、删除
+- **自动保存**，编辑即存
+- **导入**：粘贴文本 或 选择 .txt / .md 文件
+- **进度记忆**：每篇稿件自动记住上次阅读位置
 
----
+### 键盘快捷键
 
-## 🚀 怎么用（最终用户）
-
-### 推荐：网页版 PWA（iPhone 全屏 + 离线）
-
-1. 在手机 Safari 打开 **https://jasinghuang.github.io/Prompter/**
-2. 点 Safari 底部「分享」→「添加到主屏幕」
-3. 以后从桌面图标启动 → **全屏无浏览器外壳**，断网也能用（首次访问后离线缓存生效）
-
-> 微信里点链接打不开全屏：点右上角「…」→「在 Safari 中打开」再做第 2 步。
-
-### 兜底：单 HTML 文件（离线/临时）
-
-拿到 [`teleprompter.html`](teleprompter.html)，浏览器打开即用。注意：本地 `file://` 下无 PWA 全屏/离线能力，iPhone 体验不如网页版，仅供无网应急。
+| 键 | 效果 |
+|----|------|
+| `空格` | 播放 / 暂停 |
+| `↑` `↓` | 加速 / 减速 |
 
 ---
 
-## 🛠 技术栈
+## 技术栈
 
-- **Vite 6** + **React 19** + **TypeScript 5.8**
-- **TailwindCSS 4**（`@tailwindcss/vite` 插件，黑底 + 黄强调 + 玻璃态视觉）
-- **lucide-react**（图标）
-- **Vitest 2** + **@testing-library/react** + **jsdom**（单元测试）
-- **vite-plugin-singlefile**（构建时把 JS/CSS 内联成单个 `index.html`）
-
-**纯前端、零后端**。所有逻辑与存储都在浏览器内完成。
+Vite 6 · React 19 · TypeScript · TailwindCSS 4 · lucide-react · Vitest
 
 ---
 
-## 📂 项目结构
+## 项目结构
 
 ```
-prompter/
-├─ index.html               # Vite 入口
-├─ teleprompter.html        # ⭐ 最终交付产物（构建后的单 HTML）
-├─ package.json
-├─ vite.config.ts           # 含 singlefile 插件
-├─ vitest.config.ts
-├─ tsconfig.json
-├─ docs/                    # 设计文档与实现计划
-└─ src/
-   ├─ main.tsx              # 入口
-   ├─ App.tsx               # 三视图状态机：list / prompter / editor
-   ├─ types.ts              # Script / TeleprompterSettings 类型与默认值
-   ├─ lib/                  # 纯函数（可单测）
-   │  ├─ tokens.ts          # 按码点拆字
-   │  ├─ speed.ts           # WPN 换算、自动推进数学、速度常量
-   │  ├─ lines.ts           # 视觉行分组（逐行高亮）
-   │  ├─ editResolve.ts     # 编辑后阅读位置解析
-   │  └─ format.ts          # 时间格式化 mm:ss
-   ├─ store/                # localStorage 持久化层 + hooks
-   │  ├─ storage.ts
-   │  ├─ useScripts.ts      # 稿件 CRUD + 清空 + 导入
-   │  └─ useSettings.ts     # 全局提词设置
-   ├─ hooks/
-   │  ├─ useAutoScroll.ts   # ⭐ transform 连续滚动（丝滑核心）
-   │  ├─ useTimer.ts        # 墙钟计时
-   │  ├─ useWakeLock.ts     # 屏幕常亮 + 降级
-   │  ├─ useDebouncedCallback.ts
-   │  ├─ useAutoAdvance.ts  # （旧逐字推进，已被 useAutoScroll 取代，保留）
-   │  └─ useSmoothScroll.ts # （旧 scrollTop 缓动，保留）
-   └─ components/
-      ├─ Teleprompter.tsx   # 提词器主视图（整合滚动/高亮/交互）
-      ├─ ScriptText.tsx     # 逐字渲染 + 逐行三态高亮
-      ├─ Controls.tsx       # 底部胶囊控制条（含速度滑块）
-      ├─ SettingsPanel.tsx  # 设置抽屉
-      ├─ ScriptEditor.tsx   # 编辑文案 + 自动保存
-      └─ ScriptList.tsx     # 稿件列表/搜索/新建/删除/清空/导入
+├── index.html
+├── vite.config.ts
+├── public/                  # PWA 图标、manifest、Service Worker
+├── scripts/                 # 图标生成脚本
+└── src/
+    ├── main.tsx
+    ├── App.tsx              # 三视图：list / prompter / editor
+    ├── types.ts
+    ├── lib/                 # 纯函数
+    │   ├── tokens.ts        # 按码点拆字
+    │   ├── speed.ts         # WPN 换算
+    │   ├── editResolve.ts   # 编辑后阅读位置恢复
+    │   ├── format.ts        # 时间格式化
+    │   └── pwa.ts           # PWA 检测
+    ├── store/               # localStorage 持久化
+    │   ├── useScripts.ts    # 稿件 CRUD
+    │   └── useSettings.ts   # 提词设置
+    ├── hooks/
+    │   ├── useAutoScroll.ts # 自动滚动（原生 scrollTop）
+    │   ├── useTimer.ts      # 计时器
+    │   ├── useWakeLock.ts   # 屏幕常亮
+    │   └── useDebouncedCallback.ts
+    └── components/
+        ├── Teleprompter.tsx # 提词主视图
+        ├── ScriptText.tsx   # 逐字渲染
+        ├── Controls.tsx     # 底部字号+速度控制
+        ├── SettingsPanel.tsx# 设置抽屉
+        ├── ScriptEditor.tsx # 稿件编辑
+        ├── ScriptList.tsx   # 稿件列表
+        └── AddToHomeScreenPrompt.tsx
 ```
 
 ---
 
-## 💻 开发
+## 数据存储
 
-### 环境要求
-- Node.js 18+
-- npm（首次安装依赖）
+全部存 `localStorage`，不跨设备同步：
 
-### 安装与运行
-
-```bash
-# 安装依赖
-npm install
-
-# 启动开发服务器（热更新）
-npm run dev
-# 然后浏览器打开 http://localhost:5173
-
-# 跑单元测试
-npm test
-
-# 构建生产产物（生成 dist/index.html 单文件）
-npm run build
-```
-
-构建后把 `dist/index.html` 复制为项目根的 `teleprompter.html` 即是交付物：
-
-```bash
-cp dist/index.html ./teleprompter.html
-```
-
-### 部署（GitHub Pages，自动）
-
-push 到 `main` 即触发 `.github/workflows/deploy.yml` 自动构建并发布。首次需在仓库 **Settings → Pages → Source 选「GitHub Actions」**（一次性）。部署地址：`https://jasinghuang.github.io/Prompter/`。
-
-### 测试
-
-```bash
-npm test          # 单次跑全部
-npm run test:watch # 监听模式
-```
-
-纯函数（速度换算、行分组、编辑定位、时间格式、token 拆分、存储容错）和组件交互（控制条、设置面板、列表、编辑器）均有单元测试覆盖。逐行高亮与滚动的真实视觉效果因依赖浏览器布局，靠手动验证。
+| Key | 内容 |
+|-----|------|
+| `prompter_scripts` | 稿件列表（JSON） |
+| `prompter_settings` | 提词设置 |
+| `prompter_pos_{id}` | 每篇进度记忆 |
+| `prompter_aths_dismissed` | PWA 引导已关闭 |
 
 ---
 
-## 🗄 数据存储
-
-- **稿件**：`localStorage` key `prompter_scripts`（JSON 数组）
-- **设置**：`localStorage` key `prompter_settings`
-- 存储按**域名/文件来源**隔离——不同设备、不同打开方式各自独立，不跨设备同步
-- 读取时若 JSON 损坏会回退到空列表 / 默认设置，不会崩溃
-
----
-
-## ⚠️ 已知限制
+## 已知限制
 
 | 限制 | 说明 |
 |------|------|
-| iOS 屏幕常亮 | Wake Lock API 在 iOS（Safari / iOS Chrome）的 `file://` 下基本不工作，会显示「请到系统设置调长自动锁屏」的降级提示。Chrome on Mac/Win/Android 正常。 |
-| 强制横屏 | iOS 不允许网页强制旋转屏幕，只能提示用户横放设备 + UI 自适应。 |
-| 跨设备同步 | 不支持。各设备的 `localStorage` 独立，换设备要重新粘贴 / 导入稿件。 |
-| iOS 全屏 | 仅 PWA「添加到主屏幕」可全屏；iPhone Safari 不支持普通网页的 Fullscreen API。 |
+| iOS 屏幕常亮 | Wake Lock API 在 iOS Safari 的 `file://` 下不可用，网页版正常 |
+| 跨设备同步 | 不支持，各设备 localStorage 独立 |
+| iOS 全屏 | 仅 PWA「添加到主屏幕」可全屏 |
 
 ---
 
-## 🧭 设计文档
-
-详细的需求确认、架构决策、与参考实现的差异，见 [`docs/superpowers/specs/`](docs/superpowers/specs/) 下的设计文档；分任务的实现计划见 [`docs/superpowers/plans/`](docs/superpowers/plans/)。
-
----
-
-## 📄 许可
+## 许可
 
 个人项目，自由使用。
