@@ -23,7 +23,7 @@ function savePosition(id: string, index: number) {
 }
 
 export default function App() {
-  const { scripts, addScript, updateScript, deleteScript, clearAll, importScript } = useScripts();
+  const { scripts, addScript, updateScript, deleteScript, clearAll } = useScripts();
   const { settings, updateSettings } = useSettings();
 
   const [view, setView] = useState<View>('list');
@@ -93,6 +93,8 @@ export default function App() {
     return (
       <ScriptEditor
         script={active}
+        pauseKeyword={settings.pauseKeyword}
+        onPauseKeywordChange={(kw) => updateSettings({ pauseKeyword: kw })}
         onSave={(id, title, content) => {
           updateScript(id, title, content);
           // 从提词器进入编辑的情形：判断返回后定位
@@ -111,10 +113,6 @@ export default function App() {
     );
   }
 
-  const handleImport = (title: string, content: string) => {
-    importScript(title, content);
-  };
-
   return (
     <>
       <ScriptList
@@ -124,7 +122,6 @@ export default function App() {
         onDelete={deleteScript}
         onDeleteAll={clearAll}
         onCreate={handleCreate}
-        onImport={handleImport}
       />
       <AddToHomeScreenPrompt />
     </>

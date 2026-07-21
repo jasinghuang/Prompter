@@ -13,7 +13,7 @@ afterEach(() => vi.useRealTimers());
 describe('ScriptEditor', () => {
   it('编辑标题 500ms 后触发 onSave（防抖）', () => {
     const onSave = vi.fn();
-    render(<ScriptEditor script={makeScript()} onSave={onSave} onBack={() => {}} />);
+    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} onSave={onSave} onBack={() => {}} />);
     const title = screen.getByDisplayValue('原标题');
     fireEvent.change(title, { target: { value: '新标题' } });
     expect(onSave).not.toHaveBeenCalled();
@@ -23,7 +23,7 @@ describe('ScriptEditor', () => {
 
   it('编辑正文 500ms 后触发 onSave', () => {
     const onSave = vi.fn();
-    render(<ScriptEditor script={makeScript()} onSave={onSave} onBack={() => {}} />);
+    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} onSave={onSave} onBack={() => {}} />);
     const content = screen.getByDisplayValue('原内容');
     fireEvent.change(content, { target: { value: '新内容' } });
     act(() => vi.advanceTimersByTime(500));
@@ -32,7 +32,7 @@ describe('ScriptEditor', () => {
 
   it('返回按钮调用 onBack', () => {
     const onBack = vi.fn();
-    render(<ScriptEditor script={makeScript()} onSave={() => {}} onBack={onBack} />);
+    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} onSave={() => {}} onBack={onBack} />);
     fireEvent.click(screen.getByTitle('返回'));
     expect(onBack).toHaveBeenCalled();
   });

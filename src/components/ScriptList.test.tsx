@@ -64,27 +64,6 @@ describe('ScriptList', () => {
     expect(onDeleteAll).toHaveBeenCalled();
   });
 
-  it('导入面板：粘贴内容后确认调用 onImport', () => {
-    const onImport = vi.fn();
-    render(
-      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onImport={onImport} />
-    );
-    fireEvent.click(screen.getByText('导入'));
-    fireEvent.change(screen.getByPlaceholderText(/稿件标题/), { target: { value: '我的稿' } });
-    fireEvent.change(screen.getByPlaceholderText(/粘贴稿件内容/), { target: { value: '正文内容' } });
-    fireEvent.click(screen.getByText('导入确认'));
-    expect(onImport).toHaveBeenCalledWith('我的稿', '正文内容');
-  });
-
-  it('导入内容为空时确认按钮禁用', () => {
-    const onImport = vi.fn();
-    render(
-      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onImport={onImport} />
-    );
-    fireEvent.click(screen.getByText('导入'));
-    expect(screen.getByText('导入确认')).toBeDisabled();
-  });
-
   it('空状态显示引导', () => {
     render(
       <ScriptList scripts={[]} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />

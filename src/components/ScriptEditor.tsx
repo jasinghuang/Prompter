@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, CirclePause } from 'lucide-react';
 import { Script } from '../types';
 import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
 
 interface Props {
   script: Script;
+  pauseKeyword: string;
+  onPauseKeywordChange: (kw: string) => void;
   onSave: (id: string, title: string, content: string) => void;
   onBack: () => void;
 }
 
-export function ScriptEditor({ script, onSave, onBack }: Props) {
+export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, onSave, onBack }: Props) {
   const [title, setTitle] = useState(script.title);
   const [content, setContent] = useState(script.content);
 
@@ -48,6 +50,20 @@ export function ScriptEditor({ script, onSave, onBack }: Props) {
           placeholder="在此输入或粘贴提词稿件..."
           className="min-h-[40dvh] flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-900 p-6 text-lg leading-relaxed text-neutral-300 focus:border-yellow-500/50 focus:outline-none"
         />
+
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <CirclePause size={16} className="text-neutral-500" />
+            <span className="text-xs text-neutral-400">自动暂停关键词</span>
+          </div>
+          <input
+            type="text"
+            value={pauseKeyword}
+            onChange={(e) => onPauseKeywordChange(e.target.value)}
+            placeholder="滚动到该词时自动暂停（留空关闭）"
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
+          />
+        </div>
       </main>
     </div>
   );

@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Search, Plus, FileText, Edit3, Trash2, Play, Download } from 'lucide-react';
+import { useState } from 'react';
+import { Search, Plus, FileText, Edit3, Trash2, Play } from 'lucide-react';
 import { Script } from '../types';
 
 interface Props {
@@ -9,42 +9,18 @@ interface Props {
   onDelete: (id: string) => void;
   onCreate: () => void;
   onDeleteAll?: () => void;
-  onImport?: (title: string, content: string) => void;
 }
 
-export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDeleteAll, onImport }: Props) {
+export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDeleteAll }: Props) {
   const [query, setQuery] = useState('');
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [importTitle, setImportTitle] = useState('');
-  const [importContent, setImportContent] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = scripts.filter(
     (s) =>
       s.title.toLowerCase().includes(query.toLowerCase()) ||
       s.content.toLowerCase().includes(query.toLowerCase())
   );
-
-  const doImport = (title: string, content: string) => {
-    if (!content.trim()) return;
-    onImport?.(title, content);
-    setShowImport(false);
-    setImportTitle('');
-    setImportContent('');
-  };
-
-  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    for (const f of files) {
-      const text = await f.text();
-      const title = f.name.replace(/\.[^.]+$/, '');
-      onImport?.(title, text);
-    }
-    setShowImport(false);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
 
   return (
     <div className="flex min-h-screen flex-col bg-[#050505] text-white">
@@ -63,14 +39,6 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
               className="w-28 rounded-full border border-neutral-800 bg-neutral-900 py-2 pl-8 pr-2.5 text-sm focus:border-yellow-500/50 focus:outline-none sm:w-48"
             />
           </div>
-          {onImport && (
-            <button
-              onClick={() => setShowImport(true)}
-              className="flex shrink-0 items-center gap-1 rounded-full border border-neutral-700 px-2.5 py-2 text-xs font-bold text-neutral-300 active:scale-95 sm:gap-1.5 sm:px-3 sm:text-sm"
-            >
-              <Download size={15} /><span className="hidden sm:inline">导入</span>
-            </button>
-          )}
           <button
             onClick={onCreate}
             className="flex shrink-0 items-center gap-1 rounded-full bg-yellow-500 px-3 py-2 text-xs font-bold text-black active:scale-95 sm:gap-2 sm:px-4 sm:text-sm"
@@ -143,50 +111,6 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
           </div>
         )}
       </main>
-
-      {/* 导入面板 */}
-      {showImport && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80" onClick={() => setShowImport(false)} />
-          <div className="relative flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-900">
-            <div className="border-b border-neutral-800 p-6 pb-4">
-              <h3 className="flex items-center gap-2 text-xl font-bold"><Download size={20} /> 导入稿件</h3>
-              <p className="mt-1 text-xs leading-relaxed text-neutral-500">
-                从苹果备忘录导入：在备忘录中全选复制，粘贴到下方；或用备忘录「发送副本 → 存储到文件」导出 .txt 后选择文件（支持多选）。
-              </p>
-            </div>
-            <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-6">
-              <input
-                value={importTitle}
-                onChange={(e) => setImportTitle(e.target.value)}
-                placeholder="稿件标题（可选，留空则用导入的内容首句或文件名）"
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 p-3 text-sm focus:border-yellow-500/50 focus:outline-none"
-              />
-              <textarea
-                value={importContent}
-                onChange={(e) => setImportContent(e.target.value)}
-                placeholder="在此粘贴稿件内容..."
-                className="min-h-[30dvh] flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-950 p-4 text-base leading-relaxed focus:border-yellow-500/50 focus:outline-none"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-neutral-700 py-3 text-sm text-neutral-400 transition-colors hover:border-yellow-500/50 hover:text-white"
-              >
-                <Download size={16} /> 选择 .txt / .md 文件
-              </button>
-              <input ref={fileInputRef} type="file" accept=".txt,.md,text/plain,text/markdown" multiple hidden onChange={handleFiles} />
-            </div>
-            <div className="flex gap-3 border-t border-neutral-800 p-4">
-              <button onClick={() => setShowImport(false)} className="flex-1 rounded-xl bg-neutral-800 py-3 text-sm font-bold">取消</button>
-              <button
-                onClick={() => doImport(importTitle, importContent)}
-                disabled={!importContent.trim()}
-                className="flex-1 rounded-xl bg-yellow-500 py-3 text-sm font-bold text-black disabled:opacity-40"
-              >导入确认</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 清空全部确认 */}
       {confirmClear && (
