@@ -80,7 +80,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+      <main className="mx-auto w-full max-w-5xl flex-1 py-8" style={{ paddingLeft: 'calc(1rem + env(safe-area-inset-left))', paddingRight: 'calc(1rem + env(safe-area-inset-right))' }}>
         {scripts.length > 0 && onDeleteAll && (
           <div className="mx-auto mb-4 flex max-w-5xl items-center justify-end gap-3 text-xs text-neutral-600">
             <span>共 {scripts.length} 篇</span>
@@ -112,7 +112,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
                   <div className="rounded-lg bg-neutral-800 p-2 text-neutral-400 group-hover:text-yellow-500">
                     <FileText size={18} />
                   </div>
-                  <div className="flex gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                  <div className="flex gap-1">
                     <button
                       onClick={(e) => { e.stopPropagation(); onEdit(s.id); }}
                       className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white"
@@ -134,7 +134,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
                 </p>
                 <div className="flex items-center gap-2 border-t border-neutral-800/50 pt-3 text-[10px] text-neutral-600">
                   {new Date(s.updatedAt).toLocaleDateString()}
-                  <span className="ml-auto flex items-center gap-1 text-yellow-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                  <span className="ml-auto flex items-center gap-1 text-yellow-500">
                     开始提词 <Play size={12} fill="currentColor" />
                   </span>
                 </div>

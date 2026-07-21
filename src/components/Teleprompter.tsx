@@ -21,8 +21,6 @@ interface Props {
   onEdit: () => void;
 }
 
-const TRANSFORM = (offset: number) => `translate3d(0, ${-offset}px, 0)`;
-
 export function Teleprompter({ script, settings, index, onIndexChange, onChangeSettings, onBack, onEdit }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -36,23 +34,19 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const spansRef = useRef<HTMLElement[]>([]);
-  const dragRef = useRef<{ y: number; offset: number; moved: boolean; id: number } | null>(null);
+  // 用于区分拖拽滚动和点击：记录 pointerdown 位置
+  const touchStartRef = useRef<{ y: number; scrollTop: number } | null>(null);
 
   const charCount = useMemo(() => countReadableChars(script.content), [script.content]);
 
   const { elapsedSeconds, start: startTimer, stop: stopTimer } = useTimer();
   const { request, release } = useWakeLock();
 
-  const applyOffset = useCallback((offset: number) => {
-    const ct = contentRef.current;
-    if (ct) ct.style.transform = TRANSFORM(offset);
-  }, []);
-
-  // 由位移反推中线对应的字（跨字才 setState）
-  const computeActive = useCallback((offset: number) => {
+  // 由 scrollTop 反推中线对应的字
+  const computeActive = useCallback((scrollTop: number) => {
     const vp = viewportRef.current;
     if (!vp) return;
-    const mid = offset + vp.clientHeight / 2;
+    const mid = scrollTop + vp.clientHeight / 2;
     const spans = spansRef.current;
     let idx = -1;
     for (const s of spans) {
@@ -68,7 +62,7 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     }
   }, []);
 
-  // 测量 maxOffset + 缓存 spans + 重新定位到当前字
+  // 测量 maxOffset + 缓存 spans + 跳到当前字
   useLayoutEffect(() => {
     const vp = viewportRef.current;
     const ct = contentRef.current;
@@ -80,9 +74,8 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
       setMaxOffset(max);
       const target = spansRef.current.find((s) => Number(s.dataset.idx) === activeIndexRef.current);
       if (target) {
-        const off = Math.max(0, target.offsetTop - vp.clientHeight / 2 + target.offsetHeight / 2);
-        offsetRef.current = off;
-        ct.style.transform = TRANSFORM(off);
+        vp.scrollTop = target.offsetTop - vp.clientHeight / 2 + target.offsetHeight / 2;
+        scrollRef.current = vp.scrollTop;
       }
     };
     measure();
@@ -95,16 +88,15 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [script.content, settings.fontSize, settings.letterSpacing, settings.lineHeight, settings.horizontalPadding, widthTick]);
 
-  // 像素速度
   const pxPerSec = charCount > 0 && maxOffset > 0 ? (maxOffset / charCount) * (settings.scrollSpeed / 60) : 0;
 
-  const getContent = useCallback(() => contentRef.current, []);
+  const getViewport = useCallback(() => viewportRef.current, []);
   const getMaxOffset = useCallback(() => maxOffsetRef.current, []);
 
-  const offsetRef = useAutoScroll({
+  const scrollRef = useAutoScroll({
     running: isPlaying,
     pxPerSec,
-    getContent,
+    getViewport,
     getMaxOffset,
     onTick: computeActive,
     onReachEnd: () => setIsPlaying(false),
@@ -121,22 +113,32 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
   // 把第 i 个字滚到中线
   const scrollToIndex = useCallback((i: number) => {
     const vp = viewportRef.current;
-    const ct = contentRef.current;
-    if (!vp || !ct) return;
+    if (!vp) return;
     const target = spansRef.current.find((s) => Number(s.dataset.idx) === i);
     if (target) {
-      const off = Math.max(0, target.offsetTop - vp.clientHeight / 2 + target.offsetHeight / 2);
-      offsetRef.current = off;
-      ct.style.transform = TRANSFORM(off);
+      vp.scrollTop = target.offsetTop - vp.clientHeight / 2 + target.offsetHeight / 2;
+      scrollRef.current = vp.scrollTop;
     }
     activeIndexRef.current = i;
     setActiveIndex(i);
-  }, [offsetRef]);
+  }, []);
 
-  // 外部 index 变化（编辑返回 / 首次进入）
+  // 外部 index 变化
   useEffect(() => {
     scrollToIndex(index);
   }, [index, scrollToIndex]);
+
+  // 手动滚动时同步 scrollRef + 高亮
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const onScroll = () => {
+      scrollRef.current = vp.scrollTop;
+      computeActive(vp.scrollTop);
+    };
+    vp.addEventListener('scroll', onScroll, { passive: true });
+    return () => vp.removeEventListener('scroll', onScroll);
+  }, [computeActive]);
 
   // 播放/暂停：计时器 + Wake Lock
   useEffect(() => {
@@ -152,7 +154,7 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     };
   }, [isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 点击按钮后立即失焦
+  // 按钮点击后失焦
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       const btn = (e.target as HTMLElement | null)?.closest('button');
@@ -162,7 +164,7 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     return () => window.removeEventListener('click', onClick, true);
   }, []);
 
-  // 键盘快捷键：空格播放/暂停；↑/↓ 调速度
+  // 键盘：空格 播放/暂停、↑↓ 调速度
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
@@ -185,45 +187,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     return () => window.removeEventListener('keydown', onKey);
   }, [onChangeSettings, settings.scrollSpeed]);
 
-  const seekToIndex = useCallback((i: number) => {
-    const len = script.content.length;
-    scrollToIndex(Math.min(Math.max(0, i), Math.max(0, len - 1)));
-  }, [script.content.length, scrollToIndex]);
-
-  // 统一 pointer 交互：拖拽自由滚动 / 单击播放暂停
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    dragRef.current = { y: e.clientY, offset: offsetRef.current, moved: false, id: e.pointerId };
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-  }, [offsetRef]);
-
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    const d = dragRef.current;
-    if (!d || d.id !== e.pointerId) return;
-    const dy = e.clientY - d.y;
-    if (!d.moved && Math.abs(dy) < 6) return;
-    d.moved = true;
-    const max = maxOffsetRef.current;
-    const next = Math.max(0, Math.min(max, d.offset - dy));
-    offsetRef.current = next;
-    applyOffset(next);
-  }, [applyOffset, offsetRef]);
-
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
-    const d = dragRef.current;
-    dragRef.current = null;
-    if (!d || d.id !== e.pointerId) return;
-    if (!d.moved) {
-      // 单击 → 切换播放/暂停
-      setIsPlaying((p) => !p);
-    } else {
-      computeActive(offsetRef.current);
-    }
-  }, [computeActive, offsetRef]);
-
   const handleBack = () => {
     onIndexChange(activeIndexRef.current);
     onBack();
@@ -232,6 +195,22 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     onIndexChange(activeIndexRef.current);
     onEdit();
   };
+
+  // 区分拖拽滚动与点击：手指移动 < 5px 视为点击，否则为拖拽（浏览器处理原生滚动）
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    touchStartRef.current = { y: e.clientY, scrollTop: viewportRef.current?.scrollTop ?? 0 };
+  }, []);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) return;
+    if (Math.abs(e.clientY - start.y) > 5) return;
+    // 点击字 span → 已由 ScriptText 的 onClick 处理跳转，不切播放
+    if ((e.target as HTMLElement).closest('span[data-idx]')) return;
+    // 点击空白区域 → 切换播放/暂停
+    setIsPlaying((p) => !p);
+  }, []);
 
   const pad = `${settings.horizontalPadding}%`;
 
@@ -261,7 +240,7 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
         </div>
       </div>
 
-      {/* 阅读区高亮竖线：两侧圆角矩形，左边避开刘海 */}
+      {/* 阅读区高亮竖线 */}
       <div className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2" style={{ left: 'calc(0.75rem + env(safe-area-inset-left))' }}>
         <div className="h-28 w-1 rounded-full bg-yellow-500/70 shadow-[0_0_20px_rgba(234,179,8,0.6)]" />
       </div>
@@ -269,10 +248,10 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
         <div className="h-28 w-1 rounded-full bg-yellow-500/70 shadow-[0_0_20px_rgba(234,179,8,0.6)]" />
       </div>
 
-      {/* 阅读区：viewport（overflow hidden）+ content（transform 位移）。拖拽/单击/点字 */}
+      {/* 阅读区：原生 overflow 滚动，手指拖拽带惯性 */}
       <div
         ref={viewportRef}
-        className={`teleprompter-touch absolute inset-0 overflow-hidden ${settings.mirror ? 'mirror-mode' : ''}`}
+        className={`teleprompter-touch absolute inset-0 z-0 overflow-y-auto ${settings.mirror ? 'mirror-mode' : ''}`}
         style={{
           fontSize: `${settings.fontSize}px`,
           lineHeight: settings.lineHeight,
@@ -280,25 +259,24 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
           textAlign: settings.textAlign,
           paddingLeft: pad,
           paddingRight: pad,
+          // iOS 平滑惯性滚动
+          WebkitOverflowScrolling: 'touch',
         }}
       >
         <div
           ref={contentRef}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          className="mx-auto max-w-4xl cursor-pointer pb-[18vh] pt-[16vh]"
-          style={{ position: 'relative', transform: TRANSFORM(0), willChange: 'transform' }}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          className="mx-auto max-w-4xl pb-[18vh] pt-[16vh]"
         >
           <ScriptText
             content={script.content}
-            onTokenClick={(i) => seekToIndex(i)}
+            onTokenClick={(i) => scrollToIndex(i)}
           />
         </div>
       </div>
 
-      {/* 底部控制条：字号 + 速度 */}
+      {/* 底部控制条 */}
       <Controls
         visible={!isPlaying}
         fontSize={settings.fontSize}
@@ -307,7 +285,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
         onSpeedChange={(v) => onChangeSettings({ scrollSpeed: v })}
       />
 
-      {/* WakeLock 失败提示 */}
       {wakeLockFailed && (
         <div className="absolute inset-x-0 bottom-36 z-40 mx-auto w-fit rounded-full bg-black/80 px-4 py-2 text-center text-xs text-yellow-400/90 backdrop-blur">
           当前设备无法自动保持常亮，请在系统设置中调长自动锁屏
