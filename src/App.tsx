@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ScriptList } from './components/ScriptList';
 import { ScriptEditor } from './components/ScriptEditor';
 import { Teleprompter } from './components/Teleprompter';
+import { AddToHomeScreenPrompt } from './components/AddToHomeScreenPrompt';
 import { useScripts } from './store/useScripts';
 import { useSettings } from './store/useSettings';
 import { resolveIndexAfterEdit } from './lib/editResolve';
@@ -102,14 +103,17 @@ export default function App() {
   };
 
   return (
-    <ScriptList
-      scripts={scripts}
-      onOpen={openPrompter}
-      onEdit={(id) => { setActiveId(id); setEditSnapshot(null); setView('editor'); }}
-      onDelete={deleteScript}
-      onDeleteAll={clearAll}
-      onCreate={handleCreate}
-      onImport={handleImport}
-    />
+    <>
+      <ScriptList
+        scripts={scripts}
+        onOpen={openPrompter}
+        onEdit={(id) => { setActiveId(id); setEditSnapshot(null); setView('editor'); }}
+        onDelete={deleteScript}
+        onDeleteAll={clearAll}
+        onCreate={handleCreate}
+        onImport={handleImport}
+      />
+      <AddToHomeScreenPrompt />
+    </>
   );
 }
