@@ -1,0 +1,9 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - heading "稿件管理" [level=1] [ref=e10]
+      - textbox "搜索稿件..." [ref=e15]
+      - button "导入" [ref=e16]
+      - button "新建稿件" [ref=e20]
+  - main [ref=e22]:
+    - paragraph [ref=e28]: 还没有稿件，点击右上角「新建稿件」去新建第一篇提词脚本吧

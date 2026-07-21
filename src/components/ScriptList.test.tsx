@@ -21,7 +21,7 @@ describe('ScriptList', () => {
     render(
       <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
     );
-    fireEvent.change(screen.getByPlaceholderText('搜索稿件...'), { target: { value: '视频' } });
+    fireEvent.change(screen.getByPlaceholderText('搜索...'), { target: { value: '视频' } });
     expect(screen.getByText('视频脚本')).toBeInTheDocument();
     expect(screen.queryByText('会议发言')).toBeNull();
   });
@@ -31,7 +31,7 @@ describe('ScriptList', () => {
     render(
       <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={onCreate} />
     );
-    fireEvent.click(screen.getByText('新建稿件'));
+    fireEvent.click(screen.getByRole('button', { name: /新建|稿/ }));
     expect(onCreate).toHaveBeenCalled();
   });
 

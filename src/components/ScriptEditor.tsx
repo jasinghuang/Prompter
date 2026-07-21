@@ -46,7 +46,7 @@ export function ScriptEditor({ script, onSave, onBack }: Props) {
           value={content}
           onChange={(e) => onContentChange(e.target.value)}
           placeholder="在此输入或粘贴提词稿件..."
-          className="min-h-[60vh] flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-900 p-6 text-lg leading-relaxed text-neutral-300 focus:border-yellow-500/50 focus:outline-none"
+          className="min-h-[40dvh] flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-900 p-6 text-lg leading-relaxed text-neutral-300 focus:border-yellow-500/50 focus:outline-none"
         />
       </main>
     </div>

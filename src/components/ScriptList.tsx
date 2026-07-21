@@ -48,34 +48,34 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
 
   return (
     <div className="flex min-h-screen flex-col bg-[#050505] text-white">
-      <header className="sticky top-0 z-50 border-b border-neutral-900 bg-black/60 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl">
-        <div className="mx-auto flex max-w-5xl items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-yellow-500 text-black">
-            <FileText size={20} />
+      <header className="sticky top-0 z-50 border-b border-neutral-900 bg-black/60 px-3 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl">
+        <div className="mx-auto flex max-w-5xl items-center gap-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-yellow-500 text-black sm:h-9 sm:w-9">
+            <FileText size={18} />
           </div>
-          <h1 className="text-base font-bold">稿件管理</h1>
+          <h1 className="hidden text-base font-bold sm:block">稿件管理</h1>
           <div className="relative ml-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-600" size={16} />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-600" size={14} />
             <input
-              placeholder="搜索稿件..."
+              placeholder="搜索..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-40 rounded-full border border-neutral-800 bg-neutral-900 py-2 pl-9 pr-3 text-sm focus:border-yellow-500/50 focus:outline-none sm:w-64"
+              className="w-28 rounded-full border border-neutral-800 bg-neutral-900 py-2 pl-8 pr-2.5 text-sm focus:border-yellow-500/50 focus:outline-none sm:w-48"
             />
           </div>
           {onImport && (
             <button
               onClick={() => setShowImport(true)}
-              className="flex items-center gap-1.5 rounded-full border border-neutral-700 px-3 py-2 text-sm font-bold text-neutral-300 active:scale-95"
+              className="flex shrink-0 items-center gap-1 rounded-full border border-neutral-700 px-2.5 py-2 text-xs font-bold text-neutral-300 active:scale-95 sm:gap-1.5 sm:px-3 sm:text-sm"
             >
-              <Upload size={16} /> 导入
+              <Upload size={15} /><span className="hidden sm:inline">导入</span>
             </button>
           )}
           <button
             onClick={onCreate}
-            className="flex items-center gap-2 rounded-full bg-yellow-500 px-4 py-2 text-sm font-bold text-black active:scale-95"
+            className="flex shrink-0 items-center gap-1 rounded-full bg-yellow-500 px-3 py-2 text-xs font-bold text-black active:scale-95 sm:gap-2 sm:px-4 sm:text-sm"
           >
-            <Plus size={18} /> 新建稿件
+            <Plus size={16} /><span className="hidden sm:inline">新建</span><span className="sm:hidden">稿</span>
           </button>
         </div>
       </header>
@@ -166,7 +166,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
                 value={importContent}
                 onChange={(e) => setImportContent(e.target.value)}
                 placeholder="在此粘贴稿件内容..."
-                className="min-h-[40vh] flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-950 p-4 text-base leading-relaxed focus:border-yellow-500/50 focus:outline-none"
+                className="min-h-[30dvh] flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-950 p-4 text-base leading-relaxed focus:border-yellow-500/50 focus:outline-none"
               />
               <button
                 onClick={() => fileInputRef.current?.click()}

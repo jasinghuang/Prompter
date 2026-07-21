@@ -6,36 +6,16 @@ html, body, #root {
 }
 
 body {
-  background: #050505;
+  background: #000;
   color: #fff;
   font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
   overscroll-behavior: none;
 }
 
-/* 逐字/逐行三态高亮 */
+/* 所有文字统一白色 */
 .word {
-  display: inline-block;
-  transition: color 0.25s ease;
+  display: inline;
   cursor: pointer;
-  border-radius: 4px;
-  padding: 0 1px;
-}
-.word[data-state='read'] {
-  color: #525252; /* neutral-600 */
-}
-.word[data-state='current'] {
-  color: #eab308; /* yellow-500 */
-  font-weight: 800;
-}
-.word[data-state='unread'] {
-  color: #a3a3a3; /* neutral-400 */
-}
-
-/* 阅读区色块：2 行高的淡黄带，上下淡边线 */
-.reading-band {
-  background: rgba(234, 179, 8, 0.07);
-  border-top: 1px solid rgba(234, 179, 8, 0.18);
-  border-bottom: 1px solid rgba(234, 179, 8, 0.18);
 }
 
 /* 镜像翻转（分光镜反射） */
@@ -45,7 +25,6 @@ body {
 
 /* 提词器内禁用长按选择文字，避免误触 */
 .teleprompter-touch {
-  /* 允许垂直滚动，但禁用双击缩放，使双击能可靠触发暂停 */
   touch-action: pan-y manipulation;
 }
 .teleprompter-touch, .teleprompter-touch * {
@@ -53,7 +32,6 @@ body {
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
-/* 播放/暂停等按钮允许点击但不缩放 */
 button {
   touch-action: manipulation;
 }

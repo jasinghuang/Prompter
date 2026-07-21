@@ -3,55 +3,36 @@ import { render, fireEvent, screen } from '@testing-library/react';
 import { Controls } from './Controls';
 
 const baseProps = {
-  mode: 'manual' as const,
-  isPlaying: false,
-  wpn: 160,
-  onSetMode: vi.fn(),
-  onTogglePlay: vi.fn(),
-  onJump: vi.fn(),
+  fontSize: 64,
+  speed: 160,
+  onFontSizeChange: vi.fn(),
   onSpeedChange: vi.fn(),
 };
 
 describe('Controls', () => {
-  it('点手动模式按钮调用 onSetMode("manual")', () => {
-    const onSetMode = vi.fn();
-    render(<Controls {...baseProps} onSetMode={onSetMode} />);
-    fireEvent.click(screen.getByTitle('手动模式'));
-    expect(onSetMode).toHaveBeenCalledWith('manual');
-  });
-
-  it('点播放按钮调用 onTogglePlay', () => {
-    const onTogglePlay = vi.fn();
-    render(<Controls {...baseProps} onTogglePlay={onTogglePlay} />);
-    fireEvent.click(screen.getByTitle('播放'));
-    expect(onTogglePlay).toHaveBeenCalled();
-  });
-
-  it('快进/后退调用 onJump(+20 / -20)', () => {
-    const onJump = vi.fn();
-    render(<Controls {...baseProps} onJump={onJump} />);
-    fireEvent.click(screen.getByTitle('后退'));
-    fireEvent.click(screen.getByTitle('快进'));
-    expect(onJump).toHaveBeenNthCalledWith(1, -20);
-    expect(onJump).toHaveBeenNthCalledWith(2, 20);
-  });
-
-  it('速度滑块仅在 auto 模式显示', () => {
-    const { rerender } = render(<Controls {...baseProps} mode="manual" />);
-    expect(screen.queryByLabelText('速度')).toBeNull();
-    rerender(<Controls {...baseProps} mode="auto" />);
+  it('渲染字号和速度滑块', () => {
+    render(<Controls {...baseProps} />);
+    expect(screen.getByLabelText('字号')).toBeInTheDocument();
     expect(screen.getByLabelText('速度')).toBeInTheDocument();
+  });
+
+  it('拖动字号滑块调用 onFontSizeChange', () => {
+    const onFontSizeChange = vi.fn();
+    render(<Controls {...baseProps} onFontSizeChange={onFontSizeChange} />);
+    fireEvent.change(screen.getByLabelText('字号'), { target: { value: '48' } });
+    expect(onFontSizeChange).toHaveBeenCalledWith(48);
   });
 
   it('拖动速度滑块调用 onSpeedChange', () => {
     const onSpeedChange = vi.fn();
-    render(<Controls {...baseProps} mode="auto" onSpeedChange={onSpeedChange} />);
+    render(<Controls {...baseProps} onSpeedChange={onSpeedChange} />);
     fireEvent.change(screen.getByLabelText('速度'), { target: { value: '240' } });
     expect(onSpeedChange).toHaveBeenCalledWith(240);
   });
 
-  it('播放中按钮标题为"暂停"', () => {
-    render(<Controls {...baseProps} isPlaying mode="manual" />);
-    expect(screen.getByTitle('暂停')).toBeInTheDocument();
+  it('显示当前字号和速度值', () => {
+    render(<Controls {...baseProps} fontSize={72} speed={200} />);
+    expect(screen.getByText('72')).toBeInTheDocument();
+    expect(screen.getByText('200')).toBeInTheDocument();
   });
 });

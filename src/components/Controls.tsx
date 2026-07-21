@@ -1,87 +1,45 @@
-import { MousePointer2, Clock, Play, Pause, Rewind, FastForward } from 'lucide-react';
-import { ScrollMode } from '../types';
+import { Type, Gauge } from 'lucide-react';
+import { FONT_SIZE_MIN, FONT_SIZE_MAX } from '../types';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
 
 interface Props {
-  mode: ScrollMode;
-  isPlaying: boolean;
-  wpn: number;
-  onSetMode: (mode: ScrollMode) => void;
-  onTogglePlay: () => void;
-  onJump: (delta: number) => void;
-  onSpeedChange: (wpn: number) => void;
+  fontSize: number;
+  speed: number;
+  onFontSizeChange: (v: number) => void;
+  onSpeedChange: (v: number) => void;
 }
 
-export function Controls({ mode, isPlaying, wpn, onSetMode, onTogglePlay, onJump, onSpeedChange }: Props) {
+export function Controls({ fontSize, speed, onFontSizeChange, onSpeedChange }: Props) {
   return (
-    <div className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border border-neutral-800 bg-neutral-900/85 p-2 shadow-2xl backdrop-blur-xl">
-      {/* 模式 */}
-      <div className="flex items-center gap-1 px-2">
-        <button
-          title="手动模式"
-          onClick={() => onSetMode('manual')}
-          className={`rounded-full p-2 transition-all ${
-            mode === 'manual' ? 'bg-yellow-500 text-black' : 'text-neutral-500 hover:text-white'
-          }`}
-        >
-          <MousePointer2 size={18} />
-        </button>
-        <button
-          title="自动模式"
-          onClick={() => onSetMode('auto')}
-          className={`rounded-full p-2 transition-all ${
-            mode === 'auto' ? 'bg-yellow-500 text-black' : 'text-neutral-500 hover:text-white'
-          }`}
-        >
-          <Clock size={18} />
-        </button>
+    <div className="absolute bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 flex flex-col gap-2 rounded-2xl border border-neutral-800/40 bg-neutral-900/85 px-3 py-2.5 shadow-2xl backdrop-blur-xl sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex flex-1 items-center gap-1.5">
+        <Type size={14} className="shrink-0 text-neutral-600" />
+        <input
+          type="range"
+          aria-label="字号"
+          min={FONT_SIZE_MIN}
+          max={FONT_SIZE_MAX}
+          step={2}
+          value={fontSize}
+          onChange={(e) => onFontSizeChange(parseInt(e.target.value, 10))}
+          className="h-1 min-w-0 flex-1 accent-yellow-500"
+        />
+        <span className="w-6 shrink-0 text-right font-mono text-[11px] tabular-nums text-neutral-400">{fontSize}</span>
       </div>
-
-      {/* 播放控制 */}
-      <div className="flex items-center gap-1 border-l border-neutral-800 px-2">
-        <button
-          title="后退"
-          onClick={() => onJump(-20)}
-          className="rounded-full p-2 text-neutral-500 transition-all hover:text-white"
-        >
-          <Rewind size={18} />
-        </button>
-        <button
-          title={isPlaying ? '暂停' : '播放'}
-          onClick={onTogglePlay}
-          className={`rounded-full p-3 transition-all ${
-            isPlaying
-              ? 'bg-yellow-500/10 text-yellow-500'
-              : 'bg-yellow-500 text-black shadow-[0_0_15px_rgba(234,179,8,0.4)]'
-          }`}
-        >
-          {isPlaying ? <Pause size={22} /> : <Play size={22} fill="currentColor" />}
-        </button>
-        <button
-          title="快进"
-          onClick={() => onJump(20)}
-          className="rounded-full p-2 text-neutral-500 transition-all hover:text-white"
-        >
-          <FastForward size={18} />
-        </button>
+      <div className="flex flex-1 items-center gap-1.5">
+        <Gauge size={14} className="shrink-0 text-neutral-600" />
+        <input
+          type="range"
+          aria-label="速度"
+          min={SPEED_MIN}
+          max={SPEED_MAX}
+          step={10}
+          value={speed}
+          onChange={(e) => onSpeedChange(parseInt(e.target.value, 10))}
+          className="h-1 min-w-0 flex-1 accent-yellow-500"
+        />
+        <span className="w-7 shrink-0 text-right font-mono text-[11px] tabular-nums text-neutral-400">{speed}</span>
       </div>
-
-      {/* 速度滑块：仅 auto 模式，直接在控制条上调节，无需进设置 */}
-      {mode === 'auto' && (
-        <div className="flex items-center gap-2 border-l border-neutral-800 px-3" title="速度">
-          <input
-            type="range"
-            aria-label="速度"
-            min={SPEED_MIN}
-            max={SPEED_MAX}
-            step={10}
-            value={wpn}
-            onChange={(e) => onSpeedChange(parseInt(e.target.value, 10))}
-            className="h-1 w-24 accent-yellow-500"
-          />
-          <span className="w-8 text-[10px] font-bold tabular-nums text-neutral-400">{wpn}</span>
-        </div>
-      )}
     </div>
   );
 }
