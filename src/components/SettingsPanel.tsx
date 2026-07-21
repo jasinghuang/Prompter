@@ -128,6 +128,20 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
               <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${settings.mirror ? 'left-7' : 'left-1'}`} />
             </button>
           </div>
+
+          {/* 自动暂停关键词 */}
+          <div className="space-y-2 rounded-xl bg-neutral-800 p-4">
+            <div className="flex items-center gap-2 text-sm text-neutral-400">
+              <span className="text-[10px] uppercase tracking-wider text-neutral-500">⏸ 自动暂停</span>
+            </div>
+            <input
+              type="text"
+              value={settings.pauseKeyword}
+              onChange={(e) => onChange({ pauseKeyword: e.target.value })}
+              placeholder="输入关键词，滚动到时自动暂停（留空关闭）"
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -140,6 +140,27 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     return () => vp.removeEventListener('scroll', onScroll);
   }, [computeActive]);
 
+  // 自动暂停：当 activeIndex 落入关键词范围时暂停
+  const pausedAtRef = useRef(-1);
+
+  useEffect(() => {
+    const kw = settings.pauseKeyword;
+    if (!isPlaying || !kw) return;
+    // 从 activeIndex 往前找 max(kw.length, 30) 个字符，检查是否匹配
+    const ctx = script.content.substring(
+      Math.max(0, activeIndex - Math.max(kw.length, 30)),
+      activeIndex + kw.length,
+    );
+    const idx = ctx.indexOf(kw);
+    if (idx !== -1) {
+      const absIdx = Math.max(0, activeIndex - Math.max(kw.length, 30)) + idx;
+      if (pausedAtRef.current !== absIdx) {
+        pausedAtRef.current = absIdx;
+        setIsPlaying(false);
+      }
+    }
+  }, [activeIndex, isPlaying, script.content, settings.pauseKeyword]);
+
   // 播放/暂停：计时器 + Wake Lock
   useEffect(() => {
     if (isPlaying) {

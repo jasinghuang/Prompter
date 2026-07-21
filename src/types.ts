@@ -20,6 +20,8 @@ export interface TeleprompterSettings {
   horizontalPadding: number;
   /** 文本对齐，默认 left */
   textAlign: TextAlign;
+  /** 自动暂停关键词（空字符串 = 不启用），默认 '' */
+  pauseKeyword: string;
 }
 
 export const DEFAULT_SETTINGS: TeleprompterSettings = {
@@ -30,6 +32,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
   mirror: false,
   horizontalPadding: 8,
   textAlign: 'left',
+  pauseKeyword: '',
 };
 
 export const FONT_SIZE_MIN = 24;
