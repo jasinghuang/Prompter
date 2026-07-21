@@ -1,4 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <rect width="1024" height="1024" rx="224" fill="#000000"/>
-  <text x="512" y="512" font-family="-apple-system, 'PingFang SC', 'Helvetica Neue', sans-serif" font-size="620" font-weight="900" fill="#facc15" text-anchor="middle" dominant-baseline="central">提</text>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1a1a"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="200" fill="url(#bg)"/>
+
+  <!-- Subtle text rows above center -->
+  <rect x="322" y="330" width="380" height="24" rx="12" fill="#3a3a3a"/>
+  <rect x="292" y="380" width="440" height="24" rx="12" fill="#2a2a2a"/>
+  <rect x="342" y="430" width="340" height="24" rx="12" fill="#333"/>
+
+  <!-- Active reading line (glowing yellow) -->
+  <rect x="262" y="490" width="500" height="32" rx="16" fill="#eab308" filter="url(#glow)"/>
+
+  <!-- Subtle text rows below center -->
+  <rect x="302" y="560" width="420" height="24" rx="12" fill="#2a2a2a"/>
+  <rect x="342" y="610" width="340" height="24" rx="12" fill="#3a3a3a"/>
+  <rect x="322" y="660" width="380" height="24" rx="12" fill="#2a2a2a"/>
+
+  <!-- Reading zone vertical markers -->
+  <rect x="140" y="395" width="10" height="300" rx="5" fill="#eab308" opacity="0.5" filter="url(#softGlow)"/>
+  <rect x="874" y="395" width="10" height="300" rx="5" fill="#eab308" opacity="0.5" filter="url(#softGlow)"/>
+
+  <!-- Small accent dots above the side markers -->
+  <circle cx="145" cy="365" r="12" fill="#eab308" opacity="0.25"/>
+  <circle cx="879" cy="365" r="12" fill="#eab308" opacity="0.25"/>
 </svg>
