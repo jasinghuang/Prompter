@@ -1,0 +1,17 @@
+{
+  "name": "提词器",
+  "short_name": "提词器",
+  "description": "为短视频拍摄设计的手机提词器",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "start_url": "/Prompter/",
+  "scope": "/Prompter/",
+  "icons": [
+    { "src": "/Prompter/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/Prompter/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/Prompter/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/Prompter/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
