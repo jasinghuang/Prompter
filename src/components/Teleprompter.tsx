@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Edit3 } from 'lucide-react';
+import { ChevronLeft, Edit3, Settings } from 'lucide-react';
 import { Script, TeleprompterSettings } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { estimateDurationSeconds, SPEED_MIN, SPEED_MAX } from '../lib/speed';
@@ -9,6 +9,7 @@ import { useAutoScroll } from '../hooks/useAutoScroll';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { ScriptText } from './ScriptText';
 import { Controls } from './Controls';
+import { SettingsPanel } from './SettingsPanel';
 
 interface Props {
   script: Script;
@@ -24,6 +25,7 @@ const TRANSFORM = (offset: number) => `translate3d(0, ${-offset}px, 0)`;
 
 export function Teleprompter({ script, settings, index, onIndexChange, onChangeSettings, onBack, onEdit }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [wakeLockFailed, setWakeLockFailed] = useState(false);
   const [widthTick, setWidthTick] = useState(0);
   const [activeIndex, setActiveIndex] = useState(index);
@@ -253,13 +255,21 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
             <ChevronLeft size={18} />
           </button>
           <div className="flex items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-red-500" style={{ boxShadow: isPlaying ? '0 0 6px #ef4444' : 'none' }} />
+            <span className="h-1.5 w-1.5 rounded-full" style={{
+              backgroundColor: isPlaying ? '#ef4444' : '#525252',
+              boxShadow: isPlaying ? '0 0 6px #ef4444' : 'none',
+            }} />
             <span className="font-mono text-xs tabular-nums text-neutral-200">{formatTime(elapsedSeconds)}</span>
           </div>
         </div>
-        <button onClick={handleEdit} className="rounded-full bg-neutral-900/60 p-2.5 text-neutral-400 hover:text-white" aria-label="编辑">
-          <Edit3 size={18} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={handleEdit} className="rounded-full bg-neutral-900/60 p-2.5 text-neutral-400 hover:text-white" aria-label="编辑">
+            <Edit3 size={18} />
+          </button>
+          <button onClick={() => setShowSettings(true)} className="rounded-full bg-neutral-900/60 p-2.5 text-neutral-400 hover:text-white" aria-label="设置">
+            <Settings size={18} />
+          </button>
+        </div>
       </div>
 
       {/* 进度条 */}
@@ -271,12 +281,12 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
         />
       </div>
 
-      {/* 阅读区箭头：左右两边大箭头指向中间 */}
-      <div className="pointer-events-none absolute left-1.5 top-1/2 z-10 -translate-y-1/2">
-        <ChevronRight size={56} className="text-yellow-500/35" strokeWidth={1.5} />
+      {/* 阅读区高亮竖线：两侧圆角矩形 */}
+      <div className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2">
+        <div className="h-24 w-1 rounded-full bg-yellow-500/40 shadow-[0_0_12px_rgba(234,179,8,0.3)]" />
       </div>
-      <div className="pointer-events-none absolute right-1.5 top-1/2 z-10 -translate-y-1/2">
-        <ChevronLeft size={56} className="text-yellow-500/35" strokeWidth={1.5} />
+      <div className="pointer-events-none absolute right-3 top-1/2 z-10 -translate-y-1/2">
+        <div className="h-24 w-1 rounded-full bg-yellow-500/40 shadow-[0_0_12px_rgba(234,179,8,0.3)]" />
       </div>
 
       {/* 阅读区：viewport（overflow hidden）+ content（transform 位移）。拖拽/单击/点字 */}
@@ -322,6 +332,13 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
           当前设备无法自动保持常亮，请在系统设置中调长自动锁屏
         </div>
       )}
+
+      <SettingsPanel
+        open={showSettings}
+        settings={settings}
+        onChange={onChangeSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   );
 }

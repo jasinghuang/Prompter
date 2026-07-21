@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Search, Plus, FileText, Edit3, Trash2, Play, Upload } from 'lucide-react';
+import { Search, Plus, FileText, Edit3, Trash2, Play, Download } from 'lucide-react';
 import { Script } from '../types';
 
 interface Props {
@@ -68,7 +68,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
               onClick={() => setShowImport(true)}
               className="flex shrink-0 items-center gap-1 rounded-full border border-neutral-700 px-2.5 py-2 text-xs font-bold text-neutral-300 active:scale-95 sm:gap-1.5 sm:px-3 sm:text-sm"
             >
-              <Upload size={15} /><span className="hidden sm:inline">导入</span>
+              <Download size={15} /><span className="hidden sm:inline">导入</span>
             </button>
           )}
           <button
@@ -112,7 +112,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
                   <div className="rounded-lg bg-neutral-800 p-2 text-neutral-400 group-hover:text-yellow-500">
                     <FileText size={18} />
                   </div>
-                  <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="flex gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
                     <button
                       onClick={(e) => { e.stopPropagation(); onEdit(s.id); }}
                       className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white"
@@ -134,7 +134,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
                 </p>
                 <div className="flex items-center gap-2 border-t border-neutral-800/50 pt-3 text-[10px] text-neutral-600">
                   {new Date(s.updatedAt).toLocaleDateString()}
-                  <span className="ml-auto flex items-center gap-1 text-yellow-500 opacity-0 group-hover:opacity-100">
+                  <span className="ml-auto flex items-center gap-1 text-yellow-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
                     开始提词 <Play size={12} fill="currentColor" />
                   </span>
                 </div>
@@ -150,7 +150,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
           <div className="absolute inset-0 bg-black/80" onClick={() => setShowImport(false)} />
           <div className="relative flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-900">
             <div className="border-b border-neutral-800 p-6 pb-4">
-              <h3 className="flex items-center gap-2 text-xl font-bold"><Upload size={20} /> 导入稿件</h3>
+              <h3 className="flex items-center gap-2 text-xl font-bold"><Download size={20} /> 导入稿件</h3>
               <p className="mt-1 text-xs leading-relaxed text-neutral-500">
                 从苹果备忘录导入：在备忘录中全选复制，粘贴到下方；或用备忘录「发送副本 → 存储到文件」导出 .txt 后选择文件（支持多选）。
               </p>
@@ -172,7 +172,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
                 onClick={() => fileInputRef.current?.click()}
                 className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-neutral-700 py-3 text-sm text-neutral-400 transition-colors hover:border-yellow-500/50 hover:text-white"
               >
-                <Upload size={16} /> 选择 .txt / .md 文件
+                <Download size={16} /> 选择 .txt / .md 文件
               </button>
               <input ref={fileInputRef} type="file" accept=".txt,.md,text/plain,text/markdown" multiple hidden onChange={handleFiles} />
             </div>
