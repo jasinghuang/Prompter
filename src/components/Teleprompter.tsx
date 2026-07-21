@@ -205,10 +205,9 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     const start = touchStartRef.current;
     touchStartRef.current = null;
     if (!start) return;
-    if (Math.abs(e.clientY - start.y) > 5) return;
-    // 点击字 span → 已由 ScriptText 的 onClick 处理跳转，不切播放
-    if ((e.target as HTMLElement).closest('span[data-idx]')) return;
-    // 点击空白区域 → 切换播放/暂停
+    // 手指移动超过 8px → 拖拽滚动，不触发点击
+    if (Math.abs(e.clientY - start.y) > 8) return;
+    // 点击任意位置 → 切换播放/暂停
     setIsPlaying((p) => !p);
   }, []);
 
@@ -251,6 +250,8 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
       {/* 阅读区：原生 overflow 滚动，手指拖拽带惯性 */}
       <div
         ref={viewportRef}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
         className={`teleprompter-touch absolute inset-0 z-0 overflow-y-auto ${settings.mirror ? 'mirror-mode' : ''}`}
         style={{
           fontSize: `${settings.fontSize}px`,
@@ -259,20 +260,14 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
           textAlign: settings.textAlign,
           paddingLeft: pad,
           paddingRight: pad,
-          // iOS 平滑惯性滚动
           WebkitOverflowScrolling: 'touch',
         }}
       >
         <div
           ref={contentRef}
-          onPointerDown={handlePointerDown}
-          onPointerUp={handlePointerUp}
           className="mx-auto max-w-4xl pb-[18vh] pt-[16vh]"
         >
-          <ScriptText
-            content={script.content}
-            onTokenClick={(i) => scrollToIndex(i)}
-          />
+          <ScriptText content={script.content} />
         </div>
       </div>
 

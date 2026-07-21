@@ -15,7 +15,6 @@ body {
 /* 所有文字统一白色 */
 .word {
   display: inline;
-  cursor: pointer;
 }
 
 /* 镜像翻转（分光镜反射） */
