@@ -5,6 +5,7 @@ import { Controls } from './Controls';
 const baseProps = {
   fontSize: 64,
   speed: 160,
+  visible: true,
   onFontSizeChange: vi.fn(),
   onSpeedChange: vi.fn(),
 };

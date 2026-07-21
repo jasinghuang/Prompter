@@ -48,7 +48,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
 
   return (
     <div className="flex min-h-screen flex-col bg-[#050505] text-white">
-      <header className="sticky top-0 z-50 border-b border-neutral-900 bg-black/60 px-3 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-neutral-900 bg-black/60 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl" style={{ paddingLeft: 'calc(0.75rem + env(safe-area-inset-left))', paddingRight: 'calc(0.75rem + env(safe-area-inset-right))' }}>
         <div className="mx-auto flex max-w-5xl items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-yellow-500 text-black sm:h-9 sm:w-9">
             <FileText size={18} />

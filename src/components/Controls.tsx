@@ -5,13 +5,16 @@ import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
 interface Props {
   fontSize: number;
   speed: number;
+  visible: boolean;
   onFontSizeChange: (v: number) => void;
   onSpeedChange: (v: number) => void;
 }
 
-export function Controls({ fontSize, speed, onFontSizeChange, onSpeedChange }: Props) {
+export function Controls({ fontSize, speed, visible, onFontSizeChange, onSpeedChange }: Props) {
   return (
-    <div className="absolute bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 flex flex-col gap-2 rounded-2xl border border-neutral-800/40 bg-neutral-900/85 px-3 py-2.5 shadow-2xl backdrop-blur-xl sm:flex-row sm:items-center sm:gap-3">
+    <div className={`absolute bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 flex flex-col gap-2 rounded-2xl border border-neutral-800/40 bg-neutral-900/85 px-3 py-2.5 shadow-2xl backdrop-blur-xl transition-all duration-300 sm:flex-row sm:items-center sm:gap-3 ${
+      visible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'
+    }`}>
       <div className="flex flex-1 items-center gap-1.5">
         <Type size={14} className="shrink-0 text-neutral-600" />
         <input

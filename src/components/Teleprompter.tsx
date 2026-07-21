@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { ChevronLeft, Edit3, Settings } from 'lucide-react';
 import { Script, TeleprompterSettings } from '../types';
 import { countReadableChars } from '../lib/tokens';
-import { estimateDurationSeconds, SPEED_MIN, SPEED_MAX } from '../lib/speed';
+import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
 import { formatTime } from '../lib/format';
 import { useTimer } from '../hooks/useTimer';
 import { useAutoScroll } from '../hooks/useAutoScroll';
@@ -39,7 +39,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
   const dragRef = useRef<{ y: number; offset: number; moved: boolean; id: number } | null>(null);
 
   const charCount = useMemo(() => countReadableChars(script.content), [script.content]);
-  const estimatedTotal = estimateDurationSeconds(charCount, settings.scrollSpeed);
 
   const { elapsedSeconds, start: startTimer, stop: stopTimer } = useTimer();
   const { request, release } = useWakeLock();
@@ -191,15 +190,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     scrollToIndex(Math.min(Math.max(0, i), Math.max(0, len - 1)));
   }, [script.content.length, scrollToIndex]);
 
-  // 进度条跳转
-  const seekToFraction = (frac: number) => {
-    const max = maxOffsetRef.current;
-    const off = Math.max(0, Math.min(max, frac * max));
-    offsetRef.current = off;
-    applyOffset(off);
-    computeActive(off);
-  };
-
   // 统一 pointer 交互：拖拽自由滚动 / 单击播放暂停
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     dragRef.current = { y: e.clientY, offset: offsetRef.current, moved: false, id: e.pointerId };
@@ -243,13 +233,12 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     onEdit();
   };
 
-  const progress = maxOffset > 0 ? offsetRef.current / maxOffset : 0;
   const pad = `${settings.horizontalPadding}%`;
 
   return (
     <div className="relative h-[100dvh] w-screen overflow-hidden bg-black">
       {/* 顶部栏 */}
-      <div className="absolute inset-x-0 top-0 z-50 flex items-center justify-between bg-gradient-to-b from-black/90 to-transparent px-3 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
+      <div className="absolute inset-x-0 top-0 z-50 flex items-center justify-between bg-gradient-to-b from-black/90 to-transparent pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]" style={{ paddingLeft: 'calc(0.75rem + env(safe-area-inset-left))', paddingRight: 'calc(0.75rem + env(safe-area-inset-right))' }}>
         <div className="flex items-center gap-2">
           <button onClick={handleBack} className="rounded-full bg-neutral-900/60 p-2.5 text-neutral-400 hover:text-white" aria-label="返回">
             <ChevronLeft size={18} />
@@ -272,21 +261,12 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
         </div>
       </div>
 
-      {/* 进度条 */}
-      <div className="absolute inset-x-4 z-40" style={{ top: 'calc(3rem + env(safe-area-inset-top))' }}>
-        <input
-          type="range" min={0} max={1} step={0.001} value={progress}
-          onChange={(e) => seekToFraction(parseFloat(e.target.value))}
-          className="h-0.5 w-full accent-yellow-500"
-        />
+      {/* 阅读区高亮竖线：两侧圆角矩形，左边避开刘海 */}
+      <div className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2" style={{ left: 'calc(0.75rem + env(safe-area-inset-left))' }}>
+        <div className="h-28 w-1 rounded-full bg-yellow-500/70 shadow-[0_0_20px_rgba(234,179,8,0.6)]" />
       </div>
-
-      {/* 阅读区高亮竖线：两侧圆角矩形 */}
-      <div className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2">
-        <div className="h-24 w-1 rounded-full bg-yellow-500/40 shadow-[0_0_12px_rgba(234,179,8,0.3)]" />
-      </div>
-      <div className="pointer-events-none absolute right-3 top-1/2 z-10 -translate-y-1/2">
-        <div className="h-24 w-1 rounded-full bg-yellow-500/40 shadow-[0_0_12px_rgba(234,179,8,0.3)]" />
+      <div className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2" style={{ right: 'calc(0.75rem + env(safe-area-inset-right))' }}>
+        <div className="h-28 w-1 rounded-full bg-yellow-500/70 shadow-[0_0_20px_rgba(234,179,8,0.6)]" />
       </div>
 
       {/* 阅读区：viewport（overflow hidden）+ content（transform 位移）。拖拽/单击/点字 */}
@@ -320,6 +300,7 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
 
       {/* 底部控制条：字号 + 速度 */}
       <Controls
+        visible={!isPlaying}
         fontSize={settings.fontSize}
         speed={settings.scrollSpeed}
         onFontSizeChange={(v) => onChangeSettings({ fontSize: v })}
