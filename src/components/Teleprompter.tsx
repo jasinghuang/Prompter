@@ -161,18 +161,19 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     }
   }, [activeIndex, isPlaying, script.content, settings.pauseKeyword]);
 
-  // 播放/暂停：计时器 + Wake Lock
+  // 屏幕常亮：进入提词器即激活，离开释放
+  useEffect(() => {
+    request().catch(() => setWakeLockFailed(true));
+    return () => { release(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 播放/暂停：计时器
   useEffect(() => {
     if (isPlaying) {
       startTimer();
-      request().catch(() => setWakeLockFailed(true));
     } else {
       stopTimer();
-      release();
     }
-    return () => {
-      release();
-    };
   }, [isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 按钮点击后失焦
