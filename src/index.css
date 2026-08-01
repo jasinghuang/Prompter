@@ -8,7 +8,7 @@ html, body, #root {
 body {
   background: #000;
   color: #fff;
-  font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-family: "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
   overscroll-behavior: none;
 }
 
