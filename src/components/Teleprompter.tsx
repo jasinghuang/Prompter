@@ -140,26 +140,50 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     return () => vp.removeEventListener('scroll', onScroll);
   }, [computeActive]);
 
+  // 段落起点集合（空行之后的首个非换行字符索引）
+  const paragraphStarts = useMemo(() => {
+    const starts = new Set<number>();
+    const chars = Array.from(script.content);
+    for (let i = 1; i < chars.length; i++) {
+      if (chars[i] === '\n' && chars[i - 1] === '\n') {
+        let j = i + 1;
+        while (j < chars.length && chars[j] === '\n') j++;
+        if (j < chars.length) starts.add(j);
+      }
+    }
+    return starts;
+  }, [script.content]);
+
   // 自动暂停：当 activeIndex 落入关键词范围时暂停
   const pausedAtRef = useRef(-1);
+  const paragraphPausedAtRef = useRef(-1);
+
+  // 关键词变更时重置已暂停位置
+  useEffect(() => { pausedAtRef.current = -1; }, [settings.pauseKeyword]);
 
   useEffect(() => {
     const kw = settings.pauseKeyword;
     if (!isPlaying || !kw) return;
-    // 从 activeIndex 往前找 max(kw.length, 30) 个字符，检查是否匹配
-    const ctx = script.content.substring(
-      Math.max(0, activeIndex - Math.max(kw.length, 30)),
-      activeIndex + kw.length,
-    );
-    const idx = ctx.indexOf(kw);
+    const ctxStart = Math.max(0, activeIndex - Math.max(kw.length, 30));
+    const ctx = script.content.substring(ctxStart, activeIndex + kw.length);
+    // 跳过已暂停过的位置，防止同窗口内后续出现被遗漏
+    const skipOffset = pausedAtRef.current >= ctxStart ? pausedAtRef.current - ctxStart + 1 : 0;
+    const idx = ctx.indexOf(kw, skipOffset);
     if (idx !== -1) {
-      const absIdx = Math.max(0, activeIndex - Math.max(kw.length, 30)) + idx;
-      if (pausedAtRef.current !== absIdx) {
-        pausedAtRef.current = absIdx;
-        setIsPlaying(false);
-      }
+      const absIdx = ctxStart + idx;
+      pausedAtRef.current = absIdx;
+      setIsPlaying(false);
     }
   }, [activeIndex, isPlaying, script.content, settings.pauseKeyword]);
+
+  // 自动暂停：段落分隔（空行）
+  useEffect(() => {
+    if (!isPlaying || !settings.pauseOnParagraph) return;
+    if (paragraphStarts.has(activeIndex) && paragraphPausedAtRef.current !== activeIndex) {
+      paragraphPausedAtRef.current = activeIndex;
+      setIsPlaying(false);
+    }
+  }, [activeIndex, isPlaying, settings.pauseOnParagraph, paragraphStarts]);
 
   // 屏幕常亮：进入提词器即激活，离开释放
   useEffect(() => {

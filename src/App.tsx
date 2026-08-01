@@ -95,6 +95,8 @@ export default function App() {
         script={active}
         pauseKeyword={settings.pauseKeyword}
         onPauseKeywordChange={(kw) => updateSettings({ pauseKeyword: kw })}
+        pauseOnParagraph={settings.pauseOnParagraph}
+        onPauseOnParagraphChange={(v) => updateSettings({ pauseOnParagraph: v })}
         onSave={(id, title, content) => {
           updateScript(id, title, content);
           // 从提词器进入编辑的情形：判断返回后定位

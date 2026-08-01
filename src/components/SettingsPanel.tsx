@@ -146,6 +146,24 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
               className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
             />
           </div>
+
+          {/* 空行自动暂停 */}
+          <div className="flex items-center justify-between rounded-xl bg-neutral-800 p-4">
+            <div className="flex items-center gap-3">
+              <CirclePause size={18} className="text-neutral-400" />
+              <div>
+                <span className="block text-sm text-white">段落暂停</span>
+                <span className="text-[10px] text-neutral-500">遇到空行时自动暂停</span>
+              </div>
+            </div>
+            <button
+              role="switch" aria-checked={settings.pauseOnParagraph}
+              onClick={() => onChange({ pauseOnParagraph: !settings.pauseOnParagraph })}
+              className={`relative h-6 w-12 rounded-full transition-colors ${settings.pauseOnParagraph ? 'bg-yellow-500' : 'bg-neutral-700'}`}
+            >
+              <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${settings.pauseOnParagraph ? 'left-7' : 'left-1'}`} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

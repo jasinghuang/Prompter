@@ -7,11 +7,13 @@ interface Props {
   script: Script;
   pauseKeyword: string;
   onPauseKeywordChange: (kw: string) => void;
+  pauseOnParagraph: boolean;
+  onPauseOnParagraphChange: (v: boolean) => void;
   onSave: (id: string, title: string, content: string) => void;
   onBack: () => void;
 }
 
-export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, onSave, onBack }: Props) {
+export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pauseOnParagraph, onPauseOnParagraphChange, onSave, onBack }: Props) {
   const [title, setTitle] = useState(script.title);
   const [content, setContent] = useState(script.content);
 
@@ -57,6 +59,23 @@ export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, onSav
             placeholder="滚动到该词时自动暂停（留空关闭）"
             className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
           />
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+          <div className="flex items-center gap-2">
+            <CirclePause size={16} className="text-neutral-500" />
+            <div>
+              <span className="block text-sm text-white">段落暂停</span>
+              <span className="text-[10px] text-neutral-500">遇到空行时自动暂停</span>
+            </div>
+          </div>
+          <button
+            role="switch" aria-checked={pauseOnParagraph}
+            onClick={() => onPauseOnParagraphChange(!pauseOnParagraph)}
+            className={`relative h-6 w-12 rounded-full transition-colors ${pauseOnParagraph ? 'bg-yellow-500' : 'bg-neutral-700'}`}
+          >
+            <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${pauseOnParagraph ? 'left-7' : 'left-1'}`} />
+          </button>
         </div>
 
         <textarea
