@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight, CirclePause } from 'lucide-react';
+import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { TeleprompterSettings, TextAlign, FONT_SIZE_MIN, FONT_SIZE_MAX, LETTER_SPACING_MIN, LETTER_SPACING_MAX, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, PADDING_MIN, PADDING_MAX } from '../types';
 import { SPEED_MIN, SPEED_MAX, SPEED_PRESETS } from '../lib/speed';
+import { AutoPauseControl } from './AutoPauseControl';
 
 interface Props {
   open: boolean;
@@ -45,11 +45,6 @@ const ALIGN_OPTIONS: { value: TextAlign; Icon: typeof AlignLeft; label: string }
 ];
 
 export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
-  const [pauseMode, setPauseMode] = useState<'off' | 'keyword' | 'paragraph'>(
-    settings.pauseKeyword ? 'keyword' :
-    settings.pauseOnParagraph ? 'paragraph' : 'off',
-  );
-
   if (!open) return null;
   return (
     <div className="absolute inset-0 z-[70] flex justify-end">
@@ -135,61 +130,11 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
             </button>
           </div>
 
-          {/* 自动暂停 */}
-          {(() => {
-            const MODE_OPTIONS: { value: 'off' | 'keyword' | 'paragraph'; label: string }[] = [
-              { value: 'off', label: '关闭' },
-              { value: 'keyword', label: '关键词' },
-              { value: 'paragraph', label: '空行' },
-            ];
-
-            const desc: Record<'off' | 'keyword' | 'paragraph', string> = {
-              off: '未启用',
-              keyword: '滚动到关键词时暂停',
-              paragraph: '遇到空行时暂停',
-            };
-
-            return (
-              <div className="space-y-3 rounded-xl bg-neutral-800 p-4">
-                <div className="flex items-center gap-3">
-                  <CirclePause size={18} className="text-neutral-400" />
-                  <div>
-                    <span className="block text-sm text-white">自动暂停</span>
-                    <span className="text-[10px] text-neutral-500">{desc[pauseMode]}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  {MODE_OPTIONS.map(({ value, label }) => (
-                    <button
-                      key={value}
-                      onClick={() => {
-                        setPauseMode(value);
-                        if (value === 'off') onChange({ pauseKeyword: '', pauseOnParagraph: false });
-                        else if (value === 'keyword') onChange({ pauseOnParagraph: false });
-                        else onChange({ pauseKeyword: '', pauseOnParagraph: true });
-                      }}
-                      className={`flex-1 rounded-lg py-2 text-sm transition-colors ${
-                        pauseMode === value
-                          ? 'bg-yellow-500/15 text-yellow-500'
-                          : 'bg-neutral-700 text-neutral-400 hover:text-white'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {pauseMode === 'keyword' && (
-                  <input
-                    type="text"
-                    value={settings.pauseKeyword}
-                    onChange={(e) => onChange({ pauseKeyword: e.target.value })}
-                    placeholder="输入关键词"
-                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
-                  />
-                )}
-              </div>
-            );
-          })()}
+          <AutoPauseControl
+            keyword={settings.pauseKeyword}
+            paragraph={settings.pauseOnParagraph}
+            onChange={onChange}
+          />
         </div>
       </div>
     </div>

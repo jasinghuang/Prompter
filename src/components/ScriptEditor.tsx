@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ChevronLeft, CirclePause } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { Script } from '../types';
 import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
+import { AutoPauseControl } from './AutoPauseControl';
 
 interface Props {
   script: Script;
@@ -16,10 +17,6 @@ interface Props {
 export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pauseOnParagraph, onPauseOnParagraphChange, onSave, onBack }: Props) {
   const [title, setTitle] = useState(script.title);
   const [content, setContent] = useState(script.content);
-  const [pauseMode, setPauseMode] = useState<'off' | 'keyword' | 'paragraph'>(
-    pauseKeyword ? 'keyword' :
-    pauseOnParagraph ? 'paragraph' : 'off',
-  );
 
   const debouncedSave = useDebouncedCallback(
     (t: string, c: string) => onSave(script.id, t, c),
@@ -51,60 +48,15 @@ export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pause
           className="w-full rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-xl font-bold text-white focus:border-yellow-500/50 focus:outline-none"
         />
 
-        {(() => {
-          const MODES: { value: 'off' | 'keyword' | 'paragraph'; label: string }[] = [
-            { value: 'off', label: '关闭' },
-            { value: 'keyword', label: '关键词' },
-            { value: 'paragraph', label: '空行' },
-          ];
-
-          const desc: Record<'off' | 'keyword' | 'paragraph', string> = {
-            off: '未启用',
-            keyword: '滚动到关键词时暂停',
-            paragraph: '遇到空行时暂停',
-          };
-
-          return (
-            <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <CirclePause size={16} className="text-neutral-500" />
-                <div>
-                  <span className="block text-sm text-white">自动暂停</span>
-                  <span className="text-[10px] text-neutral-500">{desc[pauseMode]}</span>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {MODES.map(({ value, label }) => (
-                  <button
-                    key={value}
-                    onClick={() => {
-                      setPauseMode(value);
-                      if (value === 'off') { onPauseKeywordChange(''); onPauseOnParagraphChange(false); }
-                      else if (value === 'keyword') onPauseOnParagraphChange(false);
-                      else { onPauseKeywordChange(''); onPauseOnParagraphChange(true); }
-                    }}
-                    className={`flex-1 rounded-lg py-2 text-sm transition-colors ${
-                      pauseMode === value
-                        ? 'bg-yellow-500/15 text-yellow-500'
-                        : 'bg-neutral-800 text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {pauseMode === 'keyword' && (
-                <input
-                  type="text"
-                  value={pauseKeyword}
-                  onChange={(e) => onPauseKeywordChange(e.target.value)}
-                  placeholder="输入关键词"
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
-                />
-              )}
-            </div>
-          );
-        })()}
+        <AutoPauseControl
+          compact
+          keyword={pauseKeyword}
+          paragraph={pauseOnParagraph}
+          onChange={(patch) => {
+            if (patch.pauseKeyword !== undefined) onPauseKeywordChange(patch.pauseKeyword);
+            if (patch.pauseOnParagraph !== undefined) onPauseOnParagraphChange(patch.pauseOnParagraph);
+          }}
+        />
 
         <textarea
           value={content}
