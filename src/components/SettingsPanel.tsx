@@ -59,7 +59,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
           </button>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
           <Slider label="字号" icon={<Type size={16} />} value={settings.fontSize}
             min={FONT_SIZE_MIN} max={FONT_SIZE_MAX} step={2} suffix="px"
             onChange={(v) => onChange({ fontSize: v })} />
@@ -73,7 +73,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
             min={PADDING_MIN} max={PADDING_MAX} step={1} suffix="%"
             onChange={(v) => onChange({ horizontalPadding: v })} />
           <Slider label="滚动速度" icon={<Gauge size={16} />} value={settings.scrollSpeed}
-            min={SPEED_MIN} max={SPEED_MAX} step={20} suffix=" WPN"
+            min={SPEED_MIN} max={SPEED_MAX} step={10} suffix=" 字/分"
             onChange={(v) => onChange({ scrollSpeed: v })} />
           <div className="flex flex-wrap gap-2">
             {SPEED_PRESETS.map((p) => (
@@ -113,11 +113,11 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-xl bg-neutral-800 p-4">
-            <div className="flex items-center gap-3">
-              <FlipHorizontal size={18} className="text-neutral-400" />
+          <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+            <div className="flex items-center gap-2">
+              <FlipHorizontal size={16} className="text-neutral-500" />
               <div>
-                <span className="block text-sm text-white">镜像翻转</span>
+                <span className="block text-sm font-semibold text-neutral-300">镜像翻转</span>
                 <span className="text-[10px] text-neutral-500">用于分光镜反射</span>
               </div>
             </div>

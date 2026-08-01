@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Search, Plus, FileText, Edit3, Trash2, Play } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Search, Plus, FileText, Edit3, Trash2, Play, ArrowUpDown } from 'lucide-react';
 import { Script } from '../types';
+import { countReadableChars } from '../lib/tokens';
 
 interface Props {
   scripts: Script[];
@@ -11,12 +12,37 @@ interface Props {
   onDeleteAll?: () => void;
 }
 
+type SortKey = 'date' | 'title' | 'chars';
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'date', label: '日期' },
+  { value: 'title', label: '标题' },
+  { value: 'chars', label: '字数' },
+];
+
 export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDeleteAll }: Props) {
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<SortKey>('date');
+  const [asc, setAsc] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
 
-  const filtered = scripts.filter(
+  const charCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of scripts) map.set(s.id, countReadableChars(s.content));
+    return map;
+  }, [scripts]);
+
+  const sorted = useMemo(() => {
+    const list = [...scripts];
+    const dir = asc ? 1 : -1;
+    if (sort === 'title') list.sort((a, b) => dir * a.title.localeCompare(b.title, 'zh'));
+    else if (sort === 'chars') list.sort((a, b) => dir * ((charCounts.get(a.id) ?? 0) - (charCounts.get(b.id) ?? 0)));
+    else list.sort((a, b) => dir * (b.createdAt - a.createdAt));
+    return list;
+  }, [scripts, sort, asc, charCounts]);
+
+  const filtered = sorted.filter(
     (s) =>
       s.title.toLowerCase().includes(query.toLowerCase()) ||
       s.content.toLowerCase().includes(query.toLowerCase())
@@ -25,11 +51,11 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
   return (
     <div className="flex min-h-screen flex-col bg-[#050505] text-white">
       <header className="sticky top-0 z-50 border-b border-neutral-900 bg-black/60 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl" style={{ paddingLeft: 'calc(0.75rem + env(safe-area-inset-left))', paddingRight: 'calc(0.75rem + env(safe-area-inset-right))' }}>
-        <div className="mx-auto flex max-w-5xl items-center gap-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-yellow-500 text-black sm:h-9 sm:w-9">
-            <FileText size={18} />
+        <div className="mx-auto flex max-w-5xl items-center gap-3">
+          <div className="flex items-center gap-2">
+            <img src="./icon.svg" alt="" className="h-7 w-7 rounded-lg" />
+            <h1 className="text-base font-bold">提词器</h1>
           </div>
-          <h1 className="hidden text-base font-bold sm:block">稿件管理</h1>
           <div className="relative ml-auto">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-600" size={14} />
             <input
@@ -50,11 +76,26 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
 
       <main className="mx-auto w-full max-w-5xl flex-1 py-8" style={{ paddingLeft: 'calc(1rem + env(safe-area-inset-left))', paddingRight: 'calc(1rem + env(safe-area-inset-right))' }}>
         {scripts.length > 0 && onDeleteAll && (
-          <div className="mx-auto mb-4 flex max-w-5xl items-center justify-end gap-3 text-xs text-neutral-600">
+          <div className="mb-4 flex items-center gap-3 text-xs text-neutral-600">
             <span>共 {scripts.length} 篇</span>
+            <div className="flex items-center gap-1">
+              <ArrowUpDown size={11} className="text-neutral-600" />
+              {SORT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    if (sort === opt.value) setAsc((v) => !v);
+                    else { setSort(opt.value); setAsc(false); }
+                  }}
+                  className={sort === opt.value ? 'text-yellow-500' : 'text-neutral-500 hover:text-neutral-300 transition-colors'}
+                >
+                  {opt.label}{sort === opt.value ? (asc ? ' ↑' : ' ↓') : ''}
+                </button>
+              ))}
+            </div>
             <button
               onClick={() => setConfirmClear(true)}
-              className="flex items-center gap-1 text-neutral-500 transition-colors hover:text-red-400"
+              className="ml-auto flex items-center gap-1 text-neutral-500 transition-colors hover:text-red-400"
             >
               <Trash2 size={13} /> 清空全部
             </button>
@@ -66,45 +107,51 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-neutral-900 text-neutral-700">
               <FileText size={32} />
             </div>
-            <p className="text-neutral-500">还没有稿件，点击右上角「新建稿件」去新建第一篇提词脚本吧</p>
+            {scripts.length === 0 ? (
+              <p className="text-neutral-500">还没有稿件，点击右上角「新建稿件」去新建第一篇提词脚本吧</p>
+            ) : (
+              <p className="text-neutral-500">未找到与「{query}」匹配的稿件</p>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {filtered.map((s) => (
               <div
                 key={s.id}
                 onClick={() => onOpen(s.id)}
-                className="group relative cursor-pointer overflow-hidden rounded-2xl border border-neutral-800/60 bg-neutral-900/40 p-5 transition-all hover:border-yellow-500/30 hover:bg-neutral-900"
+                className="group relative cursor-pointer rounded-2xl border border-yellow-500/20 bg-neutral-900/40 p-4 shadow-[0_0_6px_rgba(234,179,8,0.12)] transition-all hover:border-yellow-500/40 hover:bg-neutral-900 hover:shadow-[0_0_8px_rgba(234,179,8,0.2)]"
               >
-                <div className="mb-3 flex items-start justify-between">
-                  <div className="rounded-lg bg-neutral-800 p-2 text-neutral-400 group-hover:text-yellow-500">
-                    <FileText size={18} />
-                  </div>
-                  <div className="flex gap-1">
+                <div className="mb-2 flex items-start justify-between">
+                  <h3 className="truncate text-base font-semibold">{s.title}</h3>
+                  <div className="flex shrink-0 gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={(e) => { e.stopPropagation(); onEdit(s.id); }}
-                      className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                      className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"
                     >
-                      <Edit3 size={16} />
+                      <Edit3 size={14} />
                     </button>
                     <button
                       data-testid={`delete-${s.id}`}
                       onClick={(e) => { e.stopPropagation(); setConfirmId(s.id); }}
-                      className="rounded-lg p-2 text-neutral-400 hover:bg-red-500/10 hover:text-red-400"
+                      className="rounded-lg p-1.5 text-neutral-400 hover:bg-red-500/10 hover:text-red-400"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
-                <h3 className="mb-1 truncate text-lg font-semibold">{s.title}</h3>
-                <p className="mb-3 line-clamp-2 text-sm text-neutral-500">
-                  {s.content || <span className="italic text-neutral-700">无内容...</span>}
-                </p>
-                <div className="flex items-center gap-2 border-t border-neutral-800/50 pt-3 text-[10px] text-neutral-600">
+                {s.content && (
+                  <p className="mb-3 line-clamp-2 text-sm leading-relaxed text-neutral-500">{s.content}</p>
+                )}
+                <div className="flex items-center gap-2 text-[10px] text-neutral-600">
                   {new Date(s.updatedAt).toLocaleDateString()}
-                  <span className="ml-auto flex items-center gap-1 text-yellow-500">
-                    开始提词 <Play size={12} fill="currentColor" />
-                  </span>
+                  <span>|</span>
+                  <span>{charCounts.get(s.id)}字</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onOpen(s.id); }}
+                    className="ml-auto flex items-center gap-1 rounded-full bg-yellow-500 px-3 py-1.5 text-xs font-bold text-black active:scale-95 transition-transform"
+                  >
+                    开始提词 <Play size={11} fill="currentColor" />
+                  </button>
                 </div>
               </div>
             ))}

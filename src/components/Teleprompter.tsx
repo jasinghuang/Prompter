@@ -22,10 +22,33 @@ interface Props {
   onEdit: () => void;
 }
 
+const ONBOARD_KEY = 'prompter_onboarded';
+
+function hasOnboarded(): boolean {
+  try { return localStorage.getItem(ONBOARD_KEY) === '1'; } catch { return false; }
+}
+
+function markOnboarded(): void {
+  try { localStorage.setItem(ONBOARD_KEY, '1'); } catch { /* noop */ }
+}
+
 export function Teleprompter({ script, settings, index, onIndexChange, onChangeSettings, onBack, onEdit }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => !hasOnboarded());
   const [wakeLockFailed, showWakeLockFailed] = useTransientFlag(3000);
+  const [pauseReason, setPauseReason] = useState<string | null>(null);
+  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showPauseToast = useCallback((msg: string) => {
+    setPauseReason(msg);
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    pauseTimerRef.current = setTimeout(() => setPauseReason(null), 3000);
+  }, []);
+
+  useEffect(() => {
+    return () => { if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current); };
+  }, []);
   const [widthTick, setWidthTick] = useState(0);
   const [activeIndex, setActiveIndex] = useState(index);
   const activeIndexRef = useRef(index);
@@ -174,6 +197,7 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
       const absIdx = ctxStart + idx;
       pausedAtRef.current = absIdx;
       setIsPlaying(false);
+      showPauseToast(`已暂停：命中关键词「${kw}」`);
     }
   }, [activeIndex, isPlaying, script.content, settings.pauseKeyword]);
 
@@ -183,8 +207,21 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     if (paragraphStarts.has(activeIndex) && paragraphPausedAtRef.current !== activeIndex) {
       paragraphPausedAtRef.current = activeIndex;
       setIsPlaying(false);
+      showPauseToast('已暂停：段落分隔');
     }
   }, [activeIndex, isPlaying, settings.pauseOnParagraph, paragraphStarts]);
+
+  // 新手引导：5 秒自动消失
+  const dismissOnboarding = useCallback(() => {
+    setShowOnboarding(false);
+    markOnboarded();
+  }, []);
+
+  useEffect(() => {
+    if (!showOnboarding) return;
+    const t = setTimeout(dismissOnboarding, 5000);
+    return () => clearTimeout(t);
+  }, [showOnboarding, dismissOnboarding]);
 
   // 屏幕常亮：进入提词器即激活，离开释放
   useEffect(() => {
@@ -262,25 +299,39 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
 
   return (
     <div className="relative h-[100dvh] w-screen overflow-hidden bg-black">
+      {showOnboarding && (
+        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={dismissOnboarding}>
+          <div className="flex flex-col items-center gap-3 text-center">
+            <span className="text-lg font-semibold text-white">提词器</span>
+            <div className="space-y-2 text-sm text-neutral-400">
+              <p>轻点屏幕 <span className="text-neutral-200">开始 / 暂停</span></p>
+              <p>拖动文本 <span className="text-neutral-200">回看上文</span></p>
+              <p>空格键 <span className="text-neutral-200">快捷控制</span></p>
+            </div>
+            <span className="mt-2 text-xs text-neutral-600">点击任意位置开始</span>
+          </div>
+        </div>
+      )}
+
       {/* 顶部栏 */}
-      <div className="absolute inset-x-0 top-0 z-50 flex items-center justify-between bg-gradient-to-b from-black/90 to-transparent pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]" style={{ paddingLeft: 'calc(0.75rem + env(safe-area-inset-left))', paddingRight: 'calc(0.75rem + env(safe-area-inset-right))' }}>
+      <div className="absolute inset-x-0 top-0 z-50 flex items-center justify-between pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]" style={{ paddingLeft: 'calc(0.75rem + env(safe-area-inset-left))', paddingRight: 'calc(0.75rem + env(safe-area-inset-right))' }}>
         <div className="flex items-center gap-2">
-          <button onClick={handleBack} className="rounded-full bg-neutral-900/60 p-2.5 text-neutral-400 hover:text-white" aria-label="返回">
+          <button onClick={handleBack} className="rounded-full p-2 text-neutral-500 hover:text-white" aria-label="返回">
             <ChevronLeft size={18} />
           </button>
-          <div className="flex items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1">
+          <div className="flex items-center gap-1.5 rounded-full bg-neutral-900/40 px-2.5 py-1">
             <span className="h-1.5 w-1.5 rounded-full" style={{
               backgroundColor: isPlaying ? '#ef4444' : '#525252',
               boxShadow: isPlaying ? '0 0 6px #ef4444' : 'none',
             }} />
-            <span className="font-mono text-xs tabular-nums text-neutral-200">{formatTime(elapsedSeconds)}</span>
+            <span className="font-mono text-xs tabular-nums text-neutral-400">{formatTime(elapsedSeconds)}</span>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={handleEdit} className="rounded-full bg-neutral-900/60 p-2.5 text-neutral-400 hover:text-white" aria-label="编辑">
+          <button onClick={handleEdit} className="rounded-full p-2 text-neutral-500 hover:text-white" aria-label="编辑">
             <Edit3 size={18} />
           </button>
-          <button onClick={() => setShowSettings(true)} className="rounded-full bg-neutral-900/60 p-2.5 text-neutral-400 hover:text-white" aria-label="设置">
+          <button onClick={() => setShowSettings(true)} className="rounded-full p-2 text-neutral-500 hover:text-white" aria-label="设置">
             <Settings size={18} />
           </button>
         </div>
@@ -288,10 +339,10 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
 
       {/* 阅读区高亮竖线 */}
       <div className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2" style={{ left: 'calc(0.75rem + env(safe-area-inset-left))' }}>
-        <div className="h-28 w-1 rounded-full bg-yellow-500/70 shadow-[0_0_20px_rgba(234,179,8,0.6)]" />
+        <div className="h-28 w-0.5 rounded-full bg-yellow-500/40 shadow-[0_0_12px_rgba(234,179,8,0.4)]" />
       </div>
       <div className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2" style={{ right: 'calc(0.75rem + env(safe-area-inset-right))' }}>
-        <div className="h-28 w-1 rounded-full bg-yellow-500/70 shadow-[0_0_20px_rgba(234,179,8,0.6)]" />
+        <div className="h-28 w-0.5 rounded-full bg-yellow-500/40 shadow-[0_0_12px_rgba(234,179,8,0.4)]" />
       </div>
 
       {/* 阅读区：原生 overflow 滚动，手指拖拽带惯性 */}
@@ -330,6 +381,12 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
       {wakeLockFailed && (
         <div className="absolute inset-x-0 bottom-36 z-40 mx-auto w-fit rounded-full bg-black/80 px-4 py-2 text-center text-xs text-yellow-400/90 backdrop-blur">
           当前设备无法自动保持常亮，请在系统设置中调长自动锁屏
+        </div>
+      )}
+
+      {pauseReason && (
+        <div className="absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full bg-black/80 px-4 py-2 text-center text-xs text-yellow-400/90 backdrop-blur">
+          {pauseReason}
         </div>
       )}
 

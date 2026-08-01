@@ -33,10 +33,15 @@ export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pause
     debouncedSave(title, v);
   };
 
+  const handleBack = () => {
+    onSave(script.id, title, content);
+    onBack();
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-black">
       <header className="sticky top-0 z-50 px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))]">
-        <button title="返回" onClick={onBack} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white">
+        <button title="返回" onClick={handleBack} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white">
           <ChevronLeft size={20} />
         </button>
       </header>

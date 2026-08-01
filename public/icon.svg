@@ -1,8 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1a1a1a"/>
-      <stop offset="100%" stop-color="#0a0a0a"/>
+      <stop offset="0%" stop-color="#111"/>
+      <stop offset="100%" stop-color="#050505"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#eab308"/>
     </linearGradient>
     <filter id="glow">
       <feGaussianBlur stdDeviation="8" result="blur"/>
@@ -11,36 +15,33 @@
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
-    <filter id="softGlow">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
   </defs>
 
   <!-- Background -->
-  <rect width="1024" height="1024" rx="200" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
 
-  <!-- Subtle text rows above center -->
-  <rect x="322" y="330" width="380" height="24" rx="12" fill="#3a3a3a"/>
-  <rect x="292" y="380" width="440" height="24" rx="12" fill="#2a2a2a"/>
-  <rect x="342" y="430" width="340" height="24" rx="12" fill="#333"/>
+  <!-- Wordmark: "Perhaps" in two lines -->
+  <!-- PER -->
+  <text x="512" y="450" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="180" letter-spacing="10" fill="white">PER</text>
 
-  <!-- Active reading line (glowing yellow) -->
-  <rect x="262" y="490" width="500" height="32" rx="16" fill="#eab308" filter="url(#glow)"/>
+  <!-- Yellow reading line cutting through the word -->
+  <rect x="140" y="482" width="744" height="6" rx="3" fill="url(#accent)" filter="url(#glow)"/>
 
-  <!-- Subtle text rows below center -->
-  <rect x="302" y="560" width="420" height="24" rx="12" fill="#2a2a2a"/>
-  <rect x="342" y="610" width="340" height="24" rx="12" fill="#3a3a3a"/>
-  <rect x="322" y="660" width="380" height="24" rx="12" fill="#2a2a2a"/>
+  <!-- HAPS -->
+  <text x="512" y="660" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="180" letter-spacing="10" fill="white">HAPS</text>
 
-  <!-- Reading zone vertical markers -->
-  <rect x="140" y="395" width="10" height="300" rx="5" fill="#eab308" opacity="0.5" filter="url(#softGlow)"/>
-  <rect x="874" y="395" width="10" height="300" rx="5" fill="#eab308" opacity="0.5" filter="url(#softGlow)"/>
+  <!-- Side reading markers -->
+  <circle cx="90" cy="485" r="8" fill="#eab308" opacity="0.4"/>
+  <circle cx="934" cy="485" r="8" fill="#eab308" opacity="0.4"/>
 
-  <!-- Small accent dots above the side markers -->
-  <circle cx="145" cy="365" r="12" fill="#eab308" opacity="0.25"/>
-  <circle cx="879" cy="365" r="12" fill="#eab308" opacity="0.25"/>
+  <!-- Subtle text lines above and below -->
+  <rect x="240" y="230" width="544" height="3" rx="1.5" fill="#333" opacity="0.4"/>
+  <rect x="280" y="260" width="464" height="3" rx="1.5" fill="#333" opacity="0.5"/>
+  <rect x="220" y="290" width="584" height="3" rx="1.5" fill="#333" opacity="0.5"/>
+  <rect x="310" y="320" width="404" height="3" rx="1.5" fill="#333" opacity="0.4"/>
+
+  <rect x="300" y="770" width="424" height="3" rx="1.5" fill="#333" opacity="0.4"/>
+  <rect x="220" y="800" width="584" height="3" rx="1.5" fill="#333" opacity="0.5"/>
+  <rect x="270" y="830" width="484" height="3" rx="1.5" fill="#333" opacity="0.5"/>
+  <rect x="330" y="860" width="364" height="3" rx="1.5" fill="#333" opacity="0.4"/>
 </svg>
