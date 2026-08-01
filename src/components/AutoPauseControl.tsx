@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { CirclePause } from 'lucide-react';
 
 type PauseMode = 'off' | 'keyword' | 'paragraph';
@@ -33,15 +33,10 @@ interface Props {
 export function AutoPauseControl({ keyword, paragraph, onChange, compact = false }: Props) {
   const [mode, setMode] = useState<PauseMode>(() => deriveMode(keyword, paragraph));
 
-  // 外部设置变更时同步本地 mode（例如从另一入口改了关键词）
-  useEffect(() => {
-    setMode(deriveMode(keyword, paragraph));
-  }, [keyword, paragraph]);
-
   const iconSize = compact ? 16 : 18;
 
   return (
-    <div className={`rounded-xl bg-neutral-800 p-4 ${compact ? 'space-y-3' : 'space-y-3'}`}>
+    <div className="rounded-xl bg-neutral-800 p-4 space-y-3">
       <div className={`flex items-center ${compact ? 'gap-2' : 'gap-3'}`}>
         <CirclePause size={iconSize} className={compact ? 'text-neutral-500' : 'text-neutral-400'} />
         <div>
