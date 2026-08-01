@@ -20,25 +20,66 @@ function deriveMode(keyword: string, paragraph: boolean): PauseMode {
 }
 
 interface Props {
-  /** 当前设置中的关键词（可空） */
   keyword: string;
-  /** 当前设置中的段落暂停开关 */
   paragraph: boolean;
-  /** 模式或关键词变更时回调 */
   onChange: (patch: { pauseKeyword?: string; pauseOnParagraph?: boolean }) => void;
-  /** 紧凑模式（ScriptEditor 使用），缩小图标尺寸 */
-  compact?: boolean;
+  /** ScriptEditor 内联模式：去掉卡片壳和图标标题，仅保留分段按钮 */
+  inline?: boolean;
 }
 
-export function AutoPauseControl({ keyword, paragraph, onChange, compact = false }: Props) {
+export function AutoPauseControl({ keyword, paragraph, onChange, inline = false }: Props) {
   const [mode, setMode] = useState<PauseMode>(() => deriveMode(keyword, paragraph));
 
-  const iconSize = compact ? 16 : 18;
+  const buttons = (
+    <div className="flex gap-1.5">
+      {MODES.map(({ value, label }) => (
+        <button
+          key={value}
+          onClick={() => {
+            setMode(value);
+            if (value === 'off') onChange({ pauseKeyword: '', pauseOnParagraph: false });
+            else if (value === 'keyword') onChange({ pauseOnParagraph: false });
+            else onChange({ pauseKeyword: '', pauseOnParagraph: true });
+          }}
+          className={`rounded-lg px-3 py-1.5 text-xs transition-colors ${
+            mode === value
+              ? 'bg-yellow-500/15 text-yellow-500'
+              : 'text-neutral-500 hover:text-neutral-300'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const keywordInput = mode === 'keyword' && (
+    <input
+      type="text"
+      value={keyword}
+      onChange={(e) => onChange({ pauseKeyword: e.target.value })}
+      placeholder="输入关键词"
+      className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
+    />
+  );
+
+  if (inline) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <CirclePause size={14} className="text-neutral-500 shrink-0" />
+          <span className="text-xs font-semibold text-neutral-400 shrink-0">自动暂停</span>
+          {buttons}
+        </div>
+        {keywordInput}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl bg-neutral-800 p-4 space-y-3">
-      <div className={`flex items-center ${compact ? 'gap-2' : 'gap-3'}`}>
-        <CirclePause size={iconSize} className={compact ? 'text-neutral-500' : 'text-neutral-400'} />
+      <div className="flex items-center gap-3">
+        <CirclePause size={18} className="text-neutral-400" />
         <div>
           <span className="block text-sm text-white">自动暂停</span>
           <span className="text-[10px] text-neutral-500">{DESC[mode]}</span>
@@ -57,24 +98,14 @@ export function AutoPauseControl({ keyword, paragraph, onChange, compact = false
             className={`flex-1 rounded-lg py-2 text-sm transition-colors ${
               mode === value
                 ? 'bg-yellow-500/15 text-yellow-500'
-                : compact
-                  ? 'bg-neutral-800 text-neutral-400 hover:text-white'
-                  : 'bg-neutral-700 text-neutral-400 hover:text-white'
+                : 'bg-neutral-700 text-neutral-400 hover:text-white'
             }`}
           >
             {label}
           </button>
         ))}
       </div>
-      {mode === 'keyword' && (
-        <input
-          type="text"
-          value={keyword}
-          onChange={(e) => onChange({ pauseKeyword: e.target.value })}
-          placeholder="输入关键词"
-          className={`w-full rounded-lg border border-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none ${compact ? 'bg-neutral-950' : 'bg-neutral-900'}`}
-        />
-      )}
+      {keywordInput}
     </div>
   );
 }

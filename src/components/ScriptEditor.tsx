@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Scissors } from 'lucide-react';
 import { Script } from '../types';
 import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
 import { AutoPauseControl } from './AutoPauseControl';
@@ -12,9 +12,10 @@ interface Props {
   onPauseOnParagraphChange: (v: boolean) => void;
   onSave: (id: string, title: string, content: string) => void;
   onBack: () => void;
+  onSplit: () => void;
 }
 
-export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pauseOnParagraph, onPauseOnParagraphChange, onSave, onBack }: Props) {
+export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pauseOnParagraph, onPauseOnParagraphChange, onSave, onBack, onSplit }: Props) {
   const [title, setTitle] = useState(script.title);
   const [content, setContent] = useState(script.content);
 
@@ -34,35 +35,45 @@ export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pause
 
   return (
     <div className="flex min-h-screen flex-col bg-black">
-      <header className="sticky top-0 z-50 flex items-center justify-between border-b border-neutral-900 bg-black/70 px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-xl">
+      <header className="sticky top-0 z-50 px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))]">
         <button title="返回" onClick={onBack} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white">
           <ChevronLeft size={20} />
         </button>
-        <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">自动保存</span>
       </header>
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 p-4">
+
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4">
         <input
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
           placeholder="稿件标题"
-          className="w-full rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-xl font-bold text-white focus:border-yellow-500/50 focus:outline-none"
+          className="w-full border-b border-neutral-800 bg-transparent py-3 text-lg font-semibold text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
         />
 
-        <AutoPauseControl
-          compact
-          keyword={pauseKeyword}
-          paragraph={pauseOnParagraph}
-          onChange={(patch) => {
-            if (patch.pauseKeyword !== undefined) onPauseKeywordChange(patch.pauseKeyword);
-            if (patch.pauseOnParagraph !== undefined) onPauseOnParagraphChange(patch.pauseOnParagraph);
-          }}
-        />
+        <div className="flex items-start justify-between gap-3 border-b border-neutral-800 py-2.5">
+          <AutoPauseControl
+            inline
+            keyword={pauseKeyword}
+            paragraph={pauseOnParagraph}
+            onChange={(patch) => {
+              if (patch.pauseKeyword !== undefined) onPauseKeywordChange(patch.pauseKeyword);
+              if (patch.pauseOnParagraph !== undefined) onPauseOnParagraphChange(patch.pauseOnParagraph);
+            }}
+          />
+          <button
+            onClick={onSplit}
+            disabled={!script.content.includes('\n\n')}
+            className="flex shrink-0 items-center gap-1 rounded-full bg-yellow-500 px-3 py-1.5 text-xs font-bold text-black active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          >
+            <Scissors size={12} />
+            智能拆分
+          </button>
+        </div>
 
         <textarea
           value={content}
           onChange={(e) => onContentChange(e.target.value)}
           placeholder="在此输入或粘贴提词稿件..."
-          className="min-h-[40dvh] flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-900 p-6 text-lg leading-relaxed text-neutral-300 focus:border-yellow-500/50 focus:outline-none"
+          className="flex-1 resize-none bg-transparent py-4 text-lg leading-relaxed text-neutral-300 placeholder-neutral-700 focus:outline-none"
         />
       </main>
     </div>

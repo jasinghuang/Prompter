@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTransientFlag } from './hooks/useTransientFlag';
 import { ScriptList } from './components/ScriptList';
 import { ScriptEditor } from './components/ScriptEditor';
 import { Teleprompter } from './components/Teleprompter';
@@ -23,7 +24,7 @@ function savePosition(id: string, index: number) {
 }
 
 export default function App() {
-  const { scripts, addScript, updateScript, deleteScript, clearAll } = useScripts();
+  const { scripts, addScript, updateScript, deleteScript, clearAll, importScript } = useScripts();
   const { settings, updateSettings } = useSettings();
 
   const [view, setView] = useState<View>('list');
@@ -32,7 +33,7 @@ export default function App() {
   const [prompterIndex, setPrompterIndex] = useState(0);
   // 从提词器进入编辑时的快照
   const [editSnapshot, setEditSnapshot] = useState<{ content: string; index: number } | null>(null);
-  const [resetNotice, setResetNotice] = useState(false);
+  const [resetNotice, showResetNotice] = useTransientFlag(3000);
 
   const active = scripts.find((s) => s.id === activeId) ?? null;
 
@@ -66,6 +67,19 @@ export default function App() {
     setActiveId(id);
     setEditSnapshot(null);
     setView('editor');
+  };
+
+  const handleSplit = () => {
+    if (!active) return;
+    const paragraphs = active.content.split(/\n{2,}/).filter((p) => p.trim() !== '');
+    if (paragraphs.length < 2) return;
+    for (const para of paragraphs) {
+      const lines = para.trim().split('\n');
+      const title = lines[0].trim();
+      importScript(title, para.trim());
+    }
+    deleteScript(active.id);
+    setView('list');
   };
 
   if (view === 'prompter' && active) {
@@ -103,14 +117,14 @@ export default function App() {
           if (editSnapshot) {
             const newIndex = resolveIndexAfterEdit(editSnapshot.content, content, editSnapshot.index);
             if (newIndex === 0 && editSnapshot.index !== 0) {
-              setResetNotice(true);
-              setTimeout(() => setResetNotice(false), 3000);
+              showResetNotice();
             }
             setPrompterIndex(newIndex);
             setEditSnapshot({ content, index: newIndex });
           }
         }}
         onBack={() => setView(editSnapshot ? 'prompter' : 'list')}
+        onSplit={handleSplit}
       />
     );
   }

@@ -7,6 +7,7 @@ import { formatTime } from '../lib/format';
 import { useTimer } from '../hooks/useTimer';
 import { useAutoScroll } from '../hooks/useAutoScroll';
 import { useWakeLock } from '../hooks/useWakeLock';
+import { useTransientFlag } from '../hooks/useTransientFlag';
 import { ScriptText } from './ScriptText';
 import { Controls } from './Controls';
 import { SettingsPanel } from './SettingsPanel';
@@ -24,7 +25,7 @@ interface Props {
 export function Teleprompter({ script, settings, index, onIndexChange, onChangeSettings, onBack, onEdit }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [wakeLockFailed, setWakeLockFailed] = useState(false);
+  const [wakeLockFailed, showWakeLockFailed] = useTransientFlag(3000);
   const [widthTick, setWidthTick] = useState(0);
   const [activeIndex, setActiveIndex] = useState(index);
   const activeIndexRef = useRef(index);
@@ -187,7 +188,7 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
 
   // 屏幕常亮：进入提词器即激活，离开释放
   useEffect(() => {
-    request().catch(() => setWakeLockFailed(true));
+    request().catch(() => showWakeLockFailed());
     return () => { release(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
