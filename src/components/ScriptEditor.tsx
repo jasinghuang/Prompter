@@ -47,36 +47,63 @@ export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pause
           className="w-full rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-xl font-bold text-white focus:border-yellow-500/50 focus:outline-none"
         />
 
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <CirclePause size={16} className="text-neutral-500" />
-            <span className="text-xs text-neutral-400">自动暂停关键词</span>
-          </div>
-          <input
-            type="text"
-            value={pauseKeyword}
-            onChange={(e) => onPauseKeywordChange(e.target.value)}
-            placeholder="滚动到该词时自动暂停（留空关闭）"
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
-          />
-        </div>
+        {(() => {
+          const mode: 'off' | 'keyword' | 'paragraph' =
+            pauseKeyword ? 'keyword' :
+            pauseOnParagraph ? 'paragraph' : 'off';
 
-        <div className="flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <div className="flex items-center gap-2">
-            <CirclePause size={16} className="text-neutral-500" />
-            <div>
-              <span className="block text-sm text-white">段落暂停</span>
-              <span className="text-[10px] text-neutral-500">遇到空行时自动暂停</span>
+          const MODES: { value: 'off' | 'keyword' | 'paragraph'; label: string }[] = [
+            { value: 'off', label: '关闭' },
+            { value: 'keyword', label: '关键词' },
+            { value: 'paragraph', label: '空行' },
+          ];
+
+          const desc: Record<'off' | 'keyword' | 'paragraph', string> = {
+            off: '未启用',
+            keyword: '滚动到关键词时暂停',
+            paragraph: '遇到空行时暂停',
+          };
+
+          return (
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <CirclePause size={16} className="text-neutral-500" />
+                <div>
+                  <span className="block text-sm text-white">自动暂停</span>
+                  <span className="text-[10px] text-neutral-500">{desc[mode]}</span>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {MODES.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => {
+                      if (value === 'off') { onPauseKeywordChange(''); onPauseOnParagraphChange(false); }
+                      else if (value === 'keyword') onPauseOnParagraphChange(false);
+                      else { onPauseKeywordChange(''); onPauseOnParagraphChange(true); }
+                    }}
+                    className={`flex-1 rounded-lg py-2 text-sm transition-colors ${
+                      mode === value
+                        ? 'bg-yellow-500/15 text-yellow-500'
+                        : 'bg-neutral-800 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {mode === 'keyword' && (
+                <input
+                  type="text"
+                  value={pauseKeyword}
+                  onChange={(e) => onPauseKeywordChange(e.target.value)}
+                  placeholder="输入关键词"
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
+                />
+              )}
             </div>
-          </div>
-          <button
-            role="switch" aria-checked={pauseOnParagraph}
-            onClick={() => onPauseOnParagraphChange(!pauseOnParagraph)}
-            className={`relative h-6 w-12 rounded-full transition-colors ${pauseOnParagraph ? 'bg-yellow-500' : 'bg-neutral-700'}`}
-          >
-            <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${pauseOnParagraph ? 'left-7' : 'left-1'}`} />
-          </button>
-        </div>
+          );
+        })()}
 
         <textarea
           value={content}

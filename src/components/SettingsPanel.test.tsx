@@ -40,9 +40,7 @@ describe('SettingsPanel', () => {
   it('镜像开关点击切换', () => {
     const onChange = vi.fn();
     render(<SettingsPanel {...baseProps} onChange={onChange} />);
-    const switches = screen.getAllByRole('switch');
-    // 镜像翻转是第一个 switch，段落暂停是第二个
-    fireEvent.click(switches[0]);
+    fireEvent.click(screen.getByRole('switch'));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ mirror: true }));
   });
 

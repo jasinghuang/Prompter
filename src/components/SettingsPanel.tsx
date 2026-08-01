@@ -129,41 +129,64 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
             </button>
           </div>
 
-          {/* 自动暂停关键词 */}
-          <div className="space-y-3 rounded-xl bg-neutral-800 p-4">
-            <div className="flex items-center gap-3">
-              <CirclePause size={18} className="text-neutral-400" />
-              <div>
-                <span className="block text-sm text-white">自动暂停</span>
-                <span className="text-[10px] text-neutral-500">滚动到关键词时自动暂停</span>
-              </div>
-            </div>
-            <input
-              type="text"
-              value={settings.pauseKeyword}
-              onChange={(e) => onChange({ pauseKeyword: e.target.value })}
-              placeholder="输入关键词（留空关闭）"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
-            />
-          </div>
+          {/* 自动暂停 */}
+          {(() => {
+            const pauseMode: 'off' | 'keyword' | 'paragraph' =
+              settings.pauseKeyword ? 'keyword' :
+              settings.pauseOnParagraph ? 'paragraph' : 'off';
 
-          {/* 空行自动暂停 */}
-          <div className="flex items-center justify-between rounded-xl bg-neutral-800 p-4">
-            <div className="flex items-center gap-3">
-              <CirclePause size={18} className="text-neutral-400" />
-              <div>
-                <span className="block text-sm text-white">段落暂停</span>
-                <span className="text-[10px] text-neutral-500">遇到空行时自动暂停</span>
+            const MODE_OPTIONS: { value: 'off' | 'keyword' | 'paragraph'; label: string }[] = [
+              { value: 'off', label: '关闭' },
+              { value: 'keyword', label: '关键词' },
+              { value: 'paragraph', label: '空行' },
+            ];
+
+            const desc: Record<'off' | 'keyword' | 'paragraph', string> = {
+              off: '未启用',
+              keyword: '滚动到关键词时暂停',
+              paragraph: '遇到空行时暂停',
+            };
+
+            return (
+              <div className="space-y-3 rounded-xl bg-neutral-800 p-4">
+                <div className="flex items-center gap-3">
+                  <CirclePause size={18} className="text-neutral-400" />
+                  <div>
+                    <span className="block text-sm text-white">自动暂停</span>
+                    <span className="text-[10px] text-neutral-500">{desc[pauseMode]}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {MODE_OPTIONS.map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => {
+                        if (value === 'off') onChange({ pauseKeyword: '', pauseOnParagraph: false });
+                        else if (value === 'keyword') onChange({ pauseOnParagraph: false });
+                        else onChange({ pauseKeyword: '', pauseOnParagraph: true });
+                      }}
+                      className={`flex-1 rounded-lg py-2 text-sm transition-colors ${
+                        pauseMode === value
+                          ? 'bg-yellow-500/15 text-yellow-500'
+                          : 'bg-neutral-700 text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {pauseMode === 'keyword' && (
+                  <input
+                    type="text"
+                    value={settings.pauseKeyword}
+                    onChange={(e) => onChange({ pauseKeyword: e.target.value })}
+                    placeholder="输入关键词"
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-yellow-500/50 focus:outline-none"
+                  />
+                )}
               </div>
-            </div>
-            <button
-              role="switch" aria-checked={settings.pauseOnParagraph}
-              onClick={() => onChange({ pauseOnParagraph: !settings.pauseOnParagraph })}
-              className={`relative h-6 w-12 rounded-full transition-colors ${settings.pauseOnParagraph ? 'bg-yellow-500' : 'bg-neutral-700'}`}
-            >
-              <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${settings.pauseOnParagraph ? 'left-7' : 'left-1'}`} />
-            </button>
-          </div>
+            );
+          })()}
         </div>
       </div>
     </div>
