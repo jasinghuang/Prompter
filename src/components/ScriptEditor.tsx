@@ -16,6 +16,10 @@ interface Props {
 export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pauseOnParagraph, onPauseOnParagraphChange, onSave, onBack }: Props) {
   const [title, setTitle] = useState(script.title);
   const [content, setContent] = useState(script.content);
+  const [pauseMode, setPauseMode] = useState<'off' | 'keyword' | 'paragraph'>(
+    pauseKeyword ? 'keyword' :
+    pauseOnParagraph ? 'paragraph' : 'off',
+  );
 
   const debouncedSave = useDebouncedCallback(
     (t: string, c: string) => onSave(script.id, t, c),
@@ -48,10 +52,6 @@ export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pause
         />
 
         {(() => {
-          const mode: 'off' | 'keyword' | 'paragraph' =
-            pauseKeyword ? 'keyword' :
-            pauseOnParagraph ? 'paragraph' : 'off';
-
           const MODES: { value: 'off' | 'keyword' | 'paragraph'; label: string }[] = [
             { value: 'off', label: '关闭' },
             { value: 'keyword', label: '关键词' },
@@ -70,7 +70,7 @@ export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pause
                 <CirclePause size={16} className="text-neutral-500" />
                 <div>
                   <span className="block text-sm text-white">自动暂停</span>
-                  <span className="text-[10px] text-neutral-500">{desc[mode]}</span>
+                  <span className="text-[10px] text-neutral-500">{desc[pauseMode]}</span>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -78,12 +78,13 @@ export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pause
                   <button
                     key={value}
                     onClick={() => {
+                      setPauseMode(value);
                       if (value === 'off') { onPauseKeywordChange(''); onPauseOnParagraphChange(false); }
                       else if (value === 'keyword') onPauseOnParagraphChange(false);
                       else { onPauseKeywordChange(''); onPauseOnParagraphChange(true); }
                     }}
                     className={`flex-1 rounded-lg py-2 text-sm transition-colors ${
-                      mode === value
+                      pauseMode === value
                         ? 'bg-yellow-500/15 text-yellow-500'
                         : 'bg-neutral-800 text-neutral-400 hover:text-white'
                     }`}
@@ -92,7 +93,7 @@ export function ScriptEditor({ script, pauseKeyword, onPauseKeywordChange, pause
                   </button>
                 ))}
               </div>
-              {mode === 'keyword' && (
+              {pauseMode === 'keyword' && (
                 <input
                   type="text"
                   value={pauseKeyword}

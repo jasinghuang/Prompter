@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight, CirclePause } from 'lucide-react';
 import { TeleprompterSettings, TextAlign, FONT_SIZE_MIN, FONT_SIZE_MAX, LETTER_SPACING_MIN, LETTER_SPACING_MAX, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, PADDING_MIN, PADDING_MAX } from '../types';
 import { SPEED_MIN, SPEED_MAX, SPEED_PRESETS } from '../lib/speed';
@@ -44,6 +45,11 @@ const ALIGN_OPTIONS: { value: TextAlign; Icon: typeof AlignLeft; label: string }
 ];
 
 export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
+  const [pauseMode, setPauseMode] = useState<'off' | 'keyword' | 'paragraph'>(
+    settings.pauseKeyword ? 'keyword' :
+    settings.pauseOnParagraph ? 'paragraph' : 'off',
+  );
+
   if (!open) return null;
   return (
     <div className="absolute inset-0 z-[70] flex justify-end">
@@ -131,10 +137,6 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
 
           {/* 自动暂停 */}
           {(() => {
-            const pauseMode: 'off' | 'keyword' | 'paragraph' =
-              settings.pauseKeyword ? 'keyword' :
-              settings.pauseOnParagraph ? 'paragraph' : 'off';
-
             const MODE_OPTIONS: { value: 'off' | 'keyword' | 'paragraph'; label: string }[] = [
               { value: 'off', label: '关闭' },
               { value: 'keyword', label: '关键词' },
@@ -161,6 +163,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
                     <button
                       key={value}
                       onClick={() => {
+                        setPauseMode(value);
                         if (value === 'off') onChange({ pauseKeyword: '', pauseOnParagraph: false });
                         else if (value === 'keyword') onChange({ pauseOnParagraph: false });
                         else onChange({ pauseKeyword: '', pauseOnParagraph: true });
