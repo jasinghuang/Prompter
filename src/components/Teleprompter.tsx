@@ -343,7 +343,7 @@ export function Teleprompter({
         <div className="flex items-center gap-2">
           <button
             onClick={handleBack}
-            className="glass-button rounded-full p-2 text-white/50 hover:text-white active:scale-95"
+            className="glass-button flex items-center justify-center rounded-full p-2 text-white/50 hover:text-white active:scale-95"
             aria-label="返回"
             style={{ minHeight: '44px', minWidth: '44px' }}
           >
@@ -370,7 +370,7 @@ export function Teleprompter({
         <div className="flex items-center gap-1">
           <button
             onClick={handleEdit}
-            className="glass-button rounded-full p-2 text-white/50 hover:text-white active:scale-95"
+            className="glass-button flex items-center justify-center rounded-full p-2 text-white/50 hover:text-white active:scale-95"
             aria-label="编辑"
             style={{ minHeight: '44px', minWidth: '44px' }}
           >
@@ -378,7 +378,7 @@ export function Teleprompter({
           </button>
           <button
             onClick={() => setShowSettings(true)}
-            className="glass-button rounded-full p-2 text-white/50 hover:text-white active:scale-95"
+            className="glass-button flex items-center justify-center rounded-full p-2 text-white/50 hover:text-white active:scale-95"
             aria-label="设置"
             style={{ minHeight: '44px', minWidth: '44px' }}
           >

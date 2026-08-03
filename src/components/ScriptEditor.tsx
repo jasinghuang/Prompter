@@ -68,7 +68,7 @@ export function ScriptEditor({
         />
 
         {/* Toolbar: AutoPause + Smart Split */}
-        <div className="flex items-start justify-between gap-3 border-b border-white/5 py-2.5">
+        <div className="flex items-center justify-between gap-3 border-b border-white/5 py-2.5">
           <AutoPauseControl
             inline
             keyword={pauseKeyword}
@@ -81,8 +81,7 @@ export function ScriptEditor({
           <button
             onClick={onSplit}
             disabled={!script.content.includes('\n\n')}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-3.5 py-2 text-xs font-bold text-[#0A0A0B] active:scale-[0.97] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-30"
-            style={{ minHeight: '44px' }}
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-3.5 py-1.5 text-sm font-bold text-[#0A0A0B] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
           >
             <Scissors size={12} />
             智能拆分

@@ -86,8 +86,8 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
 
   return (
     <div className="absolute inset-0 z-[70] flex justify-end">
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      {/* Overlay — transparent, no blur so background text is previewable */}
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
 
       {/* Drawer Panel — glass */}
       <div className="relative h-full w-80 max-w-[85vw] overflow-y-auto border-l border-white/5 glass-surface px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))]">

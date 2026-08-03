@@ -1,5 +1,5 @@
-import { useMemo, useState, useRef, useCallback } from 'react';
-import { Search, Plus, FileText, Edit3, Trash2, ArrowUpDown, Check, Clock } from 'lucide-react';
+import { useMemo, useState, useRef, useCallback, useLayoutEffect } from 'react';
+import { Search, Plus, FileText, Edit3, Trash2, ArrowUpDown, Check, Clock, X } from 'lucide-react';
 import { Script } from '../types';
 import { countReadableChars } from '../lib/tokens';
 
@@ -51,6 +51,66 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
       return next;
     });
   }, []);
+
+  const sortIdx = SORT_OPTIONS.findIndex((o) => o.value === sort);
+  const sortPillRef = useRef<HTMLDivElement | null>(null);
+  const sortContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Position pill to exactly cover active button via getBoundingClientRect
+  useLayoutEffect(() => {
+    const container = sortContainerRef.current;
+    const pill = sortPillRef.current;
+    if (!container || !pill) return;
+    const btn = container.querySelector<HTMLButtonElement>(
+      `[data-sort-value="${SORT_OPTIONS[sortIdx].value}"]`
+    );
+    if (!btn) return;
+    const cr = container.getBoundingClientRect();
+    const br = btn.getBoundingClientRect();
+    pill.style.left = `${br.left - cr.left}px`;
+    pill.style.width = `${br.width}px`;
+  }, [sortIdx, asc]);
+
+  // Swipe-to-film: touch gesture tracking
+  const swipeRef = useRef<Map<string, number>>(new Map());
+  const [swipeOffsets, setSwipeOffsets] = useState<Record<string, number>>({});
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const swipingId = useRef<string | null>(null);
+
+  const setSwipe = useCallback((id: string, offset: number) => {
+    swipeRef.current.set(id, offset);
+    setSwipeOffsets((prev) => ({ ...prev, [id]: offset }));
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent, id: string) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    swipingId.current = id;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent, id: string) => {
+    if (swipingId.current !== id) return;
+    const dx = e.touches[0].clientX - touchStartX.current;
+    const dy = e.touches[0].clientY - touchStartY.current;
+    if (Math.abs(dy) > Math.abs(dx)) return; // ignore vertical scroll
+    // Right swipe → filmed (green on left), left swipe → delete (red on right)
+    setSwipe(id, Math.max(-72, Math.min(72, dx)));
+  }, [setSwipe]);
+
+  const handleTouchEnd = useCallback((_e: React.TouchEvent, id: string) => {
+    if (swipingId.current !== id) { swipingId.current = null; return; }
+    swipingId.current = null;
+    const offset = swipeRef.current.get(id) || 0;
+    if (offset > 40) {
+      // Right swipe → mark filmed
+      toggleFilmed(id);
+    } else if (offset < -40) {
+      // Left swipe → trigger delete confirmation
+      setConfirmId(id);
+    }
+    setSwipe(id, 0);
+  }, [setSwipe, toggleFilmed]);
 
   const charCounts = useMemo(() => {
     const map = new Map<string, number>();
@@ -150,26 +210,42 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
         {scripts.length > 0 && onDeleteAll && (
           <div className="mb-4 flex items-center gap-3 text-xs text-white/35">
             <span>{scripts.length} 篇</span>
-            <div className="flex items-center gap-1 rounded-full glass-button px-1 py-0.5">
-              <ArrowUpDown size={11} />
+
+            {/* Sort — sliding pill via getBoundingClientRect */}
+            <div
+              ref={sortContainerRef}
+              className="relative flex items-center rounded-full glass-button py-0.5 pl-2 pr-1"
+            >
+              <ArrowUpDown size={11} className="mr-1.5 shrink-0 text-white/30" />
+              <div
+                ref={sortPillRef}
+                className="absolute top-0.5 rounded-full bg-white/15 transition-all duration-300 ease-out"
+                style={{ height: 'calc(100% - 4px)' }}
+              />
               {SORT_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
+                  data-sort-value={opt.value}
                   onClick={() => {
                     if (sort === opt.value) setAsc((v) => !v);
                     else { setSort(opt.value); setAsc(false); }
                   }}
-                  className={`rounded-full px-2 py-0.5 font-medium transition-colors ${sort === opt.value ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/70'}`}
+                  className={`relative z-10 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    sort === opt.value
+                      ? 'text-white'
+                      : 'text-white/35 hover:text-white/60'
+                  }`}
                 >
-                  {opt.label}{sort === opt.value ? (asc ? ' ↑' : ' ↓') : ''}
+                  {opt.label}{sort === opt.value ? (asc ? '↑' : '↓') : ''}
                 </button>
               ))}
             </div>
+
             <button
               onClick={() => setConfirmClear(true)}
-              className="ml-auto flex items-center gap-1 text-white/30 transition-colors hover:text-red-400"
+              className="ml-auto flex items-center gap-1.5 rounded-full border border-red-400/15 bg-red-500/10 px-3 py-1 text-red-400/80 transition-all hover:bg-red-500/20 hover:text-red-300 active:scale-95"
             >
-              <Trash2 size={13} className="text-red-400/70" /> 清空全部
+              <Trash2 size={12} /> 清空全部
             </button>
           </div>
         )}
@@ -185,48 +261,74 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {filtered.map((s) => {
               const isFilmed = filmedIds.has(s.id);
+              const swipeX = swipeOffsets[s.id] || 0;
+
               return (
                 <div
                   key={s.id}
-                  className={`group relative cursor-pointer rounded-2xl border transition-all duration-200 active:scale-[0.985] ${isFilmed
+                  className={`group relative overflow-hidden rounded-2xl border transition-colors duration-200 ${isFilmed
                     ? 'border-green-500/15 glass-card bg-green-500/[0.03]'
-                    : 'border-white/5 glass-card hover:border-[#D4A432]/20 hover:bg-white/[0.07]'
+                    : 'border-[#D4A432]/15 glass-card hover:border-[#D4A432]/50 hover:bg-white/[0.07]'
                   }`}
+                  onTouchStart={(e) => handleTouchStart(e, s.id)}
+                  onTouchMove={(e) => handleTouchMove(e, s.id)}
+                  onTouchEnd={(e) => handleTouchEnd(e, s.id)}
                 >
-                  {/* Swipe-to-film action (behind card) */}
-                  <div className="absolute inset-y-0 right-0 flex w-[72px] items-center justify-center rounded-r-2xl bg-green-500 text-xs font-bold text-white opacity-0 transition-opacity group-hover:opacity-0">
-                    <Check size={16} />
+                  {/* Right swipe (→): filmed action on the left */}
+                  <div className="absolute inset-y-0 left-0 flex w-[72px] items-center justify-center rounded-l-2xl transition-opacity duration-200"
+                    style={{
+                      background: swipeX > 20 ? (isFilmed ? '#52525B' : '#22C55E') : 'transparent',
+                      opacity: swipeX > 20 ? 1 : 0,
+                    }}
+                  >
+                    {isFilmed ? (
+                      <X size={20} strokeWidth={3} className="text-white" />
+                    ) : (
+                      <Check size={20} strokeWidth={3} className="text-white" />
+                    )}
                   </div>
 
-                  <div className="relative p-4" onClick={() => handleOpen(s.id)}>
+                  {/* Left swipe (←): red "删除" on the right */}
+                  <div className="absolute inset-y-0 right-0 flex w-[72px] items-center justify-center rounded-r-2xl transition-opacity duration-200"
+                    style={{ background: swipeX < -20 ? '#DC2626' : 'transparent', opacity: swipeX < -20 ? 1 : 0 }}
+                  >
+                    <Trash2 size={20} strokeWidth={2.5} className="text-white" />
+                  </div>
+
+                  {/* Card content — slides on swipe */}
+                  <div
+                    className="relative p-4"
+                    style={{
+                      transform: `translateX(${swipeX}px)`,
+                      transition: swipingId.current === s.id ? 'none' : 'transform 0.25s ease-out',
+                    }}
+                    onClick={() => {
+                      if (swipingId.current) return;
+                      handleOpen(s.id);
+                    }}
+                  >
                     {/* Title Row */}
                     <div className="mb-2 flex items-start justify-between">
                       <div className="flex items-center gap-2 min-w-0">
                         {isFilmed && <Check size={14} className="shrink-0 text-green-400" />}
                         <h3 className={`truncate text-base font-semibold ${isFilmed ? 'text-white/50 line-through' : 'text-white'}`}>{s.title}</h3>
                       </div>
-                      <div className="flex shrink-0 gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleFilmed(s.id); }}
-                          className="rounded-lg p-1.5 text-white/25 hover:bg-white/10 hover:text-green-400 transition-colors"
-                          aria-label={isFilmed ? '取消标记' : '标记已拍摄'}
-                        >
-                          <Check size={14} />
-                        </button>
+                      {/* Action buttons — always visible with glass backgrounds */}
+                      <div className="flex shrink-0 gap-1.5 ml-2">
                         <button
                           onClick={(e) => { e.stopPropagation(); onEdit(s.id); }}
-                          className="rounded-lg p-1.5 text-white/25 hover:bg-white/10 hover:text-white transition-colors"
+                          className="flex items-center justify-center rounded-lg bg-white/10 px-2.5 py-1.5 text-xs text-white/60 transition-colors hover:bg-white/20 hover:text-white active:scale-95"
                           aria-label="编辑稿件"
                         >
-                          <Edit3 size={14} />
+                          <Edit3 size={13} />
                         </button>
                         <button
                           data-testid={`delete-${s.id}`}
                           onClick={(e) => { e.stopPropagation(); setConfirmId(s.id); }}
-                          className="rounded-lg p-1.5 text-red-400/70 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                          className="flex items-center justify-center rounded-lg bg-red-500/15 px-2.5 py-1.5 text-xs text-red-400 transition-colors hover:bg-red-500/25 hover:text-red-300 active:scale-95"
                           aria-label="删除稿件"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </div>
