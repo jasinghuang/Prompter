@@ -1,21 +1,42 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1A1A1F"/>
+      <stop offset="0%" stop-color="#131316"/>
       <stop offset="100%" stop-color="#0A0A0B"/>
     </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
 
   <!-- Background -->
   <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
 
-  <!-- 提 character -->
-  <text x="512" y="600" text-anchor="middle" dominant-baseline="central"
-        font-family="'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', sans-serif"
-        font-weight="700" font-size="420" fill="#D4A432" letter-spacing="0">
-    提
-  </text>
+  <!-- Text lines (top) — simulating teleprompter text rows -->
+  <rect x="200" y="200" width="624" height="6" rx="3" fill="#D4A432" opacity="0.08"/>
+  <rect x="160" y="240" width="704" height="6" rx="3" fill="#D4A432" opacity="0.12"/>
+  <rect x="180" y="280" width="664" height="6" rx="3" fill="#D4A432" opacity="0.10"/>
+  <rect x="220" y="320" width="584" height="6" rx="3" fill="#D4A432" opacity="0.08"/>
+  <rect x="260" y="360" width="504" height="6" rx="3" fill="#D4A432" opacity="0.06"/>
+  <rect x="300" y="400" width="424" height="6" rx="3" fill="#D4A432" opacity="0.05"/>
 
-  <!-- Subtle amber line below -->
-  <rect x="300" y="760" width="424" height="4" rx="2" fill="#D4A432" opacity="0.3"/>
+  <!-- Amber reading guide line — the signature element -->
+  <rect x="100" y="490" width="824" height="5" rx="2.5" fill="#D4A432" opacity="0.9"/>
+  <rect x="100" y="490" width="824" height="5" rx="2.5" fill="#D4A432" opacity="0.15" filter="url(#glow)"/>
+
+  <!-- Reading guide side markers -->
+  <circle cx="70" cy="492.5" r="6" fill="#D4A432" opacity="0.6"/>
+  <circle cx="954" cy="492.5" r="6" fill="#D4A432" opacity="0.6"/>
+
+  <!-- Text lines (bottom) -->
+  <rect x="280" y="560" width="464" height="6" rx="3" fill="#D4A432" opacity="0.05"/>
+  <rect x="240" y="600" width="544" height="6" rx="3" fill="#D4A432" opacity="0.06"/>
+  <rect x="200" y="640" width="624" height="6" rx="3" fill="#D4A432" opacity="0.08"/>
+  <rect x="160" y="680" width="704" height="6" rx="3" fill="#D4A432" opacity="0.10"/>
+  <rect x="220" y="720" width="584" height="6" rx="3" fill="#D4A432" opacity="0.08"/>
+  <rect x="300" y="760" width="424" height="6" rx="3" fill="#D4A432" opacity="0.06"/>
 </svg>
