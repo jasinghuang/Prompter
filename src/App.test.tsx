@@ -7,7 +7,7 @@ beforeEach(() => localStorage.clear());
 describe('App', () => {
   it('初始显示稿件管理，且为空状态', () => {
     render(<App />);
-    expect(screen.getByText(/新建第一篇/)).toBeInTheDocument();
+    expect(screen.getByText(/第一篇提词脚本/)).toBeInTheDocument();
   });
 
   it('新建稿件 → 进入编辑视图', () => {

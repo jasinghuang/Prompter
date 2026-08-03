@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, Edit3, Settings } from 'lucide-react';
+import { ChevronLeft, CirclePause, Edit3, Settings } from 'lucide-react';
 import { Script, TeleprompterSettings } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
@@ -25,14 +25,30 @@ interface Props {
 const ONBOARD_KEY = 'prompter_onboarded';
 
 function hasOnboarded(): boolean {
-  try { return localStorage.getItem(ONBOARD_KEY) === '1'; } catch { return false; }
+  try {
+    return localStorage.getItem(ONBOARD_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 function markOnboarded(): void {
-  try { localStorage.setItem(ONBOARD_KEY, '1'); } catch { /* noop */ }
+  try {
+    localStorage.setItem(ONBOARD_KEY, '1');
+  } catch {
+    /* noop */
+  }
 }
 
-export function Teleprompter({ script, settings, index, onIndexChange, onChangeSettings, onBack, onEdit }: Props) {
+export function Teleprompter({
+  script,
+  settings,
+  index,
+  onIndexChange,
+  onChangeSettings,
+  onBack,
+  onEdit,
+}: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !hasOnboarded());
@@ -47,8 +63,11 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
   }, []);
 
   useEffect(() => {
-    return () => { if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current); };
+    return () => {
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    };
   }, []);
+
   const [widthTick, setWidthTick] = useState(0);
   const [activeIndex, setActiveIndex] = useState(index);
   const activeIndexRef = useRef(index);
@@ -58,7 +77,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const spansRef = useRef<HTMLElement[]>([]);
-  // 用于区分拖拽滚动和点击：记录 pointerdown 位置
   const touchStartRef = useRef<{ y: number; scrollTop: number } | null>(null);
 
   const charCount = useMemo(() => countReadableChars(script.content), [script.content]);
@@ -66,7 +84,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
   const { elapsedSeconds, start: startTimer, stop: stopTimer } = useTimer();
   const { request, release } = useWakeLock();
 
-  // 由 scrollTop 反推中线对应的字
   const computeActive = useCallback((scrollTop: number) => {
     const vp = viewportRef.current;
     if (!vp) return;
@@ -86,7 +103,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     }
   }, []);
 
-  // 测量 maxOffset + 缓存 spans + 跳到当前字
   useLayoutEffect(() => {
     const vp = viewportRef.current;
     const ct = contentRef.current;
@@ -112,7 +128,10 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [script.content, settings.fontSize, settings.letterSpacing, settings.lineHeight, settings.horizontalPadding, widthTick]);
 
-  const pxPerSec = charCount > 0 && maxOffset > 0 ? (maxOffset / charCount) * (settings.scrollSpeed / 60) : 0;
+  const pxPerSec =
+    charCount > 0 && maxOffset > 0
+      ? (maxOffset / charCount) * (settings.scrollSpeed / 60)
+      : 0;
 
   const getViewport = useCallback(() => viewportRef.current, []);
   const getMaxOffset = useCallback(() => maxOffsetRef.current, []);
@@ -126,7 +145,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     onReachEnd: () => setIsPlaying(false),
   });
 
-  // 宽度变化触发重测
   useEffect(() => {
     const check = () => setWidthTick((t) => t + 1);
     check();
@@ -134,7 +152,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // 把第 i 个字滚到中线
   const scrollToIndex = useCallback((i: number) => {
     const vp = viewportRef.current;
     if (!vp) return;
@@ -147,12 +164,10 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     setActiveIndex(i);
   }, []);
 
-  // 外部 index 变化
   useEffect(() => {
     scrollToIndex(index);
   }, [index, scrollToIndex]);
 
-  // 手动滚动时同步 scrollRef + 高亮
   useEffect(() => {
     const vp = viewportRef.current;
     if (!vp) return;
@@ -164,7 +179,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     return () => vp.removeEventListener('scroll', onScroll);
   }, [computeActive]);
 
-  // 段落起点集合（空行之后的首个非换行字符索引）
   const paragraphStarts = useMemo(() => {
     const starts = new Set<number>();
     const chars = Array.from(script.content);
@@ -178,19 +192,18 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     return starts;
   }, [script.content]);
 
-  // 自动暂停：当 activeIndex 落入关键词范围时暂停
   const pausedAtRef = useRef(-1);
   const paragraphPausedAtRef = useRef(-1);
 
-  // 关键词变更时重置已暂停位置
-  useEffect(() => { pausedAtRef.current = -1; }, [settings.pauseKeyword]);
+  useEffect(() => {
+    pausedAtRef.current = -1;
+  }, [settings.pauseKeyword]);
 
   useEffect(() => {
     const kw = settings.pauseKeyword;
     if (!isPlaying || !kw) return;
     const ctxStart = Math.max(0, activeIndex - Math.max(kw.length, 30));
     const ctx = script.content.substring(ctxStart, activeIndex + kw.length);
-    // 跳过已暂停过的位置，防止同窗口内后续出现被遗漏
     const skipOffset = pausedAtRef.current >= ctxStart ? pausedAtRef.current - ctxStart + 1 : 0;
     const idx = ctx.indexOf(kw, skipOffset);
     if (idx !== -1) {
@@ -201,7 +214,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     }
   }, [activeIndex, isPlaying, script.content, settings.pauseKeyword]);
 
-  // 自动暂停：段落分隔（空行）
   useEffect(() => {
     if (!isPlaying || !settings.pauseOnParagraph) return;
     if (paragraphStarts.has(activeIndex) && paragraphPausedAtRef.current !== activeIndex) {
@@ -211,7 +223,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     }
   }, [activeIndex, isPlaying, settings.pauseOnParagraph, paragraphStarts]);
 
-  // 新手引导：5 秒自动消失
   const dismissOnboarding = useCallback(() => {
     setShowOnboarding(false);
     markOnboarded();
@@ -223,13 +234,13 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     return () => clearTimeout(t);
   }, [showOnboarding, dismissOnboarding]);
 
-  // 屏幕常亮：进入提词器即激活，离开释放
   useEffect(() => {
     request().catch(() => showWakeLockFailed());
-    return () => { release(); };
+    return () => {
+      release();
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 播放/暂停：计时器
   useEffect(() => {
     if (isPlaying) {
       startTimer();
@@ -238,7 +249,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     }
   }, [isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 按钮点击后失焦
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       const btn = (e.target as HTMLElement | null)?.closest('button');
@@ -248,7 +258,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     return () => window.removeEventListener('click', onClick, true);
   }, []);
 
-  // 键盘：空格 播放/暂停、↑↓ 调速度
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
@@ -280,7 +289,6 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     onEdit();
   };
 
-  // 区分拖拽滚动与点击：手指移动 < 5px 视为点击，否则为拖拽（浏览器处理原生滚动）
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     touchStartRef.current = { y: e.clientY, scrollTop: viewportRef.current?.scrollTop ?? 0 };
   }, []);
@@ -289,63 +297,110 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
     const start = touchStartRef.current;
     touchStartRef.current = null;
     if (!start) return;
-    // 手指移动超过 8px → 拖拽滚动，不触发点击
     if (Math.abs(e.clientY - start.y) > 8) return;
-    // 点击任意位置 → 切换播放/暂停
     setIsPlaying((p) => !p);
   }, []);
 
   const pad = `${settings.horizontalPadding}%`;
 
   return (
-    <div className="relative h-[100dvh] w-screen overflow-hidden bg-black">
+    <div className="relative h-[100dvh] w-screen overflow-hidden bg-[#0A0A0B]">
+      {/* ── Onboarding Overlay ── */}
       {showOnboarding && (
-        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={dismissOnboarding}>
-          <div className="flex flex-col items-center gap-3 text-center">
-            <span className="text-lg font-semibold text-white">提词器</span>
-            <div className="space-y-2 text-sm text-neutral-400">
-              <p>轻点屏幕 <span className="text-neutral-200">开始 / 暂停</span></p>
-              <p>拖动文本 <span className="text-neutral-200">回看上文</span></p>
-              <p>空格键 <span className="text-neutral-200">快捷控制</span></p>
+        <div
+          className="absolute inset-0 z-[80] flex items-center justify-center bg-[#0A0A0B]/80 backdrop-blur-sm"
+          onClick={dismissOnboarding}
+        >
+          <div className="flex flex-col items-center gap-4 text-center animate-scale-up">
+            <span className="text-xl font-bold text-[#F5F5F5]">提词器</span>
+            <div className="space-y-2.5 text-sm text-[#A1A1AA]">
+              <p>
+                轻点屏幕{' '}
+                <span className="font-medium text-[#F5F5F5]">开始 / 暂停</span>
+              </p>
+              <p>
+                拖动文本{' '}
+                <span className="font-medium text-[#F5F5F5]">回看上文</span>
+              </p>
+              <p>
+                空格键{' '}
+                <span className="font-medium text-[#F5F5F5]">快捷控制</span>
+              </p>
             </div>
-            <span className="mt-2 text-xs text-neutral-600">点击任意位置开始</span>
+            <span className="mt-2 text-xs text-[#71717A]">点击任意位置开始</span>
           </div>
         </div>
       )}
 
-      {/* 顶部栏 */}
-      <div className="absolute inset-x-0 top-0 z-50 flex items-center justify-between pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]" style={{ paddingLeft: 'calc(0.75rem + env(safe-area-inset-left))', paddingRight: 'calc(0.75rem + env(safe-area-inset-right))' }}>
+      {/* ── Top Toolbar ── */}
+      <div
+        className="absolute inset-x-0 top-0 z-50 flex items-center justify-between pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]"
+        style={{
+          paddingLeft: 'calc(0.75rem + env(safe-area-inset-left))',
+          paddingRight: 'calc(0.75rem + env(safe-area-inset-right))',
+        }}
+      >
         <div className="flex items-center gap-2">
-          <button onClick={handleBack} className="rounded-full p-2 text-neutral-500 hover:text-white" aria-label="返回">
-            <ChevronLeft size={18} />
+          <button
+            onClick={handleBack}
+            className="btn-spring rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5] focus-ring"
+            aria-label="返回"
+            style={{ minHeight: '44px', minWidth: '44px' }}
+          >
+            <ChevronLeft size={20} />
           </button>
-          <div className="flex items-center gap-1.5 rounded-full bg-neutral-900/40 px-2.5 py-1">
-            <span className="h-1.5 w-1.5 rounded-full" style={{
-              backgroundColor: isPlaying ? '#ef4444' : '#525252',
-              boxShadow: isPlaying ? '0 0 6px #ef4444' : 'none',
-            }} />
-            <span className="font-mono text-xs tabular-nums text-neutral-400">{formatTime(elapsedSeconds)}</span>
+
+          {/* Timer + Status Indicator */}
+          <div className="flex items-center gap-1.5 rounded-full bg-[#1A1A1F]/60 px-3 py-1.5 backdrop-blur">
+            {isPlaying ? (
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inset-0 rounded-full bg-[#DC2626] animate-pulse-amber" />
+                <span className="absolute inset-0 rounded-full bg-[#DC2626]" />
+              </span>
+            ) : (
+              <CirclePause size={11} className="text-[#71717A]" />
+            )}
+            <span className="font-mono text-xs tabular-nums text-[#A1A1AA]">
+              {formatTime(elapsedSeconds)}
+            </span>
           </div>
         </div>
+
         <div className="flex items-center gap-1">
-          <button onClick={handleEdit} className="rounded-full p-2 text-neutral-500 hover:text-white" aria-label="编辑">
-            <Edit3 size={18} />
+          <button
+            onClick={handleEdit}
+            className="btn-spring rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5] focus-ring"
+            aria-label="编辑"
+            style={{ minHeight: '44px', minWidth: '44px' }}
+          >
+            <Edit3 size={20} />
           </button>
-          <button onClick={() => setShowSettings(true)} className="rounded-full p-2 text-neutral-500 hover:text-white" aria-label="设置">
-            <Settings size={18} />
+          <button
+            onClick={() => setShowSettings(true)}
+            className="btn-spring rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5] focus-ring"
+            aria-label="设置"
+            style={{ minHeight: '44px', minWidth: '44px' }}
+          >
+            <Settings size={20} />
           </button>
         </div>
       </div>
 
-      {/* 阅读区高亮竖线 */}
-      <div className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2" style={{ left: 'calc(0.75rem + env(safe-area-inset-left))' }}>
-        <div className="h-28 w-0.5 rounded-full bg-yellow-500/40 shadow-[0_0_12px_rgba(234,179,8,0.4)]" />
+      {/* ── Reading Guide Lines (subtle, no glow) ── */}
+      <div
+        className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2"
+        style={{ left: 'calc(0.75rem + env(safe-area-inset-left))' }}
+      >
+        <div className="h-28 w-0.5 rounded-full bg-[rgba(212,164,50,0.25)] animate-breathe" />
       </div>
-      <div className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2" style={{ right: 'calc(0.75rem + env(safe-area-inset-right))' }}>
-        <div className="h-28 w-0.5 rounded-full bg-yellow-500/40 shadow-[0_0_12px_rgba(234,179,8,0.4)]" />
+      <div
+        className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2"
+        style={{ right: 'calc(0.75rem + env(safe-area-inset-right))' }}
+      >
+        <div className="h-28 w-0.5 rounded-full bg-[rgba(212,164,50,0.25)] animate-breathe" />
       </div>
 
-      {/* 阅读区：原生 overflow 滚动，手指拖拽带惯性 */}
+      {/* ── Reading Viewport ── */}
       <div
         ref={viewportRef}
         onPointerDown={handlePointerDown}
@@ -361,15 +416,12 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
           WebkitOverflowScrolling: 'touch',
         }}
       >
-        <div
-          ref={contentRef}
-          className="mx-auto max-w-4xl pb-[18vh] pt-[16vh]"
-        >
+        <div ref={contentRef} className="mx-auto max-w-[56rem] pb-[18vh] pt-[16vh]">
           <ScriptText content={script.content} />
         </div>
       </div>
 
-      {/* 底部控制条 */}
+      {/* ── Bottom Controls ── */}
       <Controls
         visible={!isPlaying}
         fontSize={settings.fontSize}
@@ -378,18 +430,21 @@ export function Teleprompter({ script, settings, index, onIndexChange, onChangeS
         onSpeedChange={(v) => onChangeSettings({ scrollSpeed: v })}
       />
 
+      {/* ── Wake Lock Failed Toast ── */}
       {wakeLockFailed && (
-        <div className="absolute inset-x-0 bottom-36 z-40 mx-auto w-fit rounded-full bg-black/80 px-4 py-2 text-center text-xs text-yellow-400/90 backdrop-blur">
+        <div className="toast-spring absolute inset-x-0 bottom-36 z-40 mx-auto w-fit rounded-full border border-[rgba(212,164,50,0.15)] bg-[#131316]/90 px-4 py-2.5 text-center text-xs text-[#D4A432] backdrop-blur-xl shadow-2xl">
           当前设备无法自动保持常亮，请在系统设置中调长自动锁屏
         </div>
       )}
 
+      {/* ── Pause Reason Toast ── */}
       {pauseReason && (
-        <div className="absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full bg-black/80 px-4 py-2 text-center text-xs text-yellow-400/90 backdrop-blur">
+        <div className="toast-spring absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full border border-[rgba(212,164,50,0.15)] bg-[#131316]/90 px-4 py-2.5 text-center text-xs text-[#D4A432] backdrop-blur-xl shadow-2xl">
           {pauseReason}
         </div>
       )}
 
+      {/* ── Settings Panel ── */}
       <SettingsPanel
         open={showSettings}
         settings={settings}
