@@ -51,7 +51,7 @@ export function ScriptEditor({
         <button
           title="返回"
           onClick={handleBack}
-          className="btn-spring rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5] focus-ring"
+          className="rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5]"
           style={{ minHeight: '44px', minWidth: '44px' }}
         >
           <ChevronLeft size={20} />
@@ -81,7 +81,7 @@ export function ScriptEditor({
           <button
             onClick={onSplit}
             disabled={!script.content.includes('\n\n')}
-            className="btn-spring btn-press flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-3.5 py-2 text-xs font-bold text-[#0A0A0B] active:scale-[0.97] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-30 focus-ring"
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-3.5 py-2 text-xs font-bold text-[#0A0A0B] active:scale-[0.97] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-30"
             style={{ minHeight: '44px' }}
           >
             <Scissors size={12} />

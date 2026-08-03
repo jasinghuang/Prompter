@@ -1,13 +1,10 @@
 @import "tailwindcss";
 
 /* ================================================================
-   Design Tokens — The Darkroom 2.0
-   All color, spacing, and typography tokens live here as CSS custom
-   properties. Tailwind utilities reference these where applicable.
+   Design Tokens — The Darkroom
    ================================================================ */
 
 :root {
-  /* ── Neutral Foundation ── */
   --color-canvas: #0A0A0B;
   --color-surface: #131316;
   --color-raised: #1A1A1F;
@@ -15,29 +12,11 @@
   --color-text-primary: #F5F5F5;
   --color-text-secondary: #A1A1AA;
   --color-text-muted: #71717A;
-
-  /* ── Accent — The Single Light ── */
   --color-accent: #D4A432;
   --color-accent-muted: rgba(212, 164, 50, 0.15);
   --color-accent-dim: rgba(212, 164, 50, 0.08);
-
-  /* ── Semantic ── */
   --color-danger: #DC2626;
   --color-danger-muted: rgba(220, 38, 38, 0.15);
-  --color-success: #22C55E;
-
-  /* ── Typography ── */
-  --font-body: "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
-  --font-mono: "SF Mono", "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
-
-  /* ── Radii ── */
-  --radius-pill: 9999px;
-  --radius-card: 1rem;
-  --radius-modal: 1.5rem;
-  --radius-control: 0.5rem;
-
-  /* ── Shadows (none by default — flat tonal layering) ── */
-  --shadow-none: none;
 }
 
 /* ================================================================
@@ -52,23 +31,18 @@ html, body, #root {
 body {
   background: var(--color-canvas);
   color: var(--color-text-primary);
-  font-family: var(--font-body);
+  font-family: "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
   overscroll-behavior: none;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Teleprompter Text Rendering ── */
 .word {
   display: inline;
 }
 
-/* ── Mirror mode for beamsplitter reflection ── */
 .mirror-mode {
   transform: scaleX(-1);
 }
 
-/* ── Disable text selection in teleprompter viewport ── */
 .teleprompter-touch {
   touch-action: pan-y manipulation;
 }
@@ -78,228 +52,21 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ── Global button base ── */
 button {
   touch-action: manipulation;
 }
 
 /* ================================================================
-   Motion & Animation Engine
-   All animations use transform + opacity only (GPU-composited).
-   Spring physics via CSS spring() where supported, with
-   cubic-bezier fallbacks for broader compatibility.
+   Animations — minimal, GPU-composited only
    ================================================================ */
 
-/* ── Spring Easing (with fallback) ── */
-@supports (transition-timing-function: spring(stiffness: 100, damping: 20, mass: 1)) {
-  .spring-default {
-    transition-timing-function: spring(stiffness: 100, damping: 20, mass: 1);
-  }
-  .spring-soft {
-    transition-timing-function: spring(stiffness: 80, damping: 22, mass: 1);
-  }
-  .spring-snappy {
-    transition-timing-function: spring(stiffness: 150, damping: 18, mass: 0.8);
-  }
-}
-
-/* Fallback: smooth exponential easing for non-supporting browsers.
-   These decelerate cleanly (no overshoot) while CSS spring() provides
-   the premium tactile feel where available. */
-@supports not (transition-timing-function: spring(stiffness: 100, damping: 20, mass: 1)) {
-  .spring-default {
-    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .spring-soft {
-    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .spring-snappy {
-    transition-timing-function: cubic-bezier(0.12, 1, 0.3, 1);
-  }
-}
-
-/* ── Spring-Accelerated Transitions ── */
-.btn-spring {
-  transition: transform 0.25s spring-default, opacity 0.2s ease-out, background-color 0.15s ease-out, color 0.15s ease-out, border-color 0.15s ease-out;
-}
-
-.card-spring {
-  transition: transform 0.3s spring-soft, background-color 0.2s ease-out, border-color 0.2s ease-out;
-}
-
-.drawer-spring {
-  transition: transform 0.35s spring-soft, opacity 0.25s ease-out;
-}
-
-.modal-spring {
-  transition: transform 0.3s spring-soft, opacity 0.2s ease-out;
-}
-
-.toast-spring {
-  transition: transform 0.3s spring-soft, opacity 0.25s ease-out;
-}
-
-/* ── Perpetual Pulse Animation (active indicator dot) ── */
-@keyframes pulse-amber {
+@keyframes pulse-red {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  50% { opacity: 0.6; }
 }
 
-.animate-pulse-amber {
-  animation: pulse-amber 2s ease-in-out infinite;
-}
-
-/* ── Subtle Breathing (reading guide lines) ── */
-@keyframes breathe {
-  0%, 100% { opacity: 0.25; }
-  50% { opacity: 0.35; }
-}
-
-.animate-breathe {
-  animation: breathe 4s ease-in-out infinite;
-}
-
-/* ── Shimmer Skeleton Loader ── */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--color-border) 25%,
-    var(--color-raised) 50%,
-    var(--color-border) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 2s ease-in-out infinite;
-}
-
-/* ── Staggered Cascade Reveal ── */
-@keyframes slide-up-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.stagger-item {
-  opacity: 0;
-  animation: slide-up-reveal 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-/* ── Slide-in from right (drawer) ── */
-@keyframes slide-in-right {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
-}
-
-/* ── Fade in ── */
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* ── Scale up (modal entrance) ── */
-@keyframes scale-up {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.animate-scale-up {
-  animation: scale-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-/* ── Press feedback for buttons ── */
-.btn-press:active {
-  transform: scale(0.97) translateY(1px);
-}
-
-/* ================================================================
-   Custom Slider Styling (cross-browser)
-   ================================================================ */
-
-/* WebKit (Chrome, Safari, Edge) */
-input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 3px;
-  background: var(--color-border);
-  border-radius: 9999px;
-  outline: none;
-  cursor: pointer;
-}
-
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-  border: none;
-  cursor: pointer;
-  transition: transform 0.15s ease-out;
-}
-
-input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.125);
-}
-
-input[type="range"]::-webkit-slider-thumb:active {
-  transform: scale(0.875);
-}
-
-input[type="range"]:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 4px;
-}
-
-/* Firefox */
-input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-  border: none;
-  cursor: pointer;
-  transition: transform 0.15s ease-out;
-}
-
-input[type="range"]::-moz-range-thumb:hover {
-  transform: scale(1.125);
-}
-
-input[type="range"]::-moz-range-thumb:active {
-  transform: scale(0.875);
-}
-
-input[type="range"]::-moz-range-track {
-  height: 3px;
-  background: var(--color-border);
-  border-radius: 9999px;
-}
-
-/* ================================================================
-   Focus Ring Utility
-   ================================================================ */
-
-.focus-ring:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+.animate-pulse-red {
+  animation: pulse-red 2s ease-in-out infinite;
 }
 
 /* ================================================================

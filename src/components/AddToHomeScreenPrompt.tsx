@@ -41,7 +41,7 @@ export function AddToHomeScreenPrompt() {
   const isIOS = detectIOS();
 
   return (
-    <div className="toast-spring fixed bottom-5 left-1/2 z-[90] flex w-[92vw] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-[#26262B] bg-[#131316]/95 p-4 shadow-2xl backdrop-blur-xl">
+    <div className="fixed bottom-5 left-1/2 z-[90] flex w-[92vw] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-[#26262B] bg-[#131316]/95 p-4 backdrop-blur-xl">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[rgba(212,164,50,0.12)]">
         <Share size={18} className="text-[#D4A432]" />
       </div>
@@ -52,7 +52,7 @@ export function AddToHomeScreenPrompt() {
       </div>
       <button
         onClick={isIOS ? dismiss : install}
-        className="btn-spring btn-press shrink-0 rounded-full bg-[#D4A432] px-4 py-2 text-xs font-bold text-[#0A0A0B] active:scale-[0.97] focus-ring"
+        className="shrink-0 rounded-full bg-[#D4A432] px-4 py-2 text-xs font-bold text-[#0A0A0B] active:scale-[0.97]"
         style={{ minHeight: '44px' }}
       >
         {isIOS ? '知道' : '安装'}
@@ -60,7 +60,7 @@ export function AddToHomeScreenPrompt() {
       <button
         onClick={dismiss}
         aria-label="关闭"
-        className="btn-spring shrink-0 rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5] focus-ring"
+        className="shrink-0 rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5]"
         style={{ minHeight: '44px', minWidth: '44px' }}
       >
         <X size={16} />

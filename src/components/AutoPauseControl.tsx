@@ -40,7 +40,7 @@ export function AutoPauseControl({ keyword, paragraph, onChange, inline = false 
             else if (value === 'keyword') onChange({ pauseOnParagraph: false });
             else onChange({ pauseKeyword: '', pauseOnParagraph: true });
           }}
-          className={`btn-spring rounded-lg px-3 py-1.5 text-xs font-medium focus-ring ${
+          className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
             mode === value
               ? 'bg-[rgba(212,164,50,0.15)] text-[#D4A432]'
               : 'text-[#71717A] hover:text-[#A1A1AA] hover:bg-[rgba(212,164,50,0.06)]'
@@ -96,7 +96,7 @@ export function AutoPauseControl({ keyword, paragraph, onChange, inline = false 
               else if (value === 'keyword') onChange({ pauseOnParagraph: false });
               else onChange({ pauseKeyword: '', pauseOnParagraph: true });
             }}
-            className={`btn-spring flex-1 rounded-lg py-2 text-sm font-medium focus-ring ${
+            className={`flex-1 rounded-lg py-2 text-sm font-medium ${
               mode === value
                 ? 'bg-[rgba(212,164,50,0.15)] text-[#D4A432]'
                 : 'bg-[#1A1A1F] text-[#A1A1AA] hover:text-[#F5F5F5] hover:bg-[#26262B]'
