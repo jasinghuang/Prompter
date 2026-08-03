@@ -41,11 +41,11 @@ export function AddToHomeScreenPrompt() {
   const isIOS = detectIOS();
 
   return (
-    <div className="fixed bottom-5 left-1/2 z-[90] flex w-[92vw] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-[#26262B] bg-[#131316]/95 p-4 backdrop-blur-xl">
+    <div className="fixed bottom-5 left-1/2 z-[90] flex w-[92vw] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/5 bg-white/10 backdrop-blur-xl p-4 backdrop-blur-xl">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[rgba(212,164,50,0.12)]">
         <Share size={18} className="text-[#D4A432]" />
       </div>
-      <div className="flex-1 text-sm leading-snug text-[#A1A1AA]">
+      <div className="flex-1 text-sm leading-snug text-white/50">
         {isIOS
           ? '点 Safari 底部「分享」→「添加到主屏幕」，以后像 App 一样全屏打开'
           : '安装到主屏幕，以后全屏打开'}
@@ -60,7 +60,7 @@ export function AddToHomeScreenPrompt() {
       <button
         onClick={dismiss}
         aria-label="关闭"
-        className="shrink-0 rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5]"
+        className="shrink-0 rounded-full p-2 text-white/30 hover:bg-white/10 hover:text-white"
         style={{ minHeight: '44px', minWidth: '44px' }}
       >
         <X size={16} />

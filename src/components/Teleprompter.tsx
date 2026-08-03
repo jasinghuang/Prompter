@@ -343,24 +343,25 @@ export function Teleprompter({
         <div className="flex items-center gap-2">
           <button
             onClick={handleBack}
-            className="rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5]"
+            className="glass-button rounded-full p-2 text-white/50 hover:text-white active:scale-95"
             aria-label="返回"
             style={{ minHeight: '44px', minWidth: '44px' }}
           >
             <ChevronLeft size={20} />
           </button>
 
-          {/* Timer + Status Indicator */}
-          <div className="flex items-center gap-1.5 rounded-full bg-[#1A1A1F]/60 px-3 py-1.5 backdrop-blur">
-            {isPlaying ? (
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inset-0 rounded-full bg-[#DC2626] animate-pulse-red" />
-                <span className="absolute inset-0 rounded-full bg-[#DC2626]" />
-              </span>
-            ) : (
-              <CirclePause size={11} className="text-[#71717A]" />
-            )}
-            <span className="font-mono text-xs tabular-nums text-[#A1A1AA]">
+          {/* Timer + Status Indicator — equal-size container */}
+          <div className="flex items-center gap-1.5 rounded-full glass-button px-3 py-1.5">
+            <span className="flex h-5 w-5 items-center justify-center">
+              {isPlaying ? (
+                <span className="relative flex h-3 w-3">
+                  <span className="absolute inset-0 rounded-full bg-[#DC2626] animate-pulse-red" />
+                </span>
+              ) : (
+                <CirclePause size={12} className="text-white/30" />
+              )}
+            </span>
+            <span className="font-mono text-xs tabular-nums text-white/50">
               {formatTime(elapsedSeconds)}
             </span>
           </div>
@@ -369,7 +370,7 @@ export function Teleprompter({
         <div className="flex items-center gap-1">
           <button
             onClick={handleEdit}
-            className="rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5]"
+            className="glass-button rounded-full p-2 text-white/50 hover:text-white active:scale-95"
             aria-label="编辑"
             style={{ minHeight: '44px', minWidth: '44px' }}
           >
@@ -377,7 +378,7 @@ export function Teleprompter({
           </button>
           <button
             onClick={() => setShowSettings(true)}
-            className="rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5]"
+            className="glass-button rounded-full p-2 text-white/50 hover:text-white active:scale-95"
             aria-label="设置"
             style={{ minHeight: '44px', minWidth: '44px' }}
           >
@@ -386,18 +387,18 @@ export function Teleprompter({
         </div>
       </div>
 
-      {/* ── Reading Guide Lines (subtle, no glow) ── */}
+      {/* ── Reading Guide Lines (soft glass) ── */}
       <div
         className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2"
         style={{ left: 'calc(0.75rem + env(safe-area-inset-left))' }}
       >
-        <div className="h-28 w-0.5 rounded-full bg-[rgba(212,164,50,0.25)]" />
+        <div className="h-28 w-0.5 rounded-full bg-white/[0.06]" />
       </div>
       <div
         className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2"
         style={{ right: 'calc(0.75rem + env(safe-area-inset-right))' }}
       >
-        <div className="h-28 w-0.5 rounded-full bg-[rgba(212,164,50,0.25)]" />
+        <div className="h-28 w-0.5 rounded-full bg-white/[0.06]" />
       </div>
 
       {/* ── Reading Viewport ── */}
@@ -424,6 +425,8 @@ export function Teleprompter({
       {/* ── Bottom Controls ── */}
       <Controls
         visible={!isPlaying}
+        isPlaying={isPlaying}
+        onTogglePlay={() => setIsPlaying((p) => !p)}
         fontSize={settings.fontSize}
         speed={settings.scrollSpeed}
         onFontSizeChange={(v) => onChangeSettings({ fontSize: v })}
@@ -432,14 +435,14 @@ export function Teleprompter({
 
       {/* ── Wake Lock Failed Toast ── */}
       {wakeLockFailed && (
-        <div className="absolute inset-x-0 bottom-36 z-40 mx-auto w-fit rounded-full border border-[rgba(212,164,50,0.15)] bg-[#131316]/90 px-4 py-2.5 text-center text-xs text-[#D4A432] backdrop-blur-xl">
+        <div className="absolute inset-x-0 bottom-36 z-40 mx-auto w-fit rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-[#D4A432]">
           当前设备无法自动保持常亮，请在系统设置中调长自动锁屏
         </div>
       )}
 
       {/* ── Pause Reason Toast ── */}
       {pauseReason && (
-        <div className="absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full border border-[rgba(212,164,50,0.15)] bg-[#131316]/90 px-4 py-2.5 text-center text-xs text-[#D4A432] backdrop-blur-xl">
+        <div className="absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-[#D4A432]">
           {pauseReason}
         </div>
       )}

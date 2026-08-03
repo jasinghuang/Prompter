@@ -51,7 +51,7 @@ export function ScriptEditor({
         <button
           title="返回"
           onClick={handleBack}
-          className="rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5]"
+          className="rounded-full p-2 text-white/30 hover:bg-white/10 hover:text-white"
           style={{ minHeight: '44px', minWidth: '44px' }}
         >
           <ChevronLeft size={20} />
@@ -64,11 +64,11 @@ export function ScriptEditor({
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
           placeholder="稿件标题"
-          className="w-full border-b border-[#26262B] bg-transparent py-3 text-lg font-semibold text-[#F5F5F5] placeholder-[#71717A] transition-colors focus:border-[#D4A432] focus:outline-none"
+          className="w-full border-b border-white/5 bg-transparent py-3 text-lg font-semibold text-white placeholder-[#71717A] transition-colors focus:border-[#D4A432] focus:outline-none"
         />
 
         {/* Toolbar: AutoPause + Smart Split */}
-        <div className="flex items-start justify-between gap-3 border-b border-[#26262B] py-2.5">
+        <div className="flex items-start justify-between gap-3 border-b border-white/5 py-2.5">
           <AutoPauseControl
             inline
             keyword={pauseKeyword}
@@ -94,7 +94,7 @@ export function ScriptEditor({
           value={content}
           onChange={(e) => onContentChange(e.target.value)}
           placeholder="在此输入或粘贴提词稿件..."
-          className="flex-1 resize-none bg-transparent py-4 text-lg leading-relaxed text-[#A1A1AA] placeholder-[#71717A] focus:outline-none"
+          className="flex-1 resize-none bg-transparent py-4 text-lg leading-relaxed text-white/50 placeholder-[#71717A] focus:outline-none"
         />
       </main>
     </div>

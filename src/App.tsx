@@ -95,7 +95,7 @@ export default function App() {
           onEdit={openEditorFromPrompter}
         />
         {resetNotice && (
-          <div className="fixed left-1/2 top-20 z-[120] -translate-x-1/2 rounded-full border border-[rgba(212,164,50,0.15)] bg-[#131316]/90 px-4 py-2.5 text-xs text-[#D4A432] backdrop-blur-xl shadow-2xl">
+          <div className="fixed left-1/2 top-20 z-[120] -translate-x-1/2 rounded-full border border-[#D4A432]/20 bg-white/10 backdrop-blur-xl px-4 py-2.5 text-xs text-[#D4A432] backdrop-blur-xl shadow-2xl">
             文案改动已跨越当前位置，已重置到开头
           </div>
         )}

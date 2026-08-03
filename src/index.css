@@ -61,12 +61,59 @@ button {
    ================================================================ */
 
 @keyframes pulse-red {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(220, 38, 38, 0.6), 0 0 12px rgba(220, 38, 38, 0.3); }
+  50% { opacity: 0.7; box-shadow: 0 0 3px rgba(220, 38, 38, 0.3), 0 0 6px rgba(220, 38, 38, 0.15); }
 }
 
 .animate-pulse-red {
   animation: pulse-red 2s ease-in-out infinite;
+}
+
+/* ── Glass morphism base ── */
+.glass-surface {
+  background: rgba(19, 19, 22, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.glass-card {
+  background: rgba(19, 19, 22, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-bar {
+  background: rgba(10, 10, 11, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.glass-button {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── Swipe reveal ── */
+.swipe-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-action {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  border-radius: 0 1rem 1rem 0;
+  background: #22C55E;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 /* ================================================================

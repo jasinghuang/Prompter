@@ -6,6 +6,8 @@ const baseProps = {
   fontSize: 64,
   speed: 160,
   visible: true,
+  isPlaying: false,
+  onTogglePlay: vi.fn(),
   onFontSizeChange: vi.fn(),
   onSpeedChange: vi.fn(),
 };

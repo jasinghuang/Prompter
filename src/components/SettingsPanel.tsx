@@ -35,11 +35,11 @@ function Slider({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-sm">
-        <span className="flex items-center gap-2 text-[#A1A1AA]">
+        <span className="flex items-center gap-2 text-white/50">
           {icon}
           {label}
         </span>
-        <span className="font-mono tabular-nums text-[#F5F5F5]">
+        <span className="font-mono tabular-nums text-white">
           {value}
           {suffix}
         </span>
@@ -47,7 +47,7 @@ function Slider({
       <div className="flex items-center gap-2">
         <button
           onClick={dec}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1A1A1F] text-sm text-[#A1A1AA] transition-colors hover:bg-[#26262B] hover:text-white active:scale-95"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 text-sm text-white/50 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
           aria-label={`减小${label}`}
         >
           −
@@ -60,12 +60,12 @@ function Slider({
           step={step}
           value={value}
           onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-[#26262B] [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:active:scale-90 [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white"
+          className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-white/10 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:active:scale-90 [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white"
           style={{ accentColor: '#D4A432' }}
         />
         <button
           onClick={inc}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1A1A1F] text-sm text-[#A1A1AA] transition-colors hover:bg-[#26262B] hover:text-white active:scale-95"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 text-sm text-white/50 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
           aria-label={`增大${label}`}
         >
           +
@@ -87,23 +87,18 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
   return (
     <div className="absolute inset-0 z-[70] flex justify-end">
       {/* Overlay */}
-      <div className="absolute inset-0 bg-[#0A0A0B]/60" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Drawer Panel */}
-      <div
-        className="relative h-full w-80 max-w-[85vw] overflow-y-auto border-l border-[#26262B] bg-[#131316] px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))]"
-        style={{
-          animation: 'slide-in-right 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards',
-        }}
-      >
+      {/* Drawer Panel — glass */}
+      <div className="relative h-full w-80 max-w-[85vw] overflow-y-auto border-l border-white/5 glass-surface px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))]">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-[#F5F5F5]">
-            <Settings size={20} className="text-[#A1A1AA]" /> 提词设置
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+            <Settings size={20} className="text-white/50" /> 提词设置
           </h2>
           <button
             onClick={onClose}
-            className="rounded-full p-2 text-[#71717A] hover:bg-[rgba(212,164,50,0.08)] hover:text-[#F5F5F5]"
+            className="rounded-full p-2 text-white/30 hover:bg-white/10 hover:text-white"
             aria-label="关闭设置"
             style={{ minHeight: '44px', minWidth: '44px' }}
           >
@@ -171,7 +166,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
                 className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
                   settings.scrollSpeed === p.wpn
                     ? 'bg-[rgba(212,164,50,0.15)] text-[#D4A432]'
-                    : 'bg-[#1A1A1F] text-[#A1A1AA] hover:text-[#F5F5F5] hover:bg-[#26262B]'
+                    : 'bg-white/5 text-white/50 hover:text-white hover:bg-white/10'
                 }`}
               >
                 {p.name}
@@ -181,7 +176,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
 
           {/* Text Alignment */}
           <div className="space-y-2">
-            <span className="flex items-center gap-2 text-sm text-[#A1A1AA]">
+            <span className="flex items-center gap-2 text-sm text-white/50">
               <AlignLeft size={16} />对齐方式
             </span>
             <div className="flex gap-2">
@@ -194,7 +189,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
                   className={`flex flex-1 items-center justify-center rounded-lg py-2.5 ${
                     settings.textAlign === value
                       ? 'bg-[rgba(212,164,50,0.15)] text-[#D4A432]'
-                      : 'bg-[#1A1A1F] text-[#A1A1AA] hover:text-[#F5F5F5] hover:bg-[#26262B]'
+                      : 'bg-white/5 text-white/50 hover:text-white hover:bg-white/10'
                   }`}
                 >
                   <Icon size={18} />
@@ -204,12 +199,12 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
           </div>
 
           {/* Mirror Toggle */}
-          <div className="flex items-center justify-between border-t border-[#26262B] pt-5">
+          <div className="flex items-center justify-between border-t border-white/5 pt-5">
             <div className="flex items-center gap-3">
-              <FlipHorizontal size={16} className="text-[#71717A]" />
+              <FlipHorizontal size={16} className="text-white/30" />
               <div>
-                <span className="block text-sm font-semibold text-[#F5F5F5]">镜像翻转</span>
-                <span className="text-[11px] text-[#71717A]">用于分光镜反射</span>
+                <span className="block text-sm font-semibold text-white">镜像翻转</span>
+                <span className="text-[11px] text-white/30">用于分光镜反射</span>
               </div>
             </div>
             <button
@@ -217,7 +212,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
               aria-checked={settings.mirror}
               onClick={() => onChange({ mirror: !settings.mirror })}
               className={`relative h-6 w-12 rounded-full ${
-                settings.mirror ? 'bg-[#D4A432]' : 'bg-[#26262B]'
+                settings.mirror ? 'bg-[#D4A432]' : 'bg-white/10'
               }`}
               style={{ transition: 'background-color 0.2s ease' }}
             >
@@ -230,7 +225,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
           </div>
 
           {/* Auto Pause */}
-          <div className="border-t border-[#26262B] pt-5">
+          <div className="border-t border-white/5 pt-5">
             <AutoPauseControl
               keyword={settings.pauseKeyword}
               paragraph={settings.pauseOnParagraph}
