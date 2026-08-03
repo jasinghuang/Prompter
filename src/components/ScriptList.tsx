@@ -158,7 +158,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
       >
         <div className="mx-auto flex max-w-5xl items-center gap-3">
           <div className="flex items-center gap-2">
-            <img src="/icon.svg" alt="" className="h-7 w-7 rounded-lg" />
+            <img src={import.meta.env.BASE_URL + 'icon.svg'} alt="" className="h-7 w-7 rounded-lg" />
             <h1 className="text-base font-bold text-white">提词器</h1>
           </div>
           <div className="relative ml-auto">
@@ -191,7 +191,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
           </div>
           <button
             onClick={onCreate}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-4 py-2.5 text-xs font-bold text-[#0A0A0B] transition-all active:scale-95 sm:gap-2 sm:text-sm"
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-4 py-2.5 text-sm font-bold text-[#0A0A0B] transition-all active:scale-95"
             style={{ minHeight: '44px' }}
           >
             <Plus size={16} />新建稿件

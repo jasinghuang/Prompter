@@ -60,15 +60,6 @@ button {
    Animations — minimal, GPU-composited only
    ================================================================ */
 
-@keyframes pulse-red {
-  0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(220, 38, 38, 0.6), 0 0 12px rgba(220, 38, 38, 0.3); }
-  50% { opacity: 0.7; box-shadow: 0 0 3px rgba(220, 38, 38, 0.3), 0 0 6px rgba(220, 38, 38, 0.15); }
-}
-
-.animate-pulse-red {
-  animation: pulse-red 2s ease-in-out infinite;
-}
-
 /* ── Glass morphism base ── */
 .glass-surface {
   background: rgba(19, 19, 22, 0.8);

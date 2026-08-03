@@ -352,13 +352,13 @@ export function Teleprompter({
 
           {/* Timer + Status Indicator — equal-size container */}
           <div className="flex items-center gap-1.5 rounded-full glass-button px-3 py-1.5">
-            <span className="flex h-5 w-5 items-center justify-center">
+            <span className="flex h-4 w-4 items-center justify-center">
               {isPlaying ? (
-                <span className="relative flex h-3 w-3">
-                  <span className="absolute inset-0 rounded-full bg-[#DC2626] animate-pulse-red" />
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inset-0 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5),inset_0_1px_2px_rgba(255,255,255,0.3)]" />
                 </span>
               ) : (
-                <CirclePause size={12} className="text-white/30" />
+                <CirclePause size={10} className="text-white/30" />
               )}
             </span>
             <span className="font-mono text-xs tabular-nums text-white/50">
