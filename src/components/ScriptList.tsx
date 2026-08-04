@@ -22,6 +22,14 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'chars', label: '字数' },
 ];
 
+// Swipe thresholds（拖动限制 / 提交阈值 / 视觉揭示阈值）
+const SWIPE_LIMIT_RIGHT = 72;
+const SWIPE_LIMIT_LEFT = -150;
+const COMMIT_FILMED_PX = 40;
+const COMMIT_DELETE_PX = -130;
+const REVEAL_FILMED_PX = 20;
+const REVEAL_DELETE_PX = -20;
+
 const RECENT_KEY = 'prompter_recent';
 function loadRecent(): string[] {
   try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
@@ -38,7 +46,6 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
   const [asc, setAsc] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
 
   // Swipe-to-film: touch gesture tracking
   const swipeRef = useRef<Map<string, number>>(new Map());
@@ -67,9 +74,9 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
     const dy = e.touches[0].clientY - touchStartY.current;
     if (Math.abs(dy) > Math.abs(dx)) return; // ignore vertical scroll
     // Right swipe → filmed (green on left), left swipe → delete (red on right)
-    const clamped = Math.max(-150, Math.min(72, dx));
+    const clamped = Math.max(SWIPE_LIMIT_LEFT, Math.min(SWIPE_LIMIT_RIGHT, dx));
     setSwipe(id, clamped);
-    if (clamped <= -130 && !shookRef.current) {
+    if (clamped <= COMMIT_DELETE_PX && !shookRef.current) {
       shookRef.current = true;
       setShakeId(id);
     }
@@ -79,16 +86,45 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
     if (swipingId.current !== id) { swipingId.current = null; return; }
     swipingId.current = null;
     const offset = swipeRef.current.get(id) || 0;
-    if (offset > 40) {
+    setShakeId(null);
+    if (offset > COMMIT_FILMED_PX) {
       // Right swipe → mark filmed
       onToggleFilmed(id);
-    } else if (offset <= -130) {
+      setSwipe(id, 0);
+    } else if (offset <= COMMIT_DELETE_PX) {
       // Left swipe past threshold → direct delete
       onDelete(id);
+      // 卡片即将消失，直接清残留而非回弹
+      swipeRef.current.delete(id);
+      setSwipeOffsets((prev) => { if (!(id in prev)) return prev; const next = { ...prev }; delete next[id]; return next; });
+    } else {
+      setSwipe(id, 0);
     }
+  }, [setSwipe, onToggleFilmed, onDelete]);
+
+  const handleTouchCancel = useCallback((_e: React.TouchEvent, id: string) => {
+    // 系统中断（来电/横竖屏/滚动被抢占）→ 回弹，避免卡片卡在半滑动
+    if (swipingId.current === id) swipingId.current = null;
     setShakeId(null);
     setSwipe(id, 0);
-  }, [setSwipe, onToggleFilmed, onDelete]);
+  }, [setSwipe]);
+
+  // 清理已不存在稿件的滑动状态残留（外部删除，如编辑器拆分/清空）
+  useEffect(() => {
+    const valid = new Set(scripts.map((s) => s.id));
+    setSwipeOffsets((prev) => {
+      let changed = false;
+      const next: Record<string, number> = {};
+      for (const k of Object.keys(prev)) {
+        if (valid.has(k)) next[k] = prev[k];
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+    for (const k of [...swipeRef.current.keys()]) {
+      if (!valid.has(k)) swipeRef.current.delete(k);
+    }
+  }, [scripts]);
 
   const charCounts = useMemo(() => {
     const map = new Map<string, number>();
@@ -150,7 +186,6 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
           <div className="relative ml-auto">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40" size={14} />
             <input
-              ref={searchRef}
               placeholder="搜索稿件..."
               value={query}
               onFocus={() => setSearchFocused(true)}
@@ -259,12 +294,13 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
                   onTouchStart={(e) => handleTouchStart(e, s.id)}
                   onTouchMove={(e) => handleTouchMove(e, s.id)}
                   onTouchEnd={(e) => handleTouchEnd(e, s.id)}
+                  onTouchCancel={(e) => handleTouchCancel(e, s.id)}
                 >
                   {/* Right swipe (→): filmed action on the left */}
                   <div className="absolute inset-y-0 left-0 flex w-[72px] items-center justify-center rounded-l-2xl transition-opacity duration-200"
                     style={{
-                      background: swipeX > 20 ? (isFilmed ? '#52525B' : '#22C55E') : 'transparent',
-                      opacity: swipeX > 20 ? 1 : 0,
+                      background: swipeX > REVEAL_FILMED_PX ? (isFilmed ? '#52525B' : '#22C55E') : 'transparent',
+                      opacity: swipeX > REVEAL_FILMED_PX ? 1 : 0,
                     }}
                   >
                     {isFilmed ? (
@@ -274,15 +310,31 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
                     )}
                   </div>
 
+                  {/* Left swipe hint (←): 阶段1后红区左侧的确认引导 */}
+                  <div
+                    className="absolute inset-y-0 flex items-center justify-center overflow-hidden"
+                    style={{
+                      right: '72px',
+                      width: `${Math.max(0, Math.min(80, -swipeX - 72))}px`,
+                      background: 'linear-gradient(to left, rgba(220,38,38,0.85), rgba(220,38,38,0.15))',
+                      opacity: swipeX < -SWIPE_LIMIT_RIGHT ? 1 : 0,
+                      transition: swipingId.current === s.id ? 'none' : 'opacity 0.2s',
+                    }}
+                  >
+                    <span className="whitespace-nowrap text-[10px] font-bold tracking-wide text-white/95">
+                      {swipeX <= COMMIT_DELETE_PX ? '松开删除' : '继续滑动'}
+                    </span>
+                  </div>
+
                   {/* Left swipe (←): red "删除" on the right */}
                   <div className="absolute inset-y-0 right-0 flex w-[72px] items-center justify-center rounded-r-2xl transition-opacity duration-200"
                     style={{
-                      background: swipeX < -130 ? '#EF4444' : (swipeX < -20 ? '#DC2626' : 'transparent'),
-                      opacity: swipeX < -20 ? 1 : 0,
+                      background: swipeX < COMMIT_DELETE_PX ? '#EF4444' : (swipeX < REVEAL_DELETE_PX ? '#DC2626' : 'transparent'),
+                      opacity: swipeX < REVEAL_DELETE_PX ? 1 : 0,
                     }}
                   >
                     <Trash2 size={20} strokeWidth={2.5} className="text-white transition-transform duration-150"
-                      style={{ transform: swipeX < -130 ? 'scale(1.15)' : 'scale(1)' }}
+                      style={{ transform: swipeX < COMMIT_DELETE_PX ? 'scale(1.15)' : 'scale(1)' }}
                     />
                   </div>
 

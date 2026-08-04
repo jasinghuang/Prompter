@@ -24,15 +24,6 @@ export function useAutoScroll({ running, pxPerSec, getViewport, getMaxOffset, on
   useEffect(() => {
     if (!running || pxPerSec <= 0) return;
 
-    const raf =
-      typeof requestAnimationFrame === 'function'
-        ? requestAnimationFrame
-        : (cb: FrameRequestCallback) => setTimeout(() => cb(performance.now()), 16) as unknown as number;
-    const caf =
-      typeof cancelAnimationFrame === 'function'
-        ? cancelAnimationFrame
-        : (id: number) => clearTimeout(id);
-
     let last = performance.now();
     let id = 0;
     let ended = false;
@@ -58,11 +49,11 @@ export function useAutoScroll({ running, pxPerSec, getViewport, getMaxOffset, on
         scrollRef.current = next;
         onTickRef.current(next);
       }
-      id = raf(tick);
+      id = requestAnimationFrame(tick);
     };
 
-    id = raf(tick);
-    return () => caf(id);
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
   }, [running, pxPerSec, getViewport, getMaxOffset]);
 
   return scrollRef;

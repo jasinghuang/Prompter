@@ -82,7 +82,7 @@ export function Teleprompter({
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const spansRef = useRef<HTMLElement[]>([]);
-  const touchStartRef = useRef<{ y: number; scrollTop: number } | null>(null);
+  const touchStartRef = useRef<{ y: number } | null>(null);
 
   const charCount = useMemo(() => countReadableChars(script.content), [script.content]);
 
@@ -247,8 +247,12 @@ export function Teleprompter({
   }, [showOnboarding, dismissOnboarding]);
 
   useEffect(() => {
-    request().catch(() => showWakeLockFailed());
+    let cancelled = false;
+    request()
+      .then(() => { if (cancelled) release(); }) // 卸载发生在 request 飞行中 → 释放刚拿到的 sentinel，避免泄漏
+      .catch(() => showWakeLockFailed());
     return () => {
+      cancelled = true;
       release();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -306,7 +310,7 @@ export function Teleprompter({
   };
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    touchStartRef.current = { y: e.clientY, scrollTop: viewportRef.current?.scrollTop ?? 0 };
+    touchStartRef.current = { y: e.clientY };
   }, []);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
