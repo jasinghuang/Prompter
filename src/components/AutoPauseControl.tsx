@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { CirclePause } from 'lucide-react';
 
 type PauseMode = 'off' | 'keyword' | 'paragraph';
@@ -26,7 +26,7 @@ interface Props {
   inline?: boolean;
 }
 
-/** Sliding pill for mode buttons — positions via getBoundingClientRect */
+/** Sliding pill — uses React state + useEffect to animate between positions */
 function ModePillGroup({
   mode,
   onSelect,
@@ -35,38 +35,37 @@ function ModePillGroup({
   onSelect: (v: PauseMode) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const pillRef = useRef<HTMLDivElement | null>(null);
+  const [pillRect, setPillRect] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const container = containerRef.current;
-    const pill = pillRef.current;
-    if (!container || !pill) return;
-    const btn = container.querySelector<HTMLButtonElement>(
-      `[data-mode-value="${mode}"]`
-    );
+    if (!container) return;
+    const btn = container.querySelector<HTMLButtonElement>(`[data-mode-value="${mode}"]`);
     if (!btn) return;
     const cr = container.getBoundingClientRect();
     const br = btn.getBoundingClientRect();
-    pill.style.left = `${br.left - cr.left}px`;
-    pill.style.width = `${br.width}px`;
+    setPillRect({ left: br.left - cr.left, width: br.width });
   }, [mode]);
 
   return (
     <div
       ref={containerRef}
-      className="relative flex items-center rounded-full glass-button py-0.5 px-0.5"
+      className="relative flex items-center rounded-full glass-button py-0.5 pl-0.5 pr-0"
     >
       <div
-        ref={pillRef}
         className="absolute top-0.5 rounded-full bg-white/15 transition-all duration-300 ease-out"
-        style={{ height: 'calc(100% - 4px)' }}
+        style={{
+          height: 'calc(100% - 4px)',
+          left: `${pillRect.left}px`,
+          width: `${pillRect.width}px`,
+        }}
       />
       {MODES.map(({ value, label }) => (
         <button
           key={value}
           data-mode-value={value}
           onClick={() => onSelect(value)}
-          className={`relative z-10 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+          className={`relative z-10 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-medium transition-colors ${
             mode === value
               ? 'text-white'
               : 'text-white/35 hover:text-white/60'

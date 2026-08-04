@@ -2,9 +2,11 @@
 
 /* ================================================================
    Design Tokens — The Darkroom
+   统一设计变量：颜色、圆角、阴影。组件只能引用这些 token。
    ================================================================ */
 
 :root {
+  /* Neutral */
   --color-canvas: #0A0A0B;
   --color-surface: #131316;
   --color-raised: #1A1A1F;
@@ -12,15 +14,28 @@
   --color-text-primary: #F5F5F5;
   --color-text-secondary: #A1A1AA;
   --color-text-muted: #71717A;
+
+  /* Accent */
   --color-accent: #D4A432;
   --color-accent-muted: rgba(212, 164, 50, 0.15);
   --color-accent-dim: rgba(212, 164, 50, 0.08);
+
+  /* Semantic */
   --color-danger: #DC2626;
   --color-danger-muted: rgba(220, 38, 38, 0.15);
+  --color-success: #22C55E;
+
+  /* Radii */
+  --radius-pill: 9999px;
+  --radius-card: 1rem;
+  --radius-modal: 1.5rem;
+
+  /* Shadows */
+  --shadow-record: 0 0 6px rgba(239, 68, 68, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.3);
 }
 
 /* ================================================================
-   Base Styles
+   Base
    ================================================================ */
 
 html, body, #root {
@@ -35,13 +50,9 @@ body {
   overscroll-behavior: none;
 }
 
-.word {
-  display: inline;
-}
+.word { display: inline; }
 
-.mirror-mode {
-  transform: scaleX(-1);
-}
+.mirror-mode { transform: scaleX(-1); }
 
 .teleprompter-touch {
   touch-action: pan-y manipulation;
@@ -52,15 +63,12 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-button {
-  touch-action: manipulation;
-}
+button { touch-action: manipulation; cursor: pointer; }
 
 /* ================================================================
-   Animations — minimal, GPU-composited only
+   Glass — 共享视觉基础
    ================================================================ */
 
-/* ── Glass morphism base ── */
 .glass-surface {
   background: rgba(19, 19, 22, 0.8);
   backdrop-filter: blur(16px);
@@ -83,28 +91,6 @@ button {
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-}
-
-/* ── Swipe reveal ── */
-.swipe-container {
-  position: relative;
-  overflow: hidden;
-}
-
-.swipe-action {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 72px;
-  border-radius: 0 1rem 1rem 0;
-  background: #22C55E;
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 700;
 }
 
 /* ================================================================

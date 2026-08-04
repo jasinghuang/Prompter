@@ -89,10 +89,10 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
       {/* Overlay — transparent, no blur so background text is previewable */}
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
 
-      {/* Drawer Panel — glass */}
-      <div className="relative h-full w-80 max-w-[85vw] overflow-y-auto border-l border-white/5 glass-surface px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))]">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
+      {/* Drawer Panel — Header fixed, Body scrolls */}
+      <div className="relative flex h-full w-80 max-w-[85vw] flex-col border-l border-white/5 glass-surface">
+        {/* Sticky Header */}
+        <div className="shrink-0 flex items-center justify-between px-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-3">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
             <Settings size={20} className="text-white/50" /> 提词设置
           </h2>
@@ -106,7 +106,8 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
           </button>
         </div>
 
-        <div className="space-y-6">
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] space-y-6">
           <Slider
             label="字号"
             icon={<Type size={16} />}

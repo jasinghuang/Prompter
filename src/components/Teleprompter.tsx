@@ -260,7 +260,11 @@ export function Teleprompter({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.code === 'Escape') {
+        if (showSettings) { setShowSettings(false); return; }
+      }
       if (e.code === 'Space') {
+        if (showSettings) return;
         if (e.repeat) return;
         e.preventDefault();
         setIsPlaying((p) => !p);
@@ -355,7 +359,7 @@ export function Teleprompter({
             <span className="flex h-4 w-4 items-center justify-center">
               {isPlaying ? (
                 <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inset-0 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5),inset_0_1px_2px_rgba(255,255,255,0.3)]" />
+                  <span className="absolute inset-0 rounded-full" style={{ background: 'var(--color-danger)', boxShadow: 'var(--shadow-record)' }} />
                 </span>
               ) : (
                 <CirclePause size={10} className="text-white/30" />
