@@ -34,4 +34,14 @@ describe('App', () => {
     // 进入提词器：验证 back 按钮存在
     await waitFor(() => expect(screen.getByLabelText('返回')).toBeInTheDocument());
   });
+
+  it('清理已删除稿件的 filmed 残留', () => {
+    localStorage.setItem('prompter_filmed', JSON.stringify(['gone']));
+    localStorage.setItem('prompter_scripts', JSON.stringify([
+      { id: '1', title: 't', content: 'c', createdAt: 1, updatedAt: 1 },
+    ]));
+    render(<App />);
+    // clearStale 应移除不存在的 'gone'
+    expect(JSON.parse(localStorage.getItem('prompter_filmed')!)).toEqual([]);
+  });
 });

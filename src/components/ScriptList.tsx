@@ -5,10 +5,12 @@ import { countReadableChars } from '../lib/tokens';
 
 interface Props {
   scripts: Script[];
+  filmedIds: Set<string>;
   onOpen: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onCreate: () => void;
+  onToggleFilmed: (id: string) => void;
   onDeleteAll?: () => void;
 }
 
@@ -30,26 +32,13 @@ function saveRecent(id: string) {
   try { localStorage.setItem(RECENT_KEY, JSON.stringify(prev.slice(0, 3))); } catch { /* noop */ }
 }
 
-export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDeleteAll }: Props) {
+export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCreate, onToggleFilmed, onDeleteAll }: Props) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('date');
   const [asc, setAsc] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const [filmedIds, setFilmedIds] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('prompter_filmed') || '[]')); } catch { return new Set(); }
-  });
   const searchRef = useRef<HTMLInputElement>(null);
-
-  const toggleFilmed = useCallback((id: string) => {
-    setFilmedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      try { localStorage.setItem('prompter_filmed', JSON.stringify([...next])); } catch { /* noop */ }
-      return next;
-    });
-  }, []);
 
   // Swipe-to-film: touch gesture tracking
   const swipeRef = useRef<Map<string, number>>(new Map());
@@ -92,14 +81,14 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
     const offset = swipeRef.current.get(id) || 0;
     if (offset > 40) {
       // Right swipe → mark filmed
-      toggleFilmed(id);
+      onToggleFilmed(id);
     } else if (offset <= -130) {
       // Left swipe past threshold → direct delete
       onDelete(id);
     }
     setShakeId(null);
     setSwipe(id, 0);
-  }, [setSwipe, toggleFilmed, onDelete]);
+  }, [setSwipe, onToggleFilmed, onDelete]);
 
   const charCounts = useMemo(() => {
     const map = new Map<string, number>();

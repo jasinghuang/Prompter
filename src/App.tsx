@@ -6,6 +6,7 @@ import { Teleprompter } from './components/Teleprompter';
 import { AddToHomeScreenPrompt } from './components/AddToHomeScreenPrompt';
 import { useScripts } from './store/useScripts';
 import { useSettings } from './store/useSettings';
+import { useFilmed } from './store/useFilmed';
 import { resolveIndexAfterEdit } from './lib/editResolve';
 
 type View = 'list' | 'prompter' | 'editor';
@@ -26,6 +27,7 @@ function savePosition(id: string, index: number) {
 export default function App() {
   const { scripts, addScript, updateScript, deleteScript, clearAll, importScript } = useScripts();
   const { settings, updateSettings } = useSettings();
+  const { filmedIds, toggleFilmed, clearStale } = useFilmed();
 
   const [view, setView] = useState<View>('list');
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -36,6 +38,11 @@ export default function App() {
   const [resetNotice, showResetNotice] = useTransientFlag(3000);
 
   const active = scripts.find((s) => s.id === activeId) ?? null;
+
+  // 清理已删除稿件的 filmed 残留 id
+  useEffect(() => {
+    clearStale(scripts.map((s) => s.id));
+  }, [scripts, clearStale]);
 
   // 编辑/提词中防误退出（桌面端有效，移动端受限）
   useEffect(() => {
@@ -133,11 +140,13 @@ export default function App() {
     <>
       <ScriptList
         scripts={scripts}
+        filmedIds={filmedIds}
         onOpen={openPrompter}
         onEdit={(id) => { setActiveId(id); setEditSnapshot(null); setView('editor'); }}
         onDelete={deleteScript}
-        onDeleteAll={clearAll}
         onCreate={handleCreate}
+        onToggleFilmed={toggleFilmed}
+        onDeleteAll={clearAll}
       />
       <AddToHomeScreenPrompt />
     </>

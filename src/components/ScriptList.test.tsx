@@ -11,7 +11,7 @@ const scripts: Script[] = [
 describe('ScriptList', () => {
   it('渲染所有稿件标题', () => {
     render(
-      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
     );
     expect(screen.getByText('视频脚本')).toBeInTheDocument();
     expect(screen.getByText('会议发言')).toBeInTheDocument();
@@ -19,7 +19,7 @@ describe('ScriptList', () => {
 
   it('搜索过滤（标题）', () => {
     render(
-      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
     );
     fireEvent.change(screen.getByPlaceholderText('搜索稿件...'), { target: { value: '视频' } });
     expect(screen.getByText('视频脚本')).toBeInTheDocument();
@@ -29,7 +29,7 @@ describe('ScriptList', () => {
   it('新建按钮调用 onCreate', () => {
     const onCreate = vi.fn();
     render(
-      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={onCreate} />
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={onCreate} />
     );
     fireEvent.click(screen.getByRole('button', { name: /新建稿件/ }));
     expect(onCreate).toHaveBeenCalled();
@@ -38,7 +38,7 @@ describe('ScriptList', () => {
   it('卡片点击调用 onOpen', () => {
     const onOpen = vi.fn();
     render(
-      <ScriptList scripts={scripts} onOpen={onOpen} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={onOpen} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
     );
     fireEvent.click(screen.getByText('视频脚本'));
     expect(onOpen).toHaveBeenCalledWith('1');
@@ -47,7 +47,7 @@ describe('ScriptList', () => {
   it('删除按钮直接调用 onDelete（无确认弹窗）', () => {
     const onDelete = vi.fn();
     render(
-      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={onDelete} onCreate={() => {}} />
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={onDelete} onCreate={() => {}} />
     );
     fireEvent.click(screen.getByTestId('delete-1'));
     expect(onDelete).toHaveBeenCalledWith('1');
@@ -57,7 +57,7 @@ describe('ScriptList', () => {
   it('左滑越过 -130 松手直接删除（无弹窗）', () => {
     const onDelete = vi.fn();
     render(
-      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={onDelete} onCreate={() => {}} />
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={onDelete} onCreate={() => {}} />
     );
     const card = screen.getByTestId('content-1').parentElement!;
     fireEvent.touchStart(card, { touches: [{ clientX: 160, clientY: 50 }] });
@@ -70,7 +70,7 @@ describe('ScriptList', () => {
   it('左滑未越过 -130 松手不删除', () => {
     const onDelete = vi.fn();
     render(
-      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={onDelete} onCreate={() => {}} />
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={onDelete} onCreate={() => {}} />
     );
     const card = screen.getByTestId('content-1').parentElement!;
     fireEvent.touchStart(card, { touches: [{ clientX: 100, clientY: 50 }] });
@@ -82,7 +82,7 @@ describe('ScriptList', () => {
   it('清空全部按钮调用 onDeleteAll（含确认）', () => {
     const onDeleteAll = vi.fn();
     render(
-      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onDeleteAll={onDeleteAll} />
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onDeleteAll={onDeleteAll} />
     );
     fireEvent.click(screen.getByText('清空全部'));
     fireEvent.click(screen.getByText('确认清空'));
@@ -91,14 +91,14 @@ describe('ScriptList', () => {
 
   it('空状态显示引导', () => {
     render(
-      <ScriptList scripts={[]} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+      <ScriptList scripts={[]} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
     );
     expect(screen.getByText(/暂无稿件/)).toBeInTheDocument();
   });
 
   it('滑动中内容层不透明背景（修复重叠），静止时透明', () => {
     render(
-      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
     );
     const contentLayer = screen.getByTestId('content-1');
     // 静止：无内联背景
@@ -108,5 +108,26 @@ describe('ScriptList', () => {
     fireEvent.touchStart(card, { touches: [{ clientX: 50, clientY: 50 }] });
     fireEvent.touchMove(card, { touches: [{ clientX: 10, clientY: 50 }] });
     expect(contentLayer.style.background).not.toBe('');
+  });
+
+  it('右滑标记调用 onToggleFilmed', () => {
+    const onToggleFilmed = vi.fn();
+    render(
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={onToggleFilmed} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+    );
+    const card = screen.getByTestId('content-1').parentElement!;
+    fireEvent.touchStart(card, { touches: [{ clientX: 50, clientY: 50 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 120, clientY: 50 }] }); // dx = 70
+    fireEvent.touchEnd(card);
+    expect(onToggleFilmed).toHaveBeenCalledWith('1');
+  });
+
+  it('filmedIds 受控：已标记稿件显示绿标', () => {
+    render(
+      <ScriptList scripts={scripts} filmedIds={new Set(['1'])} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+    );
+    // 已拍摄稿件标题带 line-through
+    const title = screen.getByText('视频脚本');
+    expect(title.className).toContain('line-through');
   });
 });
