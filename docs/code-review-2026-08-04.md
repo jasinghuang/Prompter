@@ -9,19 +9,19 @@
 
 | 编号 | 严重性 | 问题 | 文件 | 批次 | 状态 |
 |---|---|---|---|---|---|
-| CF1 | 真 bug ⭐⭐ | wakeLock 卸载竞态，Android 屏幕常亮泄漏 | useWakeLock.ts / Teleprompter.tsx | 1 | 待修 |
-| CF2 | 真 bug ⭐⭐ | 无 onTouchCancel，中断后卡片卡在半滑动 | ScriptList.tsx | 1 | 待修 |
-| CF13 | UI 增强 ⭐⭐ | 左滑阶段1后空白区浪费，可做确认提示 | ScriptList.tsx | 1 | 待修 |
-| CF3 | 性能 ⭐ | 每次 touchmove 重渲染整个列表，长列表卡顿 | ScriptList.tsx | 2 | 待修 |
-| CF4 | 内存 | 删除稿件后滑动状态不清理 | ScriptList.tsx | 1 | 待修 |
-| CF12 | 可读性 | 滑动魔法数字散落，应命名常量 | ScriptList.tsx | 1 | 待修 |
-| CF5 | 死代码 | Teleprompter touchStartRef.scrollTop 死字段 | Teleprompter.tsx | 1 | 待修 |
-| CF6 | 死代码 | ScriptList searchRef 声明后从未读 | ScriptList.tsx | 1 | 待修 |
-| CF11 | 死代码 | useAutoScroll 的 RAF fallback 永不可达 | useAutoScroll.ts | 1 | 待修 |
-| CF7 | API/死代码 | useFilmed.isFilmed 生产未用（仅测试） | useFilmed.ts | — | 保留 |
-| CF8 | API/死代码 | useTimer.reset 生产未用（仅测试） | useTimer.ts | — | 保留 |
-| CF9 | 重构 | 滑动手势应抽成 hook（减 ~50 行） | ScriptList.tsx | 2 | 待修 |
-| CF10 | 重构 | Teleprompter 11 个 effect，应拆暂停逻辑 | Teleprompter.tsx | 2 | 待修 |
+| CF1 | 真 bug ⭐⭐ | wakeLock 卸载竞态，Android 屏幕常亮泄漏 | useWakeLock.ts / Teleprompter.tsx | 1 | ✅ 已修 c227944 |
+| CF2 | 真 bug ⭐⭐ | 无 onTouchCancel，中断后卡片卡在半滑动 | ScriptList.tsx | 1 | ✅ 已修 c227944 |
+| CF13 | UI 增强 ⭐⭐ | 左滑阶段1后空白区浪费，可做确认提示 | ScriptList.tsx | 1 | ✅ 已修 c227944 |
+| CF3 | 性能 ⭐ | 每次 touchmove 重渲染整个列表，长列表卡顿 | ScriptList.tsx | 2 | ✅ 已修 34757a3 |
+| CF4 | 内存 | 删除稿件后滑动状态不清理 | ScriptList.tsx | 1 | ✅ 已修 c227944+34757a3 |
+| CF12 | 可读性 | 滑动魔法数字散落，应命名常量 | ScriptList.tsx | 1 | ✅ 已修 c227944 |
+| CF5 | 死代码 | Teleprompter touchStartRef.scrollTop 死字段 | Teleprompter.tsx | 1 | ✅ 已修 c227944 |
+| CF6 | 死代码 | ScriptList searchRef 声明后从未读 | ScriptList.tsx | 1 | ✅ 已修 c227944 |
+| CF11 | 死代码 | useAutoScroll 的 RAF fallback 永不可达 | useAutoScroll.ts | 1 | ✅ 已修 c227944 |
+| CF7 | API/死代码 | useFilmed.isFilmed 生产未用（仅测试） | useFilmed.ts | — | ⏸ 保留（hook API） |
+| CF8 | API/死代码 | useTimer.reset 生产未用（仅测试） | useTimer.ts | — | ⏸ 保留（hook API） |
+| CF9 | 重构 | 滑动手势应抽成 hook（减 ~50 行） | ScriptList.tsx | 2 | ✅ 已修 34757a3 |
+| CF10 | 重构 | Teleprompter 11 个 effect，应拆暂停逻辑 | Teleprompter.tsx | 2 | ✅ 已修 2dfd3fa |
 
 ---
 
@@ -120,5 +120,6 @@
 
 ## 批次划分
 
-- **批次1（低中风险，本次）**：CF1、CF2、CF13、CF4、CF12、CF5、CF6、CF11（真 bug + 死代码 + 提示区 + 常量）。CF7/CF8 保留不修。
-- **批次2（大重构，后续）**：CF3 + CF9 + CF10（SwipeableCard 拆分 / swipe hook / Teleprompter effect 拆分）。建议单独分支，因为涉及结构重构、回归风险较高。
+- **批次1（commit c227944）**：CF1、CF2、CF13、CF4、CF12、CF5、CF6、CF11（真 bug + 死代码 + 提示区 + 常量）。CF7/CF8 保留不修。
+- **批次2（commit 34757a3 + 2dfd3fa）**：CF3 + CF9 + CF10（SwipeableCard 拆分 / swipe hook / Teleprompter effect 拆分）。
+- **hook 单元测试（本次）**：useSwipeAction / usePauseOnKeyword / usePauseOnParagraph 各补独立测试，CF9"可独立测试"落地。
