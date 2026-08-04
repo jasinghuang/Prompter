@@ -404,13 +404,13 @@ export function Teleprompter({
         className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2"
         style={{ left: 'calc(0.75rem + env(safe-area-inset-left))' }}
       >
-        <div className="h-28 w-0.5 rounded-full bg-white/[0.06]" />
+        <div className="h-28 w-1 rounded-full" style={{ background: '#D4A432', boxShadow: '0 0 12px 1px rgba(212,164,50,0.55)' }} />
       </div>
       <div
         className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2"
         style={{ right: 'calc(0.75rem + env(safe-area-inset-right))' }}
       >
-        <div className="h-28 w-0.5 rounded-full bg-white/[0.06]" />
+        <div className="h-28 w-1 rounded-full" style={{ background: '#D4A432', boxShadow: '0 0 12px 1px rgba(212,164,50,0.55)' }} />
       </div>
 
       {/* ── Reading Viewport ── */}
