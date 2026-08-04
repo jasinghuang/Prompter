@@ -20,6 +20,7 @@ interface Props {
   onChangeSettings: (patch: Partial<TeleprompterSettings>) => void;
   onBack: () => void;
   onEdit: () => void;
+  onCompleted: () => void;
 }
 
 const ONBOARD_KEY = 'prompter_onboarded';
@@ -48,6 +49,7 @@ export function Teleprompter({
   onChangeSettings,
   onBack,
   onEdit,
+  onCompleted,
 }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -55,6 +57,8 @@ export function Teleprompter({
   const [wakeLockFailed, showWakeLockFailed] = useTransientFlag(3000);
   const [pauseReason, setPauseReason] = useState<string | null>(null);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [completed, setCompleted] = useState(false);
+  const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showPauseToast = useCallback((msg: string) => {
     setPauseReason(msg);
@@ -65,6 +69,7 @@ export function Teleprompter({
   useEffect(() => {
     return () => {
       if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+      if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
     };
   }, []);
 
@@ -142,7 +147,13 @@ export function Teleprompter({
     getViewport,
     getMaxOffset,
     onTick: computeActive,
-    onReachEnd: () => setIsPlaying(false),
+    onReachEnd: () => {
+      setIsPlaying(false);
+      setCompleted(true);
+      onCompleted();
+      if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+      completionTimerRef.current = setTimeout(() => onBack(), 1200);
+    },
   });
 
   useEffect(() => {
@@ -448,6 +459,13 @@ export function Teleprompter({
       {pauseReason && (
         <div className="absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-[#D4A432]">
           {pauseReason}
+        </div>
+      )}
+
+      {/* ── Completed Notice ── */}
+      {completed && (
+        <div className="absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-green-400">
+          ✓ 已读完·已标记拍摄
         </div>
       )}
 

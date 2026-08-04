@@ -27,7 +27,7 @@ function savePosition(id: string, index: number) {
 export default function App() {
   const { scripts, addScript, updateScript, deleteScript, clearAll, importScript } = useScripts();
   const { settings, updateSettings } = useSettings();
-  const { filmedIds, toggleFilmed, clearStale } = useFilmed();
+  const { filmedIds, markFilmed, toggleFilmed, clearStale } = useFilmed();
 
   const [view, setView] = useState<View>('list');
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -100,6 +100,7 @@ export default function App() {
           onChangeSettings={updateSettings}
           onBack={() => setView('list')}
           onEdit={openEditorFromPrompter}
+          onCompleted={() => markFilmed(active.id)}
         />
         {resetNotice && (
           <div className="fixed left-1/2 top-20 z-[120] -translate-x-1/2 rounded-full border border-[#D4A432]/20 bg-white/10 backdrop-blur-xl px-4 py-2.5 text-xs text-[#D4A432] backdrop-blur-xl shadow-2xl">
