@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useCallback, useLayoutEffect } from 'react';
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { Search, Plus, FileText, Edit3, Trash2, ArrowUpDown, Check, Clock, X } from 'lucide-react';
 import { Script } from '../types';
 import { countReadableChars } from '../lib/tokens';
@@ -51,25 +51,6 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
       return next;
     });
   }, []);
-
-  const sortIdx = SORT_OPTIONS.findIndex((o) => o.value === sort);
-  const sortPillRef = useRef<HTMLDivElement | null>(null);
-  const sortContainerRef = useRef<HTMLDivElement | null>(null);
-
-  // Position pill to exactly cover active button via getBoundingClientRect
-  useLayoutEffect(() => {
-    const container = sortContainerRef.current;
-    const pill = sortPillRef.current;
-    if (!container || !pill) return;
-    const btn = container.querySelector<HTMLButtonElement>(
-      `[data-sort-value="${SORT_OPTIONS[sortIdx].value}"]`
-    );
-    if (!btn) return;
-    const cr = container.getBoundingClientRect();
-    const br = btn.getBoundingClientRect();
-    pill.style.left = `${br.left - cr.left}px`;
-    pill.style.width = `${br.width}px`;
-  }, [sortIdx, asc]);
 
   // Swipe-to-film: touch gesture tracking
   const swipeRef = useRef<Map<string, number>>(new Map());
@@ -144,6 +125,14 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
     onOpen(id);
   }, [onOpen]);
 
+  // Escape closes modals
+  useEffect(() => {
+    if (!confirmId && !confirmClear) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setConfirmId(null); setConfirmClear(false); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [confirmId, confirmClear]);
+
   return (
     <div className="flex min-h-screen flex-col bg-[#0A0A0B] text-white">
       {/* Header — glass */}
@@ -211,28 +200,19 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
           <div className="mb-4 flex items-center gap-3 text-xs text-white/35">
             <span>{scripts.length} 篇</span>
 
-            {/* Sort — sliding pill via getBoundingClientRect */}
-            <div
-              ref={sortContainerRef}
-              className="relative flex items-center rounded-full glass-button py-0.5 pl-2 pr-1"
-            >
-              <ArrowUpDown size={11} className="mr-1.5 shrink-0 text-white/30" />
-              <div
-                ref={sortPillRef}
-                className="absolute top-0.5 rounded-full bg-white/15 transition-all duration-300 ease-out"
-                style={{ height: 'calc(100% - 4px)' }}
-              />
+            {/* Sort */}
+            <div className="flex items-center rounded-full glass-button py-0.5 pl-2 pr-1">
+              <ArrowUpDown size={11} className="mr-1 shrink-0 text-white/30" />
               {SORT_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
-                  data-sort-value={opt.value}
                   onClick={() => {
                     if (sort === opt.value) setAsc((v) => !v);
                     else { setSort(opt.value); setAsc(false); }
                   }}
-                  className={`relative z-10 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-all duration-200 ${
                     sort === opt.value
-                      ? 'text-white'
+                      ? 'bg-white/15 text-white'
                       : 'text-white/35 hover:text-white/60'
                   }`}
                 >
@@ -251,12 +231,20 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
         )}
 
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white/5 text-white/15">
-              <FileText size={32} />
+          scripts.length === 0 ? (
+            /* true empty — reason only, no duplicate create action */
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <FileText size={40} className="mb-4 text-white/10" />
+              <p className="text-sm text-white/30">暂无稿件</p>
             </div>
-            <p className="text-white/35">还没有稿件，点击右上角「新建稿件」去新建第一篇提词脚本吧</p>
-          </div>
+          ) : (
+            /* filtered-empty — search miss */
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <Search size={40} className="mb-4 text-white/10" />
+              <p className="text-sm text-white/30">未找到与「{query}」匹配的稿件</p>
+              <button onClick={() => setQuery('')} className="mt-3 rounded-full px-4 py-1.5 text-xs text-white/40 transition-colors hover:bg-white/10 hover:text-white/60">清除搜索</button>
+            </div>
+          )
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {filtered.map((s) => {
@@ -297,9 +285,11 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
 
                   {/* Card content — slides on swipe */}
                   <div
+                    data-testid={`content-${s.id}`}
                     className="relative p-4"
                     style={{
                       transform: `translateX(${swipeX}px)`,
+                      background: swipeX !== 0 ? '#131316' : undefined,
                       transition: swipingId.current === s.id ? 'none' : 'transform 0.25s ease-out',
                     }}
                     onClick={() => {
@@ -341,12 +331,6 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
                       {new Date(s.updatedAt).toLocaleDateString()}
                       <span>|</span>
                       <span>{charCounts.get(s.id)}字</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleOpen(s.id); }}
-                        className="ml-auto flex items-center gap-1 rounded-full bg-[#D4A432] px-3 py-1.5 text-xs font-bold text-[#0A0A0B] active:scale-95 transition-transform"
-                      >
-                        开始提词
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -356,31 +340,40 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
         )}
       </main>
 
-      {/* Modals — glass */}
+      {/* Confirm Clear All — Header / Body / Footer */}
       {confirmClear && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmClear(false)} />
-          <div className="relative w-full max-w-sm rounded-3xl border border-white/10 glass-surface p-8">
-            <h3 className="mb-2 text-xl font-bold text-white">确认清空全部稿件？</h3>
-            <p className="mb-6 text-sm text-white/40">将删除全部 {scripts.length} 篇稿件，此操作不可撤销。</p>
-            <div className="flex gap-3">
+          <div className="relative flex w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 glass-surface">
+            <header className="shrink-0 px-8 pt-8">
+              <h3 className="text-xl font-bold text-white">确认清空全部稿件？</h3>
+            </header>
+            <div className="overflow-y-auto px-8 py-3">
+              <p className="text-sm text-white/40">将删除全部 {scripts.length} 篇稿件，此操作不可撤销。</p>
+            </div>
+            <footer className="shrink-0 flex gap-3 px-8 pb-8 pt-2">
               <button onClick={() => setConfirmClear(false)} className="flex-1 rounded-xl bg-white/5 py-3 text-sm font-bold text-white transition-colors hover:bg-white/10 active:scale-95">取消</button>
               <button onClick={() => { onDeleteAll?.(); setConfirmClear(false); }} className="flex-1 rounded-xl bg-red-500 py-3 text-sm font-bold text-white transition-all active:scale-95">确认清空</button>
-            </div>
+            </footer>
           </div>
         </div>
       )}
 
+      {/* Confirm Delete — Header / Body / Footer */}
       {confirmId && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmId(null)} />
-          <div className="relative w-full max-w-sm rounded-3xl border border-white/10 glass-surface p-8">
-            <h3 className="mb-2 text-xl font-bold text-white">确认删除稿件？</h3>
-            <p className="mb-6 text-sm text-white/40">此操作不可撤销。</p>
-            <div className="flex gap-3">
+          <div className="relative flex w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 glass-surface">
+            <header className="shrink-0 px-8 pt-8">
+              <h3 className="text-xl font-bold text-white">确认删除稿件？</h3>
+            </header>
+            <div className="overflow-y-auto px-8 py-3">
+              <p className="text-sm text-white/40">此操作不可撤销。</p>
+            </div>
+            <footer className="shrink-0 flex gap-3 px-8 pb-8 pt-2">
               <button onClick={() => setConfirmId(null)} className="flex-1 rounded-xl bg-white/5 py-3 text-sm font-bold text-white transition-colors hover:bg-white/10 active:scale-95">取消</button>
               <button onClick={() => { onDelete(confirmId); setConfirmId(null); }} className="flex-1 rounded-xl bg-red-500 py-3 text-sm font-bold text-white transition-all active:scale-95">确认删除</button>
-            </div>
+            </footer>
           </div>
         </div>
       )}

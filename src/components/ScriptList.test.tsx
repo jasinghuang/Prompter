@@ -68,6 +68,20 @@ describe('ScriptList', () => {
     render(
       <ScriptList scripts={[]} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
     );
-    expect(screen.getByText(/第一篇提词脚本/)).toBeInTheDocument();
+    expect(screen.getByText(/暂无稿件/)).toBeInTheDocument();
+  });
+
+  it('滑动中内容层不透明背景（修复重叠），静止时透明', () => {
+    render(
+      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+    );
+    const contentLayer = screen.getByTestId('content-1');
+    // 静止：无内联背景
+    expect(contentLayer.style.background).toBe('');
+    // 模拟左滑（dx = 50 → 10 = -40）
+    const card = contentLayer.parentElement!;
+    fireEvent.touchStart(card, { touches: [{ clientX: 50, clientY: 50 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 10, clientY: 50 }] });
+    expect(contentLayer.style.background).not.toBe('');
   });
 });
