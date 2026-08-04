@@ -65,7 +65,7 @@ function ModePillGroup({
           key={value}
           data-mode-value={value}
           onClick={() => onSelect(value)}
-          className={`relative z-10 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-medium transition-colors ${
+          className={`relative z-10 flex-1 text-center whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-medium transition-colors ${
             mode === value
               ? 'text-white'
               : 'text-white/35 hover:text-white/60'
