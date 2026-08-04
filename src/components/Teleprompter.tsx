@@ -6,6 +6,8 @@ import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
 import { formatTime } from '../lib/format';
 import { useTimer } from '../hooks/useTimer';
 import { useAutoScroll } from '../hooks/useAutoScroll';
+import { usePauseOnKeyword } from '../hooks/usePauseOnKeyword';
+import { usePauseOnParagraph } from '../hooks/usePauseOnParagraph';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useTransientFlag } from '../hooks/useTransientFlag';
 import { ScriptText } from './ScriptText';
@@ -204,36 +206,25 @@ export function Teleprompter({
     return starts;
   }, [script.content]);
 
-  const pausedAtRef = useRef(-1);
-  const paragraphPausedAtRef = useRef(-1);
+  const handlePause = useCallback((msg: string) => {
+    setIsPlaying(false);
+    showPauseToast(msg);
+  }, [showPauseToast]);
 
-  useEffect(() => {
-    pausedAtRef.current = -1;
-  }, [settings.pauseKeyword]);
-
-  useEffect(() => {
-    const kw = settings.pauseKeyword;
-    if (!isPlaying || !kw) return;
-    const ctxStart = Math.max(0, activeIndex - Math.max(kw.length, 30));
-    const ctx = script.content.substring(ctxStart, activeIndex + kw.length);
-    const skipOffset = pausedAtRef.current >= ctxStart ? pausedAtRef.current - ctxStart + 1 : 0;
-    const idx = ctx.indexOf(kw, skipOffset);
-    if (idx !== -1) {
-      const absIdx = ctxStart + idx;
-      pausedAtRef.current = absIdx;
-      setIsPlaying(false);
-      showPauseToast(`已暂停：命中关键词「${kw}」`);
-    }
-  }, [activeIndex, isPlaying, script.content, settings.pauseKeyword]);
-
-  useEffect(() => {
-    if (!isPlaying || !settings.pauseOnParagraph) return;
-    if (paragraphStarts.has(activeIndex) && paragraphPausedAtRef.current !== activeIndex) {
-      paragraphPausedAtRef.current = activeIndex;
-      setIsPlaying(false);
-      showPauseToast('已暂停：段落分隔');
-    }
-  }, [activeIndex, isPlaying, settings.pauseOnParagraph, paragraphStarts]);
+  usePauseOnKeyword({
+    isPlaying,
+    activeIndex,
+    content: script.content,
+    keyword: settings.pauseKeyword,
+    onPause: handlePause,
+  });
+  usePauseOnParagraph({
+    isPlaying,
+    activeIndex,
+    paragraphStarts,
+    enabled: settings.pauseOnParagraph,
+    onPause: handlePause,
+  });
 
   const dismissOnboarding = useCallback(() => {
     setShowOnboarding(false);
