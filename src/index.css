@@ -93,6 +93,14 @@ button { touch-action: manipulation; cursor: pointer; }
   -webkit-backdrop-filter: blur(8px);
 }
 
+/* Swipe shake — 越过删除阈值时的纯视觉震动反馈（不用 navigator.vibrate，iOS 兼容） */
+@keyframes swipe-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+.swipe-shake { animation: swipe-shake 0.2s ease-in-out; }
+
 /* ================================================================
    Reduced Motion
    ================================================================ */

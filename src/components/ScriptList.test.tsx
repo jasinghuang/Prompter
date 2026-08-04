@@ -44,14 +44,39 @@ describe('ScriptList', () => {
     expect(onOpen).toHaveBeenCalledWith('1');
   });
 
-  it('删除按钮调用 onDelete（含确认）', () => {
+  it('删除按钮直接调用 onDelete（无确认弹窗）', () => {
     const onDelete = vi.fn();
     render(
       <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={onDelete} onCreate={() => {}} />
     );
     fireEvent.click(screen.getByTestId('delete-1'));
-    fireEvent.click(screen.getByText('确认删除'));
     expect(onDelete).toHaveBeenCalledWith('1');
+    expect(screen.queryByText('确认删除')).toBeNull();
+  });
+
+  it('左滑越过 -130 松手直接删除（无弹窗）', () => {
+    const onDelete = vi.fn();
+    render(
+      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={onDelete} onCreate={() => {}} />
+    );
+    const card = screen.getByTestId('content-1').parentElement!;
+    fireEvent.touchStart(card, { touches: [{ clientX: 160, clientY: 50 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 10, clientY: 50 }] }); // dx = -150
+    fireEvent.touchEnd(card);
+    expect(onDelete).toHaveBeenCalledWith('1');
+    expect(screen.queryByText('确认删除')).toBeNull();
+  });
+
+  it('左滑未越过 -130 松手不删除', () => {
+    const onDelete = vi.fn();
+    render(
+      <ScriptList scripts={scripts} onOpen={() => {}} onEdit={() => {}} onDelete={onDelete} onCreate={() => {}} />
+    );
+    const card = screen.getByTestId('content-1').parentElement!;
+    fireEvent.touchStart(card, { touches: [{ clientX: 100, clientY: 50 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 30, clientY: 50 }] }); // dx = -70
+    fireEvent.touchEnd(card);
+    expect(onDelete).not.toHaveBeenCalled();
   });
 
   it('清空全部按钮调用 onDeleteAll（含确认）', () => {

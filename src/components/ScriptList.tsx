@@ -34,7 +34,6 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('date');
   const [asc, setAsc] = useState(false);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [filmedIds, setFilmedIds] = useState<Set<string>>(() => {
@@ -58,6 +57,8 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const swipingId = useRef<string | null>(null);
+  const [shakeId, setShakeId] = useState<string | null>(null);
+  const shookRef = useRef(false);
 
   const setSwipe = useCallback((id: string, offset: number) => {
     swipeRef.current.set(id, offset);
@@ -68,6 +69,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     swipingId.current = id;
+    shookRef.current = false;
   }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent, id: string) => {
@@ -76,7 +78,12 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
     const dy = e.touches[0].clientY - touchStartY.current;
     if (Math.abs(dy) > Math.abs(dx)) return; // ignore vertical scroll
     // Right swipe → filmed (green on left), left swipe → delete (red on right)
-    setSwipe(id, Math.max(-72, Math.min(72, dx)));
+    const clamped = Math.max(-150, Math.min(72, dx));
+    setSwipe(id, clamped);
+    if (clamped <= -130 && !shookRef.current) {
+      shookRef.current = true;
+      setShakeId(id);
+    }
   }, [setSwipe]);
 
   const handleTouchEnd = useCallback((_e: React.TouchEvent, id: string) => {
@@ -86,12 +93,13 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
     if (offset > 40) {
       // Right swipe → mark filmed
       toggleFilmed(id);
-    } else if (offset < -40) {
-      // Left swipe → trigger delete confirmation
-      setConfirmId(id);
+    } else if (offset <= -130) {
+      // Left swipe past threshold → direct delete
+      onDelete(id);
     }
+    setShakeId(null);
     setSwipe(id, 0);
-  }, [setSwipe, toggleFilmed]);
+  }, [setSwipe, toggleFilmed, onDelete]);
 
   const charCounts = useMemo(() => {
     const map = new Map<string, number>();
@@ -127,11 +135,11 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
 
   // Escape closes modals
   useEffect(() => {
-    if (!confirmId && !confirmClear) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setConfirmId(null); setConfirmClear(false); } };
+    if (!confirmClear) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setConfirmClear(false); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [confirmId, confirmClear]);
+  }, [confirmClear]);
 
   return (
     <div className="flex min-h-screen flex-col bg-[#0A0A0B] text-white">
@@ -257,7 +265,8 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
                   className={`group relative overflow-hidden rounded-2xl border transition-colors duration-200 ${isFilmed
                     ? 'border-green-500/15 glass-card bg-green-500/[0.03]'
                     : 'border-[#D4A432]/15 glass-card hover:border-[#D4A432]/50 hover:bg-white/[0.07]'
-                  }`}
+                  }${shakeId === s.id ? ' swipe-shake' : ''}`}
+                  onAnimationEnd={() => setShakeId(null)}
                   onTouchStart={(e) => handleTouchStart(e, s.id)}
                   onTouchMove={(e) => handleTouchMove(e, s.id)}
                   onTouchEnd={(e) => handleTouchEnd(e, s.id)}
@@ -278,9 +287,14 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
 
                   {/* Left swipe (←): red "删除" on the right */}
                   <div className="absolute inset-y-0 right-0 flex w-[72px] items-center justify-center rounded-r-2xl transition-opacity duration-200"
-                    style={{ background: swipeX < -20 ? '#DC2626' : 'transparent', opacity: swipeX < -20 ? 1 : 0 }}
+                    style={{
+                      background: swipeX < -130 ? '#EF4444' : (swipeX < -20 ? '#DC2626' : 'transparent'),
+                      opacity: swipeX < -20 ? 1 : 0,
+                    }}
                   >
-                    <Trash2 size={20} strokeWidth={2.5} className="text-white" />
+                    <Trash2 size={20} strokeWidth={2.5} className="text-white transition-transform duration-150"
+                      style={{ transform: swipeX < -130 ? 'scale(1.15)' : 'scale(1)' }}
+                    />
                   </div>
 
                   {/* Card content — slides on swipe */}
@@ -314,7 +328,7 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
                         </button>
                         <button
                           data-testid={`delete-${s.id}`}
-                          onClick={(e) => { e.stopPropagation(); setConfirmId(s.id); }}
+                          onClick={(e) => { e.stopPropagation(); onDelete(s.id); }}
                           className="flex items-center justify-center rounded-lg bg-red-500/15 px-2.5 py-1.5 text-xs text-red-400 transition-colors hover:bg-red-500/25 hover:text-red-300 active:scale-95"
                           aria-label="删除稿件"
                         >
@@ -359,24 +373,6 @@ export function ScriptList({ scripts, onOpen, onEdit, onDelete, onCreate, onDele
         </div>
       )}
 
-      {/* Confirm Delete — Header / Body / Footer */}
-      {confirmId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmId(null)} />
-          <div className="relative flex w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 glass-surface">
-            <header className="shrink-0 px-8 pt-8">
-              <h3 className="text-xl font-bold text-white">确认删除稿件？</h3>
-            </header>
-            <div className="overflow-y-auto px-8 py-3">
-              <p className="text-sm text-white/40">此操作不可撤销。</p>
-            </div>
-            <footer className="shrink-0 flex gap-3 px-8 pb-8 pt-2">
-              <button onClick={() => setConfirmId(null)} className="flex-1 rounded-xl bg-white/5 py-3 text-sm font-bold text-white transition-colors hover:bg-white/10 active:scale-95">取消</button>
-              <button onClick={() => { onDelete(confirmId); setConfirmId(null); }} className="flex-1 rounded-xl bg-red-500 py-3 text-sm font-bold text-white transition-all active:scale-95">确认删除</button>
-            </footer>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
