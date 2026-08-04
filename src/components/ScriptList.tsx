@@ -1,7 +1,8 @@
-import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
-import { Search, Plus, FileText, Edit3, Trash2, ArrowUpDown, Check, Clock, X } from 'lucide-react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
+import { Search, Plus, FileText, ArrowUpDown, Trash2, Clock } from 'lucide-react';
 import { Script } from '../types';
 import { countReadableChars } from '../lib/tokens';
+import { SwipeableCard } from './SwipeableCard';
 
 interface Props {
   scripts: Script[];
@@ -22,14 +23,6 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'chars', label: '字数' },
 ];
 
-// Swipe thresholds（拖动限制 / 提交阈值 / 视觉揭示阈值）
-const SWIPE_LIMIT_RIGHT = 72;
-const SWIPE_LIMIT_LEFT = -150;
-const COMMIT_FILMED_PX = 40;
-const COMMIT_DELETE_PX = -130;
-const REVEAL_FILMED_PX = 20;
-const REVEAL_DELETE_PX = -20;
-
 const RECENT_KEY = 'prompter_recent';
 function loadRecent(): string[] {
   try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
@@ -46,85 +39,6 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
   const [asc, setAsc] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-
-  // Swipe-to-film: touch gesture tracking
-  const swipeRef = useRef<Map<string, number>>(new Map());
-  const [swipeOffsets, setSwipeOffsets] = useState<Record<string, number>>({});
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-  const swipingId = useRef<string | null>(null);
-  const [shakeId, setShakeId] = useState<string | null>(null);
-  const shookRef = useRef(false);
-
-  const setSwipe = useCallback((id: string, offset: number) => {
-    swipeRef.current.set(id, offset);
-    setSwipeOffsets((prev) => ({ ...prev, [id]: offset }));
-  }, []);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent, id: string) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    swipingId.current = id;
-    shookRef.current = false;
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent, id: string) => {
-    if (swipingId.current !== id) return;
-    const dx = e.touches[0].clientX - touchStartX.current;
-    const dy = e.touches[0].clientY - touchStartY.current;
-    if (Math.abs(dy) > Math.abs(dx)) return; // ignore vertical scroll
-    // Right swipe → filmed (green on left), left swipe → delete (red on right)
-    const clamped = Math.max(SWIPE_LIMIT_LEFT, Math.min(SWIPE_LIMIT_RIGHT, dx));
-    setSwipe(id, clamped);
-    if (clamped <= COMMIT_DELETE_PX && !shookRef.current) {
-      shookRef.current = true;
-      setShakeId(id);
-    }
-  }, [setSwipe]);
-
-  const handleTouchEnd = useCallback((_e: React.TouchEvent, id: string) => {
-    if (swipingId.current !== id) { swipingId.current = null; return; }
-    swipingId.current = null;
-    const offset = swipeRef.current.get(id) || 0;
-    setShakeId(null);
-    if (offset > COMMIT_FILMED_PX) {
-      // Right swipe → mark filmed
-      onToggleFilmed(id);
-      setSwipe(id, 0);
-    } else if (offset <= COMMIT_DELETE_PX) {
-      // Left swipe past threshold → direct delete
-      onDelete(id);
-      // 卡片即将消失，直接清残留而非回弹
-      swipeRef.current.delete(id);
-      setSwipeOffsets((prev) => { if (!(id in prev)) return prev; const next = { ...prev }; delete next[id]; return next; });
-    } else {
-      setSwipe(id, 0);
-    }
-  }, [setSwipe, onToggleFilmed, onDelete]);
-
-  const handleTouchCancel = useCallback((_e: React.TouchEvent, id: string) => {
-    // 系统中断（来电/横竖屏/滚动被抢占）→ 回弹，避免卡片卡在半滑动
-    if (swipingId.current === id) swipingId.current = null;
-    setShakeId(null);
-    setSwipe(id, 0);
-  }, [setSwipe]);
-
-  // 清理已不存在稿件的滑动状态残留（外部删除，如编辑器拆分/清空）
-  useEffect(() => {
-    const valid = new Set(scripts.map((s) => s.id));
-    setSwipeOffsets((prev) => {
-      let changed = false;
-      const next: Record<string, number> = {};
-      for (const k of Object.keys(prev)) {
-        if (valid.has(k)) next[k] = prev[k];
-        else changed = true;
-      }
-      return changed ? next : prev;
-    });
-    for (const k of [...swipeRef.current.keys()]) {
-      if (!valid.has(k)) swipeRef.current.delete(k);
-    }
-  }, [scripts]);
 
   const charCounts = useMemo(() => {
     const map = new Map<string, number>();
@@ -279,118 +193,18 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
           )
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {filtered.map((s) => {
-              const isFilmed = filmedIds.has(s.id);
-              const swipeX = swipeOffsets[s.id] || 0;
-
-              return (
-                <div
-                  key={s.id}
-                  className={`group relative overflow-hidden rounded-2xl border transition-colors duration-200 ${isFilmed
-                    ? 'border-green-500/15 glass-card bg-green-500/[0.03]'
-                    : 'border-[#D4A432]/15 glass-card hover:border-[#D4A432]/50 hover:bg-white/[0.07]'
-                  }${shakeId === s.id ? ' swipe-shake' : ''}`}
-                  onAnimationEnd={() => setShakeId(null)}
-                  onTouchStart={(e) => handleTouchStart(e, s.id)}
-                  onTouchMove={(e) => handleTouchMove(e, s.id)}
-                  onTouchEnd={(e) => handleTouchEnd(e, s.id)}
-                  onTouchCancel={(e) => handleTouchCancel(e, s.id)}
-                >
-                  {/* Right swipe (→): filmed action on the left */}
-                  <div className="absolute inset-y-0 left-0 flex w-[72px] items-center justify-center rounded-l-2xl transition-opacity duration-200"
-                    style={{
-                      background: swipeX > REVEAL_FILMED_PX ? (isFilmed ? '#52525B' : '#22C55E') : 'transparent',
-                      opacity: swipeX > REVEAL_FILMED_PX ? 1 : 0,
-                    }}
-                  >
-                    {isFilmed ? (
-                      <X size={20} strokeWidth={3} className="text-white" />
-                    ) : (
-                      <Check size={20} strokeWidth={3} className="text-white" />
-                    )}
-                  </div>
-
-                  {/* Left swipe hint (←): 阶段1后红区左侧的确认引导 */}
-                  <div
-                    className="absolute inset-y-0 flex items-center justify-center overflow-hidden"
-                    style={{
-                      right: '72px',
-                      width: `${Math.max(0, Math.min(80, -swipeX - 72))}px`,
-                      background: 'linear-gradient(to left, rgba(220,38,38,0.85), rgba(220,38,38,0.15))',
-                      opacity: swipeX < -SWIPE_LIMIT_RIGHT ? 1 : 0,
-                      transition: swipingId.current === s.id ? 'none' : 'opacity 0.2s',
-                    }}
-                  >
-                    <span className="whitespace-nowrap text-[10px] font-bold tracking-wide text-white/95">
-                      {swipeX <= COMMIT_DELETE_PX ? '松开删除' : '继续滑动'}
-                    </span>
-                  </div>
-
-                  {/* Left swipe (←): red "删除" on the right */}
-                  <div className="absolute inset-y-0 right-0 flex w-[72px] items-center justify-center rounded-r-2xl transition-opacity duration-200"
-                    style={{
-                      background: swipeX < COMMIT_DELETE_PX ? '#EF4444' : (swipeX < REVEAL_DELETE_PX ? '#DC2626' : 'transparent'),
-                      opacity: swipeX < REVEAL_DELETE_PX ? 1 : 0,
-                    }}
-                  >
-                    <Trash2 size={20} strokeWidth={2.5} className="text-white transition-transform duration-150"
-                      style={{ transform: swipeX < COMMIT_DELETE_PX ? 'scale(1.15)' : 'scale(1)' }}
-                    />
-                  </div>
-
-                  {/* Card content — slides on swipe */}
-                  <div
-                    data-testid={`content-${s.id}`}
-                    className="relative p-4"
-                    style={{
-                      transform: `translateX(${swipeX}px)`,
-                      background: swipeX !== 0 ? '#131316' : undefined,
-                      transition: swipingId.current === s.id ? 'none' : 'transform 0.25s ease-out',
-                    }}
-                    onClick={() => {
-                      if (swipingId.current) return;
-                      handleOpen(s.id);
-                    }}
-                  >
-                    {/* Title Row */}
-                    <div className="mb-2 flex items-start justify-between">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {isFilmed && <Check size={14} className="shrink-0 text-green-400" />}
-                        <h3 className={`truncate text-base font-semibold ${isFilmed ? 'text-white/50 line-through' : 'text-white'}`}>{s.title}</h3>
-                      </div>
-                      {/* Action buttons — always visible with glass backgrounds */}
-                      <div className="flex shrink-0 gap-1.5 ml-2">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onEdit(s.id); }}
-                          className="flex items-center justify-center rounded-lg bg-white/10 px-2.5 py-1.5 text-xs text-white/60 transition-colors hover:bg-white/20 hover:text-white active:scale-95"
-                          aria-label="编辑稿件"
-                        >
-                          <Edit3 size={13} />
-                        </button>
-                        <button
-                          data-testid={`delete-${s.id}`}
-                          onClick={(e) => { e.stopPropagation(); onDelete(s.id); }}
-                          className="flex items-center justify-center rounded-lg bg-red-500/15 px-2.5 py-1.5 text-xs text-red-400 transition-colors hover:bg-red-500/25 hover:text-red-300 active:scale-95"
-                          aria-label="删除稿件"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {s.content && (
-                      <p className={`mb-3 line-clamp-2 text-sm leading-relaxed ${isFilmed ? 'text-white/20 line-through' : 'text-white/40'}`}>{s.content}</p>
-                    )}
-
-                    <div className="flex items-center gap-2 text-[10px] text-white/25">
-                      {new Date(s.updatedAt).toLocaleDateString()}
-                      <span>|</span>
-                      <span>{charCounts.get(s.id)}字</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {filtered.map((s) => (
+              <SwipeableCard
+                key={s.id}
+                script={s}
+                isFilmed={filmedIds.has(s.id)}
+                charCount={charCounts.get(s.id) ?? 0}
+                onOpen={handleOpen}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onToggleFilmed={onToggleFilmed}
+              />
+            ))}
           </div>
         )}
       </main>
