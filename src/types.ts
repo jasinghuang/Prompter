@@ -24,6 +24,8 @@ export interface TeleprompterSettings {
   pauseKeyword: string;
   /** 遇到空行自动暂停（段落分隔），默认 false */
   pauseOnParagraph: boolean;
+  /** 读完自动标记已拍摄并返回列表，默认 false */
+  autoReturnOnComplete: boolean;
 }
 
 export const DEFAULT_SETTINGS: TeleprompterSettings = {
@@ -36,6 +38,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
   textAlign: 'left',
   pauseKeyword: '',
   pauseOnParagraph: false,
+  autoReturnOnComplete: false,
 };
 
 export const FONT_SIZE_MIN = 24;

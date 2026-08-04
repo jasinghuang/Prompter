@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { Teleprompter } from './Teleprompter';
-import { Script, DEFAULT_SETTINGS } from '../types';
+import { Script, DEFAULT_SETTINGS, TeleprompterSettings } from '../types';
 
 // mock useAutoScroll，暴露 onReachEnd 供测试触发（jsdom 无真实滚动）
 vi.mock('../hooks/useAutoScroll', () => ({
@@ -23,19 +23,18 @@ beforeEach(() => {
   });
 });
 
-function renderTel(overrides: Partial<{ onBack: ReturnType<typeof vi.fn>; onCompleted: ReturnType<typeof vi.fn> }> = {}) {
+function renderTel(settings: TeleprompterSettings = DEFAULT_SETTINGS) {
   const handlers = {
     onIndexChange: vi.fn(),
     onChangeSettings: vi.fn(),
     onBack: vi.fn(),
     onEdit: vi.fn(),
     onCompleted: vi.fn(),
-    ...overrides,
   };
   render(
     <Teleprompter
       script={script}
-      settings={DEFAULT_SETTINGS}
+      settings={settings}
       index={0}
       onIndexChange={handlers.onIndexChange}
       onChangeSettings={handlers.onChangeSettings}
@@ -47,17 +46,19 @@ function renderTel(overrides: Partial<{ onBack: ReturnType<typeof vi.fn>; onComp
   return handlers;
 }
 
+const AUTO_RETURN_ON: TeleprompterSettings = { ...DEFAULT_SETTINGS, autoReturnOnComplete: true };
+
 describe('Teleprompter 读完回流', () => {
-  it('onReachEnd 触发 onCompleted 并显示提示', () => {
-    const h = renderTel();
+  it('开启时：onReachEnd 触发 onCompleted 并显示提示', () => {
+    const h = renderTel(AUTO_RETURN_ON);
     act(() => reachEnd!());
     expect(h.onCompleted).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/已读完/)).toBeInTheDocument();
   });
 
-  it('1.2s 后自动调用 onBack', () => {
+  it('开启时：1.2s 后自动调用 onBack', () => {
     vi.useFakeTimers();
-    const h = renderTel();
+    const h = renderTel(AUTO_RETURN_ON);
     act(() => reachEnd!());
     expect(h.onBack).not.toHaveBeenCalled();
     act(() => { vi.advanceTimersByTime(1200); });
@@ -65,9 +66,16 @@ describe('Teleprompter 读完回流', () => {
     vi.useRealTimers();
   });
 
+  it('默认关闭：onReachEnd 只停止播放，不标记/不提示/不返回', () => {
+    const h = renderTel(); // DEFAULT_SETTINGS.autoReturnOnComplete = false
+    act(() => reachEnd!());
+    expect(h.onCompleted).not.toHaveBeenCalled();
+    expect(h.onBack).not.toHaveBeenCalled();
+    expect(screen.queryByText(/已读完/)).toBeNull();
+  });
+
   it('手动返回不触发 onCompleted', () => {
-    const h = renderTel();
-    // 点返回按钮（aria-label="返回"）
+    const h = renderTel(AUTO_RETURN_ON);
     act(() => {
       screen.getByLabelText('返回').click();
     });

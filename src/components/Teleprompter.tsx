@@ -152,6 +152,7 @@ export function Teleprompter({
     onReachEnd: () => {
       if (completed) return; // 深度防御：useAutoScroll 的 ended 标志已保证单次播放周期触发一次
       setIsPlaying(false);
+      if (!settings.autoReturnOnComplete) return; // 关：读完即停，不提示/不标记/不返回
       setCompleted(true);
       onCompleted();
       if (completionTimerRef.current) clearTimeout(completionTimerRef.current);

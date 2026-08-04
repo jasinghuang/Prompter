@@ -1,4 +1,4 @@
-import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight, CornerUpLeft } from 'lucide-react';
 import { TeleprompterSettings, TextAlign, FONT_SIZE_MIN, FONT_SIZE_MAX, LETTER_SPACING_MIN, LETTER_SPACING_MAX, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, PADDING_MIN, PADDING_MAX } from '../types';
 import { SPEED_MIN, SPEED_MAX, SPEED_PRESETS } from '../lib/speed';
 import { AutoPauseControl } from './AutoPauseControl';
@@ -220,6 +220,32 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
               <span
                 className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
                   settings.mirror ? 'translate-x-6' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Auto Return on Complete */}
+          <div className="flex items-center justify-between border-t border-white/5 pt-5">
+            <div className="flex items-center gap-3">
+              <CornerUpLeft size={16} className="text-white/30" />
+              <div>
+                <span className="block text-sm font-semibold text-white">读完自动返回</span>
+                <span className="text-[11px] text-white/30">读完自动标记已拍摄并返回列表</span>
+              </div>
+            </div>
+            <button
+              role="switch"
+              aria-checked={settings.autoReturnOnComplete}
+              onClick={() => onChange({ autoReturnOnComplete: !settings.autoReturnOnComplete })}
+              className={`relative h-6 w-12 rounded-full ${
+                settings.autoReturnOnComplete ? 'bg-[#D4A432]' : 'bg-white/10'
+              }`}
+              style={{ transition: 'background-color 0.2s ease' }}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                  settings.autoReturnOnComplete ? 'translate-x-6' : 'translate-x-0.5'
                 }`}
               />
             </button>
