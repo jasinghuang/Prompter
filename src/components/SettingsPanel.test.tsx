@@ -40,7 +40,7 @@ describe('SettingsPanel', () => {
   it('镜像开关点击切换', () => {
     const onChange = vi.fn();
     render(<SettingsPanel {...baseProps} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('switch'));
+    fireEvent.click(screen.getByRole('switch', { name: '镜像翻转' }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ mirror: true }));
   });
 

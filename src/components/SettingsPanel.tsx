@@ -210,6 +210,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
             </div>
             <button
               role="switch"
+              aria-label="镜像翻转"
               aria-checked={settings.mirror}
               onClick={() => onChange({ mirror: !settings.mirror })}
               className={`relative h-6 w-12 rounded-full ${
@@ -236,6 +237,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
             </div>
             <button
               role="switch"
+              aria-label="读完自动返回"
               aria-checked={settings.autoReturnOnComplete}
               onClick={() => onChange({ autoReturnOnComplete: !settings.autoReturnOnComplete })}
               className={`relative h-6 w-12 rounded-full ${
