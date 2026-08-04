@@ -148,6 +148,7 @@ export function Teleprompter({
     getMaxOffset,
     onTick: computeActive,
     onReachEnd: () => {
+      if (completed) return; // 深度防御：useAutoScroll 的 ended 标志已保证单次播放周期触发一次
       setIsPlaying(false);
       setCompleted(true);
       onCompleted();

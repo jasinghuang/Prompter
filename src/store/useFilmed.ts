@@ -1,11 +1,14 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const FILMED_KEY = 'prompter_filmed';
 
 function loadFilmed(): Set<string> {
   try {
     const raw = localStorage.getItem(FILMED_KEY);
-    return new Set(raw ? JSON.parse(raw) : []);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed);
   } catch {
     return new Set();
   }
@@ -14,20 +17,20 @@ function loadFilmed(): Set<string> {
 export function useFilmed() {
   const [filmedIds, setFilmedIds] = useState<Set<string>>(() => loadFilmed());
 
-  const persist = (next: Set<string>) => {
+  // 集中持久化：与 useScripts/useSettings 一致，避免在 setState updater 内做副作用
+  useEffect(() => {
     try {
-      localStorage.setItem(FILMED_KEY, JSON.stringify([...next]));
+      localStorage.setItem(FILMED_KEY, JSON.stringify([...filmedIds]));
     } catch {
       /* noop */
     }
-  };
+  }, [filmedIds]);
 
   const markFilmed = useCallback((id: string) => {
     setFilmedIds((prev) => {
       if (prev.has(id)) return prev;
       const next = new Set(prev);
       next.add(id);
-      persist(next);
       return next;
     });
   }, []);
@@ -37,7 +40,6 @@ export function useFilmed() {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      persist(next);
       return next;
     });
   }, []);
@@ -51,9 +53,7 @@ export function useFilmed() {
         if (valid.has(id)) next.add(id);
         else changed = true;
       }
-      if (!changed) return prev;
-      persist(next);
-      return next;
+      return changed ? next : prev;
     });
   }, []);
 
