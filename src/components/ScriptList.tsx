@@ -94,7 +94,7 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
       >
         <div className="mx-auto flex max-w-5xl items-center gap-3">
           <div className="flex items-center gap-2">
-            <img src={import.meta.env.BASE_URL + 'icon.svg?v=3'} alt="" className="h-7 w-7 rounded-lg" />
+            <img src={import.meta.env.BASE_URL + 'icon.svg?v=4'} alt="" className="h-7 w-7 rounded-lg" />
             <h1 className="text-base font-bold text-white">提词器</h1>
           </div>
           <div className="relative ml-auto">
