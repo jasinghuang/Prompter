@@ -130,4 +130,40 @@ describe('ScriptList', () => {
     const title = screen.getByText('视频脚本');
     expect(title.className).toContain('line-through');
   });
+
+  it('排序偏好持久化到 localStorage', () => {
+    render(
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onDeleteAll={() => {}} />
+    );
+    fireEvent.click(screen.getByText('标题'));
+    const stored = JSON.parse(localStorage.getItem('prompter_sort')!);
+    expect(stored.sort).toBe('title');
+    expect(stored.asc).toBe(false);
+  });
+
+  it('从 localStorage 恢复排序偏好（读路径）', () => {
+    localStorage.setItem('prompter_sort', JSON.stringify({ sort: 'chars', asc: true }));
+    render(
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onDeleteAll={() => {}} />
+    );
+    // 验证「字数」按钮高亮且带 ↑ 箭头
+    const charsBtn = screen.getByText('字数↑');
+    expect(charsBtn.className).toContain('bg-white/15');
+  });
+
+  it('排序记忆在组件重新挂载后保留（往返测试）', () => {
+    const { unmount } = render(
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onDeleteAll={() => {}} />
+    );
+    // 切换到标题排序
+    fireEvent.click(screen.getByText('标题'));
+    unmount();
+
+    // 重新挂载 — 模拟返回页面
+    render(
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onDeleteAll={() => {}} />
+    );
+    const titleBtn = screen.getByText('标题↓');
+    expect(titleBtn.className).toContain('bg-white/15');
+  });
 });

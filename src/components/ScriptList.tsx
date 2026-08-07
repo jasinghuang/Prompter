@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { Search, Plus, FileText, ArrowUpDown, Trash2, Clock } from 'lucide-react';
 import { Script } from '../types';
 import { countReadableChars } from '../lib/tokens';
@@ -33,10 +33,26 @@ function saveRecent(id: string) {
   try { localStorage.setItem(RECENT_KEY, JSON.stringify(prev.slice(0, 3))); } catch { /* noop */ }
 }
 
+const SORT_KEY = 'prompter_sort';
+const SCROLL_KEY = 'prompter_scroll';
+function loadSort(): { sort: SortKey; asc: boolean } {
+  try {
+    const raw = localStorage.getItem(SORT_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.sort === 'string' && typeof parsed.asc === 'boolean') {
+        return { sort: parsed.sort as SortKey, asc: parsed.asc };
+      }
+    }
+  } catch { /* noop */ }
+  return { sort: 'date', asc: false };
+}
+
 export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCreate, onToggleFilmed, onDeleteAll }: Props) {
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<SortKey>('date');
-  const [asc, setAsc] = useState(false);
+  const initPrefs = useMemo(() => loadSort(), []);
+  const [sort, setSort] = useState<SortKey>(initPrefs.sort);
+  const [asc, setAsc] = useState<boolean>(initPrefs.asc);
   const [confirmClear, setConfirmClear] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
 
@@ -69,6 +85,7 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
 
   const handleOpen = useCallback((id: string) => {
     saveRecent(id);
+    try { localStorage.setItem(SCROLL_KEY, String(window.scrollY)); } catch { /* noop */ }
     onOpen(id);
   }, [onOpen]);
 
@@ -79,6 +96,37 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [confirmClear]);
+
+  // 记忆排序偏好（skip mount to avoid writing back the just-loaded defaults）
+  const sortMounted = useRef(false);
+  useEffect(() => {
+    if (!sortMounted.current) { sortMounted.current = true; return; }
+    try { localStorage.setItem(SORT_KEY, JSON.stringify({ sort, asc })); } catch { /* noop */ }
+  }, [sort, asc]);
+
+  const scrollYRef = useRef(0);
+
+  // 恢复滚动位置
+  useEffect(() => {
+    const saved = localStorage.getItem(SCROLL_KEY);
+    if (!saved) return;
+    const y = parseInt(saved, 10);
+    if (isNaN(y) || y <= 0) return;
+    const raf = requestAnimationFrame(() => window.scrollTo(0, y));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // 实时追踪滚动位置，卸载时作为兜底写入（>0 过滤掉 StrictMode 双重挂载时的 0 写入）
+  useEffect(() => {
+    const onScroll = () => { scrollYRef.current = window.scrollY; };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (scrollYRef.current > 0) {
+        try { localStorage.setItem(SCROLL_KEY, String(scrollYRef.current)); } catch { /* noop */ }
+      }
+    };
+  }, []);
 
   return (
     <div className="flex min-h-screen flex-col bg-[#0A0A0B] text-white">
@@ -125,7 +173,10 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
             )}
           </div>
           <button
-            onClick={onCreate}
+            onClick={() => {
+              try { localStorage.setItem(SCROLL_KEY, String(window.scrollY)); } catch { /* noop */ }
+              onCreate();
+            }}
             className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-4 py-2.5 text-sm font-bold text-[#0A0A0B] transition-all active:scale-95"
             style={{ minHeight: '44px' }}
           >

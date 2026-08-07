@@ -27,12 +27,23 @@ export function SwipeableCard({ script, isFilmed, charCount, onOpen, onEdit, onD
   return (
     <div
       className={`group relative overflow-hidden rounded-2xl border transition-colors duration-200 ${isFilmed
-        ? 'border-green-500/15 glass-card bg-green-500/[0.03]'
+        ? 'border-green-500/30 bg-green-500/[0.06]'
         : 'border-[#D4A432]/15 glass-card hover:border-[#D4A432]/50 hover:bg-white/[0.07]'
       }${shaking ? ' swipe-shake' : ''}`}
       onAnimationEnd={clearShaking}
       {...bind}
     >
+      {/* Filmed indicators — fixed, do not slide with content */}
+      {isFilmed && (
+        <div className="absolute inset-y-0 left-0 z-10 w-[3px] rounded-l-2xl bg-green-500" />
+      )}
+      {isFilmed && swipeX === 0 && (
+        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full border border-green-500/25 bg-green-500/15 px-2 py-0.5 backdrop-blur-sm">
+          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+          <span className="text-[10px] font-semibold text-green-400">已拍摄</span>
+        </div>
+      )}
+
       {/* Right swipe (→): filmed action on the left */}
       <div className="absolute inset-y-0 left-0 flex w-[72px] items-center justify-center rounded-l-2xl transition-opacity duration-200"
         style={{
@@ -92,7 +103,9 @@ export function SwipeableCard({ script, isFilmed, charCount, onOpen, onEdit, onD
         {/* Title Row */}
         <div className="mb-2 flex items-start justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            {isFilmed && <Check size={14} className="shrink-0 text-green-400" />}
+            {isFilmed && (
+              <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold leading-none text-[#0A0A0B]">✓</span>
+            )}
             <h3 className={`truncate text-base font-semibold ${isFilmed ? 'text-white/50 line-through' : 'text-white'}`}>{script.title}</h3>
           </div>
           {/* Action buttons — always visible with glass backgrounds */}

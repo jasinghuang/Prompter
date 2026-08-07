@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>已拍摄标记 — 4 方案对比</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:#0A0A0B;
+    color:#F5F5F5;
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    padding:24px 16px 64px;
+  }
+  h2 { font-size:15px; font-weight:600; margin:28px 0 14px; color:#A1A1AA; }
+  h2:first-child { margin-top:0; }
+  .label-row { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+  .tag { font-size:11px; padding:2px 10px; border-radius:99px; font-weight:600; }
+  .tag-A { background:#22C55E; color:#0A0A0B; }
+  .tag-B { background:rgba(34,197,94,0.18); color:#22C55E; }
+  .tag-C { background:rgba(34,197,94,0.18); color:#22C55E; }
+  .tag-D { background:rgba(34,197,94,0.18); color:#22C55E; }
+
+  /* ── 卡片基础 ── */
+  .card {
+    position:relative;
+    overflow:hidden;
+    border-radius:16px;
+    border:1px solid transparent;
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    transition:border-color .2s,background .2s;
+    margin-bottom:10px;
+  }
+  /* 未拍摄的正常卡片 */
+  .card.normal {
+    border-color:rgba(212,164,50,0.15);
+    background:rgba(19,19,22,0.7);
+  }
+  /* 共享：已拍摄绿色底 */
+  .card.filmed-base {
+    /* 子类覆盖 */
+  }
+
+  /* ── 方案 A：全部 ── */
+  .card.A {
+    border-color:rgba(34,197,94,0.30);
+    background:rgba(34,197,94,0.06);
+    border-left:3px solid #22C55E;
+  }
+  .card.A .left-bar-cover { display:none; }
+
+  /* ── 方案 B：强化颜色 + 徽章 ── */
+  .card.B {
+    border-color:rgba(34,197,94,0.28);
+    background:rgba(34,197,94,0.06);
+  }
+
+  /* ── 方案 C：强化颜色 + 左侧条 ── */
+  .card.C {
+    border-color:rgba(34,197,94,0.28);
+    background:rgba(34,197,94,0.06);
+    border-left:3px solid #22C55E;
+  }
+
+  /* ── 方案 D：只强化颜色 ── */
+  .card.D {
+    border-color:rgba(34,197,94,0.28);
+    background:rgba(34,197,94,0.06);
+  }
+
+  /* ── 原始版对照 ── */
+  .card.orig {
+    border-color:rgba(34,197,94,0.15);
+    background:rgba(34,197,94,0.03);
+  }
+
+  /* ── 卡片内部 ── */
+  .card-inner { position:relative; padding:16px; z-index:1; }
+
+  .title-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .title { font-size:15px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card.normal .title { color:#F5F5F5; }
+  .card.filmed-base .title { color:rgba(255,255,255,0.5); text-decoration:line-through; }
+
+  .check-icon { flex-shrink:0; width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .check-icon.orig { color:#4ADE80; } /* small outline check */
+  .check-icon.filled { background:#22C55E; color:#0A0A0B; font-size:11px; font-weight:700; }
+
+  .content { font-size:13px; line-height:1.6; margin-bottom:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .card.normal .content { color:rgba(255,255,255,0.4); }
+  .card.filmed-base .content { color:rgba(255,255,255,0.2); text-decoration:line-through; }
+
+  .meta { font-size:10px; color:rgba(255,255,255,0.25); display:flex; gap:6px; align-items:center; }
+
+  /* ── 已拍摄徽章（方案 A、B） ── */
+  .filmed-badge {
+    position:absolute; top:10px; right:12px; z-index:2;
+    display:flex; align-items:center; gap:4px;
+    background:rgba(34,197,94,0.15);
+    border:1px solid rgba(34,197,94,0.25);
+    border-radius:99px;
+    padding:2px 10px;
+    font-size:10px; font-weight:600;
+    color:#4ADE80;
+    pointer-events:none;
+  }
+  .filmed-badge .dot { width:6px; height:6px; border-radius:50%; background:#22C55E; }
+
+  /* ── 左侧强调条 ── */
+  .left-accent {
+    position:absolute; left:0; top:0; bottom:0; width:3px;
+    background:#22C55E; z-index:2; border-radius:16px 0 0 16px;
+  }
+
+  /* ── 卡片行 ── */
+  .pair { display:flex; gap:10px; flex-wrap:wrap; }
+  .pair .card-wrap { flex:1 1 280px; min-width:0; }
+  .pair .card-wrap .dim { font-size:10px; color:rgba(255,255,255,0.25); margin-bottom:6px; }
+
+  .actions { display:flex; gap:6px; flex-shrink:0; }
+  .act-btn { display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; border:none; cursor:pointer; }
+  .act-edit { background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.6); font-size:13px; }
+  .act-del { background:rgba(220,38,38,0.15); color:rgba(248,113,113,1); font-size:13px; }
+
+  @media (max-width:600px) {
+    .pair { flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+
+<h2 style="color:#71717A;">对照：当前线上效果</h2>
+<div class="pair">
+  <div class="card-wrap"><div class="dim">未拍摄</div>
+    <div class="card normal">
+      <div class="card-inner">
+        <div class="title-row"><span class="title">视频脚本</span><div class="actions"><button class="act-btn act-edit">✎</button><button class="act-btn act-del">🗑</button></div></div>
+        <div class="content">今天我们要介绍一款全新的产品，它在设计上充分考虑了用户体验的每一个细节。</div>
+        <div class="meta">2026-08-07 <span>|</span> 48字</div>
+      </div>
+    </div>
+  </div>
+  <div class="card-wrap"><div class="dim">已拍摄（当前）</div>
+    <div class="card orig filmed-base">
+      <div class="card-inner">
+        <div class="title-row">
+          <svg class="check-icon orig" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          <span class="title">视频脚本</span>
+          <div class="actions"><button class="act-btn act-edit">✎</button><button class="act-btn act-del">🗑</button></div>
+        </div>
+        <div class="content">今天我们要介绍一款全新的产品，它在设计上充分考虑了用户体验的每一个细节。</div>
+        <div class="meta">2026-08-07 <span>|</span> 48字</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>方案 A<span class="tag tag-A" style="margin-left:8px;">全部强化</span></h2>
+<div class="pair">
+  <div class="card-wrap"><div class="dim">未拍摄</div>
+    <div class="card normal">
+      <div class="card-inner">
+        <div class="title-row"><span class="title">视频脚本</span><div class="actions"><button class="act-btn act-edit">✎</button><button class="act-btn act-del">🗑</button></div></div>
+        <div class="content">今天我们要介绍一款全新的产品，它在设计上充分考虑了用户体验的每一个细节。</div>
+        <div class="meta">2026-08-07 <span>|</span> 48字</div>
+      </div>
+    </div>
+  </div>
+  <div class="card-wrap"><div class="dim">已拍摄 — 左侧绿条 + 右上徽章 + 强化底色</div>
+    <div class="card A filmed-base">
+      <div class="left-accent"></div>
+      <div class="filmed-badge"><span class="dot"></span>已拍摄</div>
+      <div class="card-inner">
+        <div class="title-row">
+          <span class="check-icon filled">✓</span>
+          <span class="title">视频脚本</span>
+          <div class="actions"><button class="act-btn act-edit">✎</button><button class="act-btn act-del">🗑</button></div>
+        </div>
+        <div class="content">今天我们要介绍一款全新的产品，它在设计上充分考虑了用户体验的每一个细节。</div>
+        <div class="meta">2026-08-07 <span>|</span> 48字</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>方案 B<span class="tag tag-B" style="margin-left:8px;">颜色 + 徽章</span></h2>
+<div class="pair">
+  <div class="card-wrap"><div class="dim">未拍摄</div>
+    <div class="card normal">
+      <div class="card-inner">
+        <div class="title-row"><span class="title">视频脚本</span><div class="actions"><button class="act-btn act-edit">✎</button><button class="act-btn act-del">🗑</button></div></div>
+        <div class="content">今天我们要介绍一款全新的产品，它在设计上充分考虑了用户体验的每一个细节。</div>
+        <div class="meta">2026-08-07 <span>|</span> 48字</div>
+      </div>
+    </div>
+  </div>
+  <div class="card-wrap"><div class="dim">已拍摄 — 右上徽章 + 强化底色（无左侧条）</div>
+    <div class="card B filmed-base">
+      <div class="filmed-badge"><span class="dot"></span>已拍摄</div>
+      <div class="card-inner">
+        <div class="title-row">
+          <span class="check-icon filled">✓</span>
+          <span class="title">视频脚本</span>
+          <div class="actions"><button class="act-btn act-edit">✎</button><button class="act-btn act-del">🗑</button></div>
+        </div>
+        <div class="content">今天我们要介绍一款全新的产品，它在设计上充分考虑了用户体验的每一个细节。</div>
+        <div class="meta">2026-08-07 <span>|</span> 48字</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>方案 C<span class="tag tag-C" style="margin-left:8px;">颜色 + 左侧条</span></h2>
+<div class="pair">
+  <div class="card-wrap"><div class="dim">未拍摄</div>
+    <div class="card normal">
+      <div class="card-inner">
+        <div class="title-row"><span class="title">视频脚本</span><div class="actions"><button class="act-btn act-edit">✎</button><button class="act-btn act-del">🗑</button></div></div>
+        <div class="content">今天我们要介绍一款全新的产品，它在设计上充分考虑了用户体验的每一个细节。</div>
+        <div class="meta">2026-08-07 <span>|</span> 48字</div>
+      </div>
+    </div>
+  </div>
+  <div class="card-wrap"><div class="dim">已拍摄 — 左侧绿条 + 强化底色（无徽章）</div>
+    <div class="card C filmed-base">
+      <div class="left-accent"></div>
+      <div class="card-inner">
+        <div class="title-row">
+          <span class="check-icon filled">✓</span>
+          <span class="title">视频脚本</span>
+          <div class="actions"><button class="act-btn act-edit">✎</button><button class="act-btn act-del">🗑</button></div>
+        </div>
+        <div class="content">今天我们要介绍一款全新的产品，它在设计上充分考虑了用户体验的每一个细节。</div>
+        <div class="meta">2026-08-07 <span>|</span> 48字</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>方案 D<span class="tag tag-D" style="margin-left:8px;">只强化颜色</span></h2>
+<div class="pair">
+  <div class="card-wrap"><div class="dim">未拍摄</div>
+    <div class="card normal">
+      <div class="card-inner">
+        <div class="title-row"><span class="title">视频脚本</span><div class="actions"><button class="act-btn act-edit">✎</button><button class="act-btn act-del">🗑</button></div></div>
+        <div class="content">今天我们要介绍一款全新的产品，它在设计上充分考虑了用户体验的每一个细节。</div>
+        <div class="meta">2026-08-07 <span>|</span> 48字</div>
+      </div>
+    </div>
+  </div>
+  <div class="card-wrap"><div class="dim">已拍摄 — 只加深底色+边框+实心✓</div>
+    <div class="card D filmed-base">
+      <div class="card-inner">
+        <div class="title-row">
+          <span class="check-icon filled">✓</span>
+          <span class="title">视频脚本</span>
+          <div class="actions"><button class="act-btn act-edit">✎</button><button class="act-btn act-del">🗑</button></div>
+        </div>
+        <div class="content">今天我们要介绍一款全新的产品，它在设计上充分考虑了用户体验的每一个细节。</div>
+        <div class="meta">2026-08-07 <span>|</span> 48字</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
