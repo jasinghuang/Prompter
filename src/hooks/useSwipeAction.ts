@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, type TouchEvent } from 'react';
+import { hapticLight, hapticStrong } from '../lib/haptics';
 
 // Swipe thresholds（拖动限制 / 提交阈值 / 视觉揭示阈值）
 export const SWIPE_LIMIT_RIGHT = 72;
@@ -62,9 +63,11 @@ export function useSwipeAction({ onCommitRight, onCommitLeft }: Options) {
     const cur = offsetRef.current;
     setShaking(false);
     if (cur > COMMIT_FILMED_PX) {
+      hapticLight();
       commitRightRef.current();
       update(0);
     } else if (cur <= COMMIT_DELETE_PX) {
+      hapticStrong();
       commitLeftRef.current();
       // 卡片即将卸载，不必回弹
     } else {
