@@ -46,21 +46,17 @@ export function ScriptEditor({
 
   return (
     <div className="flex min-h-screen flex-col bg-[#0A0A0B]">
-      {/* Header */}
-      <header className="sticky top-0 z-50 px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))]">
-        <button
-          title="返回"
-          onClick={handleBack}
-          className="rounded-full p-2 text-white/30 hover:bg-white/10 hover:text-white"
-          style={{ minHeight: '44px', minWidth: '44px' }}
-        >
-          <ChevronLeft size={20} />
-        </button>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-[45rem] flex-1 flex-col px-4">
-        {/* Title Row: Title Input + Smart Split */}
-        <div className="flex items-center gap-3">
+      <main className="mx-auto flex w-full max-w-[45rem] flex-1 flex-col px-4 pt-[calc(1rem+env(safe-area-inset-top))]">
+        {/* Title Row: Back + Title Input + Smart Split */}
+        <div className="flex items-center gap-1">
+          <button
+            title="返回"
+            onClick={handleBack}
+            className="-ml-3 flex shrink-0 items-center justify-center rounded-full p-2 text-white/30 hover:bg-white/10 hover:text-white"
+            style={{ minHeight: '44px', minWidth: '44px' }}
+          >
+            <ChevronLeft size={20} />
+          </button>
           <input
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}

@@ -68,4 +68,21 @@ describe('ScriptEditor', () => {
     expect(btn.parentElement?.className).toContain('flex');
     expect(btn.parentElement?.querySelector('[data-segmented-pill]')).toBeNull(); // 不再与自动暂停同模块
   });
+
+  it('返回按钮与标题输入框同一行（左侧）', () => {
+    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
+    const back = screen.getByTitle('返回');
+    const title = screen.getByPlaceholderText('稿件标题');
+    expect(back.parentElement).toBe(title.parentElement);
+    expect(back.parentElement?.className).toContain('flex');
+    expect(back.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // 返回按钮在标题左侧
+  });
+
+  it('返回按钮图标与页面内容左缘对齐（按钮左扩入页边距、图标居中）', () => {
+    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
+    const back = screen.getByTitle('返回');
+    expect(back.className).toContain('-ml-3'); // 44px 盒左移 12px → 20px 图标起点恰好 16px
+    expect(back.className).toContain('justify-center');
+    expect(back.className).not.toContain('justify-start');
+  });
 });
