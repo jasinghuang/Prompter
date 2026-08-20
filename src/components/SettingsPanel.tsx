@@ -1,7 +1,8 @@
-import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight, CornerUpLeft } from 'lucide-react';
-import { TeleprompterSettings, TextAlign, FONT_SIZE_MIN, FONT_SIZE_MAX, LETTER_SPACING_MIN, LETTER_SPACING_MAX, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, PADDING_MIN, PADDING_MAX } from '../types';
-import { SPEED_MIN, SPEED_MAX, SPEED_PRESETS } from '../lib/speed';
+import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight, Flag } from 'lucide-react';
+import { TeleprompterSettings, TextAlign, CompleteAction, FONT_SIZE_MIN, FONT_SIZE_MAX, LETTER_SPACING_MIN, LETTER_SPACING_MAX, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, PADDING_MIN, PADDING_MAX } from '../types';
+import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
 import { AutoPauseControl } from './AutoPauseControl';
+import { SegmentedPill } from './SegmentedPill';
 import { Toggle } from './Toggle';
 
 interface Props {
@@ -36,9 +37,9 @@ function Slider({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-sm">
-        <span className="flex items-center gap-2 text-white/50">
-          {icon}
-          {label}
+        <span className="flex items-center gap-2">
+          <span className="text-white/30">{icon}</span>
+          <span className="text-sm font-semibold text-white">{label}</span>
         </span>
         <span className="font-mono tabular-nums text-white">
           {value}
@@ -82,6 +83,12 @@ const ALIGN_OPTIONS: { value: TextAlign; Icon: typeof AlignLeft; label: string }
   { value: 'right', Icon: AlignRight, label: '右对齐' },
 ];
 
+const COMPLETE_ACTION_OPTIONS: { value: CompleteAction; label: string }[] = [
+  { value: 'none', label: '不开启' },
+  { value: 'list', label: '返回列表' },
+  { value: 'restart', label: '回到开头' },
+];
+
 export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
   if (!open) return null;
 
@@ -95,7 +102,7 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
         {/* Sticky Header */}
         <div className="shrink-0 flex items-center justify-between px-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-3">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-            <Settings size={20} className="text-white/50" /> 提词设置
+            <Settings size={20} className="text-white/50" /> 设置
           </h2>
           <button
             onClick={onClose}
@@ -159,27 +166,11 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
             onChange={(v) => onChange({ scrollSpeed: v })}
           />
 
-          {/* Speed Presets */}
-          <div className="flex flex-wrap gap-2">
-            {SPEED_PRESETS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => onChange({ scrollSpeed: p.wpn })}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
-                  settings.scrollSpeed === p.wpn
-                    ? 'bg-[rgba(212,164,50,0.15)] text-[#D4A432]'
-                    : 'bg-white/5 text-white/50 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
-
           {/* Text Alignment */}
           <div className="space-y-2">
-            <span className="flex items-center gap-2 text-sm text-white/50">
-              <AlignLeft size={16} />对齐方式
+            <span className="flex items-center gap-2">
+              <AlignLeft size={16} className="text-white/30" />
+              <span className="text-sm font-semibold text-white">对齐方式</span>
             </span>
             <div className="flex gap-2">
               {ALIGN_OPTIONS.map(({ value, Icon, label }) => (
@@ -204,19 +195,21 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
           <Toggle
             icon={<FlipHorizontal size={16} className="text-white/30" />}
             label="镜像翻转"
-            description="用于分光镜反射"
             checked={settings.mirror}
             onChange={(v) => onChange({ mirror: v })}
           />
 
-          {/* Auto Return on Complete */}
-          <Toggle
-            icon={<CornerUpLeft size={16} className="text-white/30" />}
-            label="读完自动返回"
-            description="读完自动标记已拍摄并返回列表"
-            checked={settings.autoReturnOnComplete}
-            onChange={(v) => onChange({ autoReturnOnComplete: v })}
-          />
+          {/* Complete Action */}
+          <div className="border-t border-white/5 pt-5 space-y-2">
+            <span className="flex items-center gap-2 text-sm font-semibold text-white">
+              <Flag size={16} className="text-white/30" />读完动作
+            </span>
+            <SegmentedPill
+              value={settings.completeAction}
+              options={COMPLETE_ACTION_OPTIONS}
+              onSelect={(v) => onChange({ completeAction: v })}
+            />
+          </div>
 
           {/* Auto Pause */}
           <div className="border-t border-white/5 pt-5">

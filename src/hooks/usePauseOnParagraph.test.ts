@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { usePauseOnParagraph } from './usePauseOnParagraph';
 
 describe('usePauseOnParagraph', () => {
@@ -37,5 +37,19 @@ describe('usePauseOnParagraph', () => {
     rerender({ idx: 6 }); // 离开起点
     rerender({ idx: 5 }); // 回到同一起点
     expect(onPause).toHaveBeenCalledTimes(1); // 不再触发
+  });
+
+  it('reset 后同一起点可再次命中（重读场景）', () => {
+    const onPause = vi.fn();
+    const starts = new Set([5]);
+    const { result, rerender } = renderHook(
+      ({ idx }) => usePauseOnParagraph({ isPlaying: true, activeIndex: idx, paragraphStarts: starts, enabled: true, onPause }),
+      { initialProps: { idx: 5 } },
+    );
+    expect(onPause).toHaveBeenCalledTimes(1); // 初次命中
+    act(() => { result.current(); }); // 重读：重置命中记录
+    rerender({ idx: 6 }); // 离开起点
+    rerender({ idx: 5 }); // 再次到达同一起点
+    expect(onPause).toHaveBeenCalledTimes(2);
   });
 });

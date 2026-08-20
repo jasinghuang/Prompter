@@ -18,11 +18,20 @@ export function saveScripts(scripts: Script[]): void {
   localStorage.setItem(SCRIPTS_KEY, JSON.stringify(scripts));
 }
 
+/** 迁移旧版设置：autoReturnOnComplete(boolean) → completeAction('none' | 'list') */
+function migrateSettings(parsed: Record<string, unknown>): void {
+  if (typeof parsed.autoReturnOnComplete === 'boolean' && parsed.completeAction === undefined) {
+    parsed.completeAction = parsed.autoReturnOnComplete ? 'list' : 'none';
+  }
+  delete parsed.autoReturnOnComplete;
+}
+
 export function loadSettings(): TeleprompterSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    migrateSettings(parsed);
     return { ...DEFAULT_SETTINGS, ...(parsed as Partial<TeleprompterSettings>) };
   } catch {
     return { ...DEFAULT_SETTINGS };

@@ -42,4 +42,21 @@ describe('settings 存储', () => {
     localStorage.setItem(SETTINGS_KEY, 'broken');
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
   });
+
+  it('旧字段 autoReturnOnComplete=true 迁移为 completeAction="list"', () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ autoReturnOnComplete: true }));
+    const loaded = loadSettings();
+    expect(loaded.completeAction).toBe('list');
+    expect('autoReturnOnComplete' in loaded).toBe(false);
+  });
+
+  it('旧字段 autoReturnOnComplete=false 迁移为 completeAction="none"', () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ autoReturnOnComplete: false }));
+    expect(loadSettings().completeAction).toBe('none');
+  });
+
+  it('completeAction 新值直接透传', () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ completeAction: 'restart' }));
+    expect(loadSettings().completeAction).toBe('restart');
+  });
 });

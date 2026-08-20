@@ -10,6 +10,9 @@ export type ScrollMode = 'manual' | 'auto';
 
 export type TextAlign = 'left' | 'center' | 'right';
 
+/** 读完动作：none=不开启 / list=返回列表 / restart=回到开头 */
+export type CompleteAction = 'none' | 'list' | 'restart';
+
 export interface TeleprompterSettings {
   fontSize: number;
   letterSpacing: number;
@@ -24,8 +27,8 @@ export interface TeleprompterSettings {
   pauseKeyword: string;
   /** 遇到空行自动暂停（段落分隔），默认 false */
   pauseOnParagraph: boolean;
-  /** 读完自动标记已拍摄并返回列表，默认 false */
-  autoReturnOnComplete: boolean;
+  /** 读完动作，默认 none */
+  completeAction: CompleteAction;
 }
 
 export const DEFAULT_SETTINGS: TeleprompterSettings = {
@@ -38,7 +41,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
   textAlign: 'left',
   pauseKeyword: '',
   pauseOnParagraph: false,
-  autoReturnOnComplete: false,
+  completeAction: 'none',
 };
 
 export const FONT_SIZE_MIN = 24;

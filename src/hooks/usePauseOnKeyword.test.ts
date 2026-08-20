@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { usePauseOnKeyword } from './usePauseOnKeyword';
 
 describe('usePauseOnKeyword', () => {
@@ -34,6 +34,20 @@ describe('usePauseOnKeyword', () => {
     );
     expect(onPause).toHaveBeenCalledTimes(1); // 命中 bb
     rerender({ kw: 'cc' }); // 关键词变化 → 重置 → 命中 cc
+    expect(onPause).toHaveBeenCalledTimes(2);
+  });
+
+  it('reset 后同一关键词可再次命中（重读场景）', () => {
+    const onPause = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ idx }) => usePauseOnKeyword({ isPlaying: true, activeIndex: idx, content: 'hello world test', keyword: 'world', onPause }),
+      { initialProps: { idx: 0 } },
+    );
+    rerender({ idx: 11 }); // 移过 world → 首次命中
+    expect(onPause).toHaveBeenCalledTimes(1);
+    act(() => { result.current(); }); // 重读：重置命中记录
+    rerender({ idx: 0 }); // 回到开头
+    rerender({ idx: 11 }); // 再次移过 world
     expect(onPause).toHaveBeenCalledTimes(2);
   });
 });

@@ -59,24 +59,13 @@ export function ScriptEditor({
       </header>
 
       <main className="mx-auto flex w-full max-w-[45rem] flex-1 flex-col px-4">
-        {/* Title Input */}
-        <input
-          value={title}
-          onChange={(e) => onTitleChange(e.target.value)}
-          placeholder="稿件标题"
-          className="w-full border-b border-white/5 bg-transparent py-3 text-lg font-semibold text-white placeholder-[#71717A] transition-colors focus:border-[#D4A432] focus:outline-none"
-        />
-
-        {/* Toolbar: AutoPause + Smart Split */}
-        <div className="flex items-center justify-between gap-3 border-b border-white/5 py-2.5">
-          <AutoPauseControl
-            inline
-            keyword={pauseKeyword}
-            paragraph={pauseOnParagraph}
-            onChange={(patch) => {
-              if (patch.pauseKeyword !== undefined) onPauseKeywordChange(patch.pauseKeyword);
-              if (patch.pauseOnParagraph !== undefined) onPauseOnParagraphChange(patch.pauseOnParagraph);
-            }}
+        {/* Title Row: Title Input + Smart Split */}
+        <div className="flex items-center gap-3">
+          <input
+            value={title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            placeholder="稿件标题"
+            className="min-w-0 flex-1 border-b border-white/5 bg-transparent py-3 text-lg font-semibold text-white placeholder-white/30 transition-colors focus:border-[#D4A432] focus:outline-none"
           />
           <button
             onClick={onSplit}
@@ -88,12 +77,25 @@ export function ScriptEditor({
           </button>
         </div>
 
+        {/* Toolbar: AutoPause */}
+        <div className="border-b border-white/5 py-2.5">
+          <AutoPauseControl
+            inline
+            keyword={pauseKeyword}
+            paragraph={pauseOnParagraph}
+            onChange={(patch) => {
+              if (patch.pauseKeyword !== undefined) onPauseKeywordChange(patch.pauseKeyword);
+              if (patch.pauseOnParagraph !== undefined) onPauseOnParagraphChange(patch.pauseOnParagraph);
+            }}
+          />
+        </div>
+
         {/* Content Textarea */}
         <textarea
           value={content}
           onChange={(e) => onContentChange(e.target.value)}
           placeholder="在此输入或粘贴提词稿件..."
-          className="flex-1 resize-none bg-transparent py-4 text-lg leading-relaxed text-white/50 placeholder-[#71717A] focus:outline-none"
+          className="flex-1 resize-none bg-transparent py-4 text-lg leading-relaxed text-white placeholder-white/30 focus:outline-none"
         />
       </main>
     </div>

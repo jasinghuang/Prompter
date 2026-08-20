@@ -1,10 +1,3 @@
-export const SPEED_PRESETS = [
-  { id: 'slow', name: '龟速', wpn: 80 },
-  { id: 'normal', name: '标准', wpn: 160 },
-  { id: 'fast', name: '快语', wpn: 240 },
-  { id: 'very-fast', name: '极速', wpn: 320 },
-] as const;
-
 export const SPEED_MIN = 30;
 export const SPEED_MAX = 600;
 

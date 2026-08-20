@@ -4,14 +4,45 @@ import { AutoPauseControl } from './AutoPauseControl';
 import { SettingsPanel } from './SettingsPanel';
 import { DEFAULT_SETTINGS } from '../types';
 
+/** 药丸选项是否处于选中态（选中 = text-white 精确 token） */
+function pillSelected(mode: string): boolean {
+  const btn = document.querySelector(`[data-pill-value="${mode}"]`);
+  return btn ? btn.className.split(/\s+/).includes('text-white') : false;
+}
+
 describe('AutoPauseControl', () => {
+  it('药丸选项顺序为 关闭、空行、关键词', () => {
+    render(<AutoPauseControl keyword="" paragraph={false} onChange={vi.fn()} />);
+    const labels = Array.from(document.querySelectorAll('[data-segmented-pill] button')).map((b) => b.textContent);
+    expect(labels).toEqual(['关闭', '空行', '关键词']);
+  });
+
+  it('面板模式：关键词输入框出现在药丸下方', () => {
+    const onChange = vi.fn();
+    render(<AutoPauseControl keyword="" paragraph={false} onChange={onChange} />);
+    fireEvent.click(screen.getByText('关键词'));
+    const input = screen.getByPlaceholderText('输入关键词');
+    expect(input.parentElement?.className).not.toContain('flex'); // 不在同一行
+  });
+
+  it('inline 模式：关键词输入框在药丸右侧同一行', () => {
+    const onChange = vi.fn();
+    render(<AutoPauseControl inline keyword="" paragraph={false} onChange={onChange} />);
+    fireEvent.click(screen.getByText('关键词'));
+    const input = screen.getByPlaceholderText('输入关键词');
+    expect(input.parentElement?.className).toContain('flex'); // 同一行
+    const pill = input.parentElement!.querySelector('[data-segmented-pill]');
+    expect(pill).toBeTruthy();
+    expect(pill!.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // 输入框在药丸右侧
+  });
+
   it('从空行切换到关键词，保持关键词模式并显示输入框', () => {
     const onChange = vi.fn();
     const { rerender } = render(
       <AutoPauseControl keyword="" paragraph={true} onChange={onChange} />
     );
 
-    expect(screen.getByText('遇到空行时暂停')).toBeTruthy();
+    expect(pillSelected('paragraph')).toBe(true);
     expect(screen.queryByPlaceholderText('输入关键词')).toBeNull();
 
     fireEvent.click(screen.getByText('关键词'));
@@ -21,7 +52,7 @@ describe('AutoPauseControl', () => {
     rerender(<AutoPauseControl keyword="" paragraph={false} onChange={onChange} />);
 
     // 应该保持在关键词模式
-    expect(screen.getByText('滚动到关键词时暂停')).toBeTruthy();
+    expect(pillSelected('keyword')).toBe(true);
     expect(screen.getByPlaceholderText('输入关键词')).toBeTruthy();
   });
 
@@ -34,7 +65,7 @@ describe('AutoPauseControl', () => {
     );
 
     // 空行模式
-    expect(screen.getByText('遇到空行时暂停')).toBeTruthy();
+    expect(pillSelected('paragraph')).toBe(true);
 
     // 点击关键词
     fireEvent.click(screen.getByText('关键词'));
@@ -47,8 +78,8 @@ describe('AutoPauseControl', () => {
     );
 
     // 应该保持关键词模式，不是关闭
-    expect(screen.getByText('滚动到关键词时暂停')).toBeTruthy();
+    expect(pillSelected('keyword')).toBe(true);
     expect(screen.getByPlaceholderText('输入关键词')).toBeTruthy();
-    expect(screen.queryByText('未启用')).toBeNull();
+    expect(pillSelected('off')).toBe(false);
   });
 });

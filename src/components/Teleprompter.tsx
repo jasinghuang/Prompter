@@ -143,6 +143,24 @@ export function Teleprompter({
   const getViewport = useCallback(() => viewportRef.current, []);
   const getMaxOffset = useCallback(() => maxOffsetRef.current, []);
 
+  const scrollToIndex = useCallback((i: number) => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    if (i === 0) {
+      // 开头即顶部，不依赖 span 定位（内容可能以换行开头，无 data-idx=0 的 span）
+      vp.scrollTop = 0;
+      scrollRef.current = 0;
+    } else {
+      const target = spansRef.current.find((s) => Number(s.dataset.idx) === i);
+      if (target) {
+        vp.scrollTop = target.offsetTop - vp.clientHeight / 2 + target.offsetHeight / 2;
+        scrollRef.current = vp.scrollTop;
+      }
+    }
+    activeIndexRef.current = i;
+    setActiveIndex(i);
+  }, []);
+
   const scrollRef = useAutoScroll({
     running: isPlaying,
     pxPerSec,
@@ -152,7 +170,13 @@ export function Teleprompter({
     onReachEnd: () => {
       if (completed) return; // 深度防御：useAutoScroll 的 ended 标志已保证单次播放周期触发一次
       setIsPlaying(false);
-      if (!settings.autoReturnOnComplete) return; // 关：读完即停，不提示/不标记/不返回
+      if (settings.completeAction === 'restart') {
+        resetKeywordPause(); // 重读时自动暂停重新生效
+        resetParagraphPause();
+        scrollToIndex(0); // 回到开头并暂停，不标记/不提示/不返回
+        return;
+      }
+      if (settings.completeAction !== 'list') return; // none：读完即停，不提示/不标记/不返回
       setCompleted(true);
       onCompleted();
       if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
@@ -165,18 +189,6 @@ export function Teleprompter({
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
-  }, []);
-
-  const scrollToIndex = useCallback((i: number) => {
-    const vp = viewportRef.current;
-    if (!vp) return;
-    const target = spansRef.current.find((s) => Number(s.dataset.idx) === i);
-    if (target) {
-      vp.scrollTop = target.offsetTop - vp.clientHeight / 2 + target.offsetHeight / 2;
-      scrollRef.current = vp.scrollTop;
-    }
-    activeIndexRef.current = i;
-    setActiveIndex(i);
   }, []);
 
   useEffect(() => {
@@ -212,14 +224,14 @@ export function Teleprompter({
     showPauseToast(msg);
   }, [showPauseToast]);
 
-  usePauseOnKeyword({
+  const resetKeywordPause = usePauseOnKeyword({
     isPlaying,
     activeIndex,
     content: script.content,
     keyword: settings.pauseKeyword,
     onPause: handlePause,
   });
-  usePauseOnParagraph({
+  const resetParagraphPause = usePauseOnParagraph({
     isPlaying,
     activeIndex,
     paragraphStarts,

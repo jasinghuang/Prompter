@@ -36,4 +36,36 @@ describe('ScriptEditor', () => {
     fireEvent.click(screen.getByTitle('返回'));
     expect(onBack).toHaveBeenCalled();
   });
+
+  it('「自动暂停」标题为白色（非 white/50）', () => {
+    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
+    const el = screen.getByText('自动暂停');
+    expect(el.className).toContain('text-white');
+    expect(el.className).not.toContain('text-white/50');
+  });
+
+  it('标题输入框 placeholder 使用 white/30', () => {
+    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
+    const el = screen.getByPlaceholderText('稿件标题');
+    expect(el.className).toContain('placeholder-white/30');
+    expect(el.className).not.toContain('#71717A');
+  });
+
+  it('正文文字为白色（非 white/50），placeholder 使用 white/30', () => {
+    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
+    const el = screen.getByPlaceholderText('在此输入或粘贴提词稿件...');
+    expect(el.className).toContain('text-white');
+    expect(el.className).not.toContain('text-white/50');
+    expect(el.className).toContain('placeholder-white/30');
+    expect(el.className).not.toContain('#71717A');
+  });
+
+  it('智能拆分按钮与标题输入框同一行（靠右）', () => {
+    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
+    const btn = screen.getByRole('button', { name: '智能拆分' });
+    const title = screen.getByPlaceholderText('稿件标题');
+    expect(btn.parentElement).toBe(title.parentElement);
+    expect(btn.parentElement?.className).toContain('flex');
+    expect(btn.parentElement?.querySelector('[data-segmented-pill]')).toBeNull(); // 不再与自动暂停同模块
+  });
 });

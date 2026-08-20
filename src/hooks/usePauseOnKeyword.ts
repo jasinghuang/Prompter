@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 interface Options {
   isPlaying: boolean;
@@ -12,11 +12,16 @@ interface Options {
 /**
  * 自动暂停：播放过程中遇到关键词则暂停（CF10，从 Teleprompter 抽出）。
  * 同一关键词只触发一次（用 pausedAtRef 记录已命中的绝对位置）。
+ * 返回 reset：清除命中记录，重读（如读完回到开头）时暂停重新生效。
  */
 export function usePauseOnKeyword({ isPlaying, activeIndex, content, keyword, onPause }: Options) {
   const pausedAtRef = useRef(-1);
   const onPauseRef = useRef(onPause);
   onPauseRef.current = onPause;
+
+  const reset = useCallback(() => {
+    pausedAtRef.current = -1;
+  }, []);
 
   // 关键词变更 → 重置命中记录
   useEffect(() => {
@@ -35,4 +40,6 @@ export function usePauseOnKeyword({ isPlaying, activeIndex, content, keyword, on
       onPauseRef.current(`已暂停：命中关键词「${keyword}」`);
     }
   }, [activeIndex, isPlaying, content, keyword]);
+
+  return reset;
 }

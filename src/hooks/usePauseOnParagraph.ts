@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 interface Options {
   isPlaying: boolean;
@@ -12,11 +12,16 @@ interface Options {
 /**
  * 自动暂停：播放到段落起点时暂停（CF10，从 Teleprompter 抽出）。
  * 同一段落起点只触发一次（用 pausedAtRef 记录已暂停的位置）。
+ * 返回 reset：清除命中记录，重读（如读完回到开头）时暂停重新生效。
  */
 export function usePauseOnParagraph({ isPlaying, activeIndex, paragraphStarts, enabled, onPause }: Options) {
   const pausedAtRef = useRef(-1);
   const onPauseRef = useRef(onPause);
   onPauseRef.current = onPause;
+
+  const reset = useCallback(() => {
+    pausedAtRef.current = -1;
+  }, []);
 
   useEffect(() => {
     if (!isPlaying || !enabled) return;
@@ -25,4 +30,6 @@ export function usePauseOnParagraph({ isPlaying, activeIndex, paragraphStarts, e
       onPauseRef.current('已暂停：段落分隔');
     }
   }, [activeIndex, isPlaying, enabled, paragraphStarts]);
+
+  return reset;
 }
