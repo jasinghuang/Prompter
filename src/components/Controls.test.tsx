@@ -38,4 +38,51 @@ describe('Controls', () => {
     expect(screen.getByText('72')).toBeInTheDocument();
     expect(screen.getByText('200')).toBeInTheDocument();
   });
+
+  it('点击步进按钮按步长调整字号', () => {
+    const onFontSizeChange = vi.fn();
+    render(<Controls {...baseProps} fontSize={64} onFontSizeChange={onFontSizeChange} />);
+    fireEvent.click(screen.getByLabelText('减小字号'));
+    expect(onFontSizeChange).toHaveBeenCalledWith(62);
+    fireEvent.click(screen.getByLabelText('增大字号'));
+    expect(onFontSizeChange).toHaveBeenCalledWith(66);
+  });
+
+  it('字号步进在下限不越界', () => {
+    const onFontSizeChange = vi.fn();
+    render(<Controls {...baseProps} fontSize={24} onFontSizeChange={onFontSizeChange} />);
+    fireEvent.click(screen.getByLabelText('减小字号'));
+    expect(onFontSizeChange).toHaveBeenCalledWith(24);
+  });
+
+  it('点击步进按钮按步长调整速度', () => {
+    const onSpeedChange = vi.fn();
+    render(<Controls {...baseProps} speed={160} onSpeedChange={onSpeedChange} />);
+    fireEvent.click(screen.getByLabelText('减小速度'));
+    expect(onSpeedChange).toHaveBeenCalledWith(150);
+    fireEvent.click(screen.getByLabelText('增大速度'));
+    expect(onSpeedChange).toHaveBeenCalledWith(170);
+  });
+
+  it('暂停时显示播放按钮，点击触发 onTogglePlay', () => {
+    const onTogglePlay = vi.fn();
+    render(<Controls {...baseProps} isPlaying={false} onTogglePlay={onTogglePlay} />);
+    const btn = screen.getByLabelText('播放');
+    fireEvent.click(btn);
+    expect(onTogglePlay).toHaveBeenCalledTimes(1);
+  });
+
+  it('播放时按钮语义为暂停', () => {
+    render(<Controls {...baseProps} isPlaying />);
+    expect(screen.getByLabelText('暂停')).toBeInTheDocument();
+  });
+
+  it('数值胶囊为白色等宽字体', () => {
+    render(<Controls {...baseProps} fontSize={64} speed={160} />);
+    for (const el of [screen.getByText('64'), screen.getByText('160')]) {
+      expect(el.className).toContain('font-mono');
+      expect(el.className).toContain('text-white');
+      expect(el.className).not.toContain('text-white/50');
+    }
+  });
 });
