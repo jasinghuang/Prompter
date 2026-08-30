@@ -99,7 +99,7 @@ describe('Teleprompter 读完动作', () => {
     expect(h.onCompleted).not.toHaveBeenCalled();
     expect(h.onBack).not.toHaveBeenCalled();
     expect(screen.queryByText(/已读完/)).toBeNull();
-    expect(screen.getByLabelText('播放')).toBeInTheDocument(); // 暂停在开头
+    expect(screen.getByLabelText('已暂停')).toBeInTheDocument(); // 暂停在开头
   });
 
   it('restart：可重复触发，第二次读完同样不标记/不返回', () => {
@@ -248,7 +248,7 @@ describe('Teleprompter 双指捏合调字号', () => {
       fireEvent.pointerUp(vp, { pointerId: 1, clientX: 300, clientY: 200 });
       fireEvent.pointerUp(vp, { pointerId: 2, clientX: 340, clientY: 200 });
     });
-    expect(screen.getByLabelText('播放')).toBeInTheDocument(); // 仍处于暂停态
+    expect(screen.getByLabelText('已暂停')).toBeInTheDocument(); // 仍处于暂停态
   });
 
   it('单指轻点仍可切换播放', () => {
@@ -258,7 +258,7 @@ describe('Teleprompter 双指捏合调字号', () => {
       fireEvent.pointerDown(vp, { pointerId: 1, clientX: 200, clientY: 100 });
       fireEvent.pointerUp(vp, { pointerId: 1, clientX: 200, clientY: 100 });
     });
-    expect(screen.getByLabelText('暂停')).toBeInTheDocument(); // 已开始播放
+    expect(screen.getByLabelText('播放中')).toBeInTheDocument(); // 已开始播放
   });
 
   it('第一指抬起事件丢失后，新手指不触发捏合（自愈陈旧手指）', () => {

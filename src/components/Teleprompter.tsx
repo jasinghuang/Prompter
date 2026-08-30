@@ -448,7 +448,10 @@ export function Teleprompter({
 
           {/* Timer + Status Indicator — equal-size container */}
           <div className="flex items-center gap-1.5 rounded-full glass-button px-3 py-1.5">
-            <span className="flex h-4 w-4 items-center justify-center">
+            <span
+              className="flex h-4 w-4 items-center justify-center"
+              aria-label={isPlaying ? '播放中' : '已暂停'}
+            >
               {isPlaying ? (
                 <span className="relative flex h-2.5 w-2.5">
                   <span className="absolute inset-0 rounded-full" style={{ background: 'var(--color-danger)', boxShadow: 'var(--shadow-record)' }} />
@@ -516,7 +519,7 @@ export function Teleprompter({
           WebkitOverflowScrolling: 'touch',
         }}
       >
-        <div ref={contentRef} className="mx-auto max-w-[56rem] pb-[25vh] pt-[16vh]">
+        <div ref={contentRef} className="mx-auto max-w-[56rem] pb-[18vh] pt-[16vh]">
           <ScriptText content={script.content} />
         </div>
       </div>
@@ -524,8 +527,6 @@ export function Teleprompter({
       {/* ── Bottom Controls ── */}
       <Controls
         visible={!isPlaying}
-        isPlaying={isPlaying}
-        onTogglePlay={() => setIsPlaying((p) => !p)}
         fontSize={settings.fontSize}
         speed={settings.scrollSpeed}
         onFontSizeChange={(v) => onChangeSettings({ fontSize: v })}
@@ -537,7 +538,7 @@ export function Teleprompter({
         <button
           onClick={handleBackToTop}
           aria-label="回到顶部"
-          className="absolute inset-x-0 bottom-[calc(13rem+env(safe-area-inset-bottom))] z-40 mx-auto flex w-fit items-center gap-1.5 rounded-full border border-white/10 glass-surface px-4 py-2.5 text-xs text-white/80 transition-all hover:text-white active:scale-95"
+          className="absolute inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex w-fit items-center gap-1.5 rounded-full border border-white/10 glass-surface px-4 py-2.5 text-xs text-white/80 transition-all hover:text-white active:scale-95"
         >
           <ArrowUp size={14} />
           回到顶部

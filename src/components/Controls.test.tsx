@@ -6,8 +6,6 @@ const baseProps = {
   fontSize: 64,
   speed: 160,
   visible: true,
-  isPlaying: false,
-  onTogglePlay: vi.fn(),
   onFontSizeChange: vi.fn(),
   onSpeedChange: vi.fn(),
 };
@@ -33,56 +31,24 @@ describe('Controls', () => {
     expect(onSpeedChange).toHaveBeenCalledWith(240);
   });
 
-  it('显示当前字号和速度值', () => {
+  it('参数胶囊显示标签与当前值', () => {
     render(<Controls {...baseProps} fontSize={72} speed={200} />);
-    expect(screen.getByText('72')).toBeInTheDocument();
-    expect(screen.getByText('200')).toBeInTheDocument();
+    expect(screen.getByText('字号 72')).toBeInTheDocument();
+    expect(screen.getByText('速度 200')).toBeInTheDocument();
   });
 
-  it('点击步进按钮按步长调整字号', () => {
-    const onFontSizeChange = vi.fn();
-    render(<Controls {...baseProps} fontSize={64} onFontSizeChange={onFontSizeChange} />);
-    fireEvent.click(screen.getByLabelText('减小字号'));
-    expect(onFontSizeChange).toHaveBeenCalledWith(62);
-    fireEvent.click(screen.getByLabelText('增大字号'));
-    expect(onFontSizeChange).toHaveBeenCalledWith(66);
-  });
-
-  it('字号步进在下限不越界', () => {
-    const onFontSizeChange = vi.fn();
-    render(<Controls {...baseProps} fontSize={24} onFontSizeChange={onFontSizeChange} />);
-    fireEvent.click(screen.getByLabelText('减小字号'));
-    expect(onFontSizeChange).toHaveBeenCalledWith(24);
-  });
-
-  it('点击步进按钮按步长调整速度', () => {
-    const onSpeedChange = vi.fn();
-    render(<Controls {...baseProps} speed={160} onSpeedChange={onSpeedChange} />);
-    fireEvent.click(screen.getByLabelText('减小速度'));
-    expect(onSpeedChange).toHaveBeenCalledWith(150);
-    fireEvent.click(screen.getByLabelText('增大速度'));
-    expect(onSpeedChange).toHaveBeenCalledWith(170);
-  });
-
-  it('暂停时显示播放按钮，点击触发 onTogglePlay', () => {
-    const onTogglePlay = vi.fn();
-    render(<Controls {...baseProps} isPlaying={false} onTogglePlay={onTogglePlay} />);
-    const btn = screen.getByLabelText('播放');
-    fireEvent.click(btn);
-    expect(onTogglePlay).toHaveBeenCalledTimes(1);
-  });
-
-  it('播放时按钮语义为暂停', () => {
-    render(<Controls {...baseProps} isPlaying />);
-    expect(screen.getByLabelText('暂停')).toBeInTheDocument();
-  });
-
-  it('数值胶囊为白色等宽字体', () => {
-    render(<Controls {...baseProps} fontSize={64} speed={160} />);
-    for (const el of [screen.getByText('64'), screen.getByText('160')]) {
+  it('参数胶囊为白色等宽字体', () => {
+    render(<Controls {...baseProps} />);
+    for (const el of [screen.getByText('字号 64'), screen.getByText('速度 160')]) {
       expect(el.className).toContain('font-mono');
       expect(el.className).toContain('text-white');
       expect(el.className).not.toContain('text-white/50');
     }
+  });
+
+  it('visible=false 时工具栏隐藏且不可交互', () => {
+    render(<Controls {...baseProps} visible={false} />);
+    const bar = document.querySelector('.glass-bar') as HTMLElement;
+    expect(bar.className).toContain('pointer-events-none');
   });
 });
