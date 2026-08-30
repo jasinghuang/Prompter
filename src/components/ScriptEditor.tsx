@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import { ChevronLeft, Scissors } from 'lucide-react';
-import { Script } from '../types';
+import { Script, SplitMode } from '../types';
 import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
 import { AutoPauseControl } from './AutoPauseControl';
+import { SegmentedPill } from './SegmentedPill';
+
+const SPLIT_OPTIONS: { value: SplitMode; label: string }[] = [
+  { value: 'paragraph', label: '空行' },
+  { value: 'keyword', label: '关键词' },
+];
 
 interface Props {
   script: Script;
@@ -10,9 +16,14 @@ interface Props {
   onPauseKeywordChange: (kw: string) => void;
   pauseOnParagraph: boolean;
   onPauseOnParagraphChange: (v: boolean) => void;
+  splitMode: SplitMode;
+  onSplitModeChange: (m: SplitMode) => void;
+  splitKeyword: string;
+  onSplitKeywordChange: (kw: string) => void;
   onSave: (id: string, title: string, content: string) => void;
   onBack: () => void;
-  onSplit: () => void;
+  /** 以编辑器当前内容拆分（不等待防抖落库） */
+  onSplit: (content: string) => void;
 }
 
 export function ScriptEditor({
@@ -21,6 +32,10 @@ export function ScriptEditor({
   onPauseKeywordChange,
   pauseOnParagraph,
   onPauseOnParagraphChange,
+  splitMode,
+  onSplitModeChange,
+  splitKeyword,
+  onSplitKeywordChange,
   onSave,
   onBack,
   onSplit,
@@ -44,10 +59,15 @@ export function ScriptEditor({
     onBack();
   };
 
+  const splitDisabled =
+    splitMode === 'keyword'
+      ? !splitKeyword || !content.includes(splitKeyword)
+      : !content.includes('\n\n');
+
   return (
     <div className="flex min-h-screen flex-col bg-[#0A0A0B]">
       <main className="mx-auto flex w-full max-w-[45rem] flex-1 flex-col px-4 pt-[calc(1rem+env(safe-area-inset-top))]">
-        {/* Title Row: Back + Title Input + Smart Split */}
+        {/* Title Row: Back + Title Input */}
         <div className="flex items-center gap-1">
           <button
             title="返回"
@@ -63,14 +83,35 @@ export function ScriptEditor({
             placeholder="稿件标题"
             className="min-w-0 flex-1 border-b border-white/5 bg-transparent py-3 text-lg font-semibold text-white placeholder-white/30 transition-colors focus:border-[#D4A432] focus:outline-none"
           />
-          <button
-            onClick={onSplit}
-            disabled={!script.content.includes('\n\n')}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-3.5 py-1.5 text-sm font-bold text-[#0A0A0B] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            <Scissors size={12} />
-            智能拆分
-          </button>
+        </div>
+
+        {/* Toolbar: Smart Split — mode pill + keyword input + action */}
+        <div className="border-b border-white/5 py-2.5">
+          <div className="flex items-center gap-2">
+            <SegmentedPill
+              value={splitMode}
+              options={SPLIT_OPTIONS}
+              onSelect={onSplitModeChange}
+              className="shrink-0"
+            />
+            {splitMode === 'keyword' && (
+              <input
+                type="text"
+                value={splitKeyword}
+                onChange={(e) => onSplitKeywordChange(e.target.value)}
+                placeholder="输入拆分关键词"
+                className="w-full min-w-0 flex-1 rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/30 transition-colors focus:border-[#D4A432] focus:outline-none"
+              />
+            )}
+            <button
+              onClick={() => onSplit(content)}
+              disabled={splitDisabled}
+              className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-3.5 py-1.5 text-sm font-bold text-[#0A0A0B] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              <Scissors size={12} />
+              智能拆分
+            </button>
+          </div>
         </div>
 
         {/* Toolbar: AutoPause */}

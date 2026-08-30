@@ -13,6 +13,9 @@ export type TextAlign = 'left' | 'center' | 'right';
 /** 读完动作：none=不开启 / list=返回列表 / restart=回到开头 */
 export type CompleteAction = 'none' | 'list' | 'restart';
 
+/** 智能拆分模式：paragraph=按空行 / keyword=按关键词 */
+export type SplitMode = 'paragraph' | 'keyword';
+
 export interface TeleprompterSettings {
   fontSize: number;
   letterSpacing: number;
@@ -29,6 +32,10 @@ export interface TeleprompterSettings {
   pauseOnParagraph: boolean;
   /** 读完动作，默认 none */
   completeAction: CompleteAction;
+  /** 智能拆分模式，默认 paragraph（按空行） */
+  splitMode: SplitMode;
+  /** 智能拆分关键词（空字符串 = 未设置），默认 '' */
+  splitKeyword: string;
 }
 
 export const DEFAULT_SETTINGS: TeleprompterSettings = {
@@ -42,6 +49,8 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
   pauseKeyword: '',
   pauseOnParagraph: false,
   completeAction: 'none',
+  splitMode: 'paragraph',
+  splitKeyword: '',
 };
 
 export const FONT_SIZE_MIN = 24;

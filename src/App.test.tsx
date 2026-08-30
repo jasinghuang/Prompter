@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import App from './App';
 
 beforeEach(() => localStorage.clear());
@@ -33,6 +33,37 @@ describe('App', () => {
     fireEvent.click(screen.getByText('未命名稿件'));
     // 进入提词器：验证 back 按钮存在
     await waitFor(() => expect(screen.getByLabelText('返回')).toBeInTheDocument());
+  });
+
+  it('空行模式拆分：按空行切分为多篇并返回列表', async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /新建稿件/ }));
+    fireEvent.change(screen.getByPlaceholderText('在此输入或粘贴提词稿件...'), {
+      target: { value: '标题甲\n内容甲\n\n标题乙\n内容乙' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /智能拆分/ }));
+    await act(async () => { await new Promise((r) => setTimeout(r, 600)); }); // 冲掉防抖保存
+    expect(screen.queryByText(/暂无稿件/)).toBeNull();
+    const scripts = JSON.parse(localStorage.getItem('prompter_scripts')!);
+    expect(scripts).toHaveLength(2);
+    expect(scripts.map((s: { title: string }) => s.title)).toEqual(['标题乙', '标题甲']);
+  });
+
+  it('关键词模式拆分：在每个关键词前切分、段首保留关键词', async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /新建稿件/ }));
+    fireEvent.change(screen.getByPlaceholderText('在此输入或粘贴提词稿件...'), {
+      target: { value: '开场白\n主持人：大家好' },
+    });
+    const row = screen.getByRole('button', { name: /智能拆分/ }).parentElement!;
+    fireEvent.click(within(row).getByRole('button', { name: '关键词' }));
+    fireEvent.change(screen.getByPlaceholderText('输入拆分关键词'), { target: { value: '主持人：' } });
+    fireEvent.click(screen.getByRole('button', { name: /智能拆分/ }));
+    await act(async () => { await new Promise((r) => setTimeout(r, 600)); }); // 冲掉防抖保存
+    expect(screen.queryByText(/暂无稿件/)).toBeNull();
+    const scripts = JSON.parse(localStorage.getItem('prompter_scripts')!);
+    expect(scripts).toHaveLength(2);
+    expect(scripts.map((s: { title: string }) => s.title)).toEqual(['主持人：大家好', '开场白']);
   });
 
   it('清理已删除稿件的 filmed 残留', () => {

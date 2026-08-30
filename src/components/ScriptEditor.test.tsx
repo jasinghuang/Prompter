@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, fireEvent, screen, act } from '@testing-library/react';
+import { render, fireEvent, screen, act, within } from '@testing-library/react';
 import { ScriptEditor } from './ScriptEditor';
 import { Script } from '../types';
 
@@ -7,13 +7,38 @@ const makeScript = (over: Partial<Script> = {}): Script => ({
   id: '1', title: '原标题', content: '原内容', createdAt: 1, updatedAt: 1, ...over,
 });
 
+const makeProps = (over: Record<string, unknown> = {}) => ({
+  script: makeScript(),
+  pauseKeyword: '',
+  onPauseKeywordChange: vi.fn(),
+  pauseOnParagraph: false,
+  onPauseOnParagraphChange: vi.fn(),
+  splitMode: 'paragraph' as const,
+  splitKeyword: '',
+  onSplitModeChange: vi.fn(),
+  onSplitKeywordChange: vi.fn(),
+  onSave: vi.fn(),
+  onBack: vi.fn(),
+  onSplit: vi.fn(),
+  ...over,
+});
+
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
+
+function splitRow(): HTMLElement {
+  const btn = screen.getByRole('button', { name: /智能拆分/ });
+  return btn.parentElement as HTMLElement;
+}
+
+function splitButton(): HTMLButtonElement {
+  return screen.getByRole('button', { name: /智能拆分/ }) as HTMLButtonElement;
+}
 
 describe('ScriptEditor', () => {
   it('编辑标题 500ms 后触发 onSave（防抖）', () => {
     const onSave = vi.fn();
-    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={onSave} onBack={() => {}} />);
+    render(<ScriptEditor {...makeProps({ onSave })} />);
     const title = screen.getByDisplayValue('原标题');
     fireEvent.change(title, { target: { value: '新标题' } });
     expect(onSave).not.toHaveBeenCalled();
@@ -23,7 +48,7 @@ describe('ScriptEditor', () => {
 
   it('编辑正文 500ms 后触发 onSave', () => {
     const onSave = vi.fn();
-    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={onSave} onBack={() => {}} />);
+    render(<ScriptEditor {...makeProps({ onSave })} />);
     const content = screen.getByDisplayValue('原内容');
     fireEvent.change(content, { target: { value: '新内容' } });
     act(() => vi.advanceTimersByTime(500));
@@ -32,27 +57,27 @@ describe('ScriptEditor', () => {
 
   it('返回按钮调用 onBack', () => {
     const onBack = vi.fn();
-    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={onBack} />);
+    render(<ScriptEditor {...makeProps({ onBack })} />);
     fireEvent.click(screen.getByTitle('返回'));
     expect(onBack).toHaveBeenCalled();
   });
 
   it('「自动暂停」标题为白色（非 white/50）', () => {
-    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
+    render(<ScriptEditor {...makeProps()} />);
     const el = screen.getByText('自动暂停');
     expect(el.className).toContain('text-white');
     expect(el.className).not.toContain('text-white/50');
   });
 
   it('标题输入框 placeholder 使用 white/30', () => {
-    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
+    render(<ScriptEditor {...makeProps()} />);
     const el = screen.getByPlaceholderText('稿件标题');
     expect(el.className).toContain('placeholder-white/30');
     expect(el.className).not.toContain('#71717A');
   });
 
   it('正文文字为白色（非 white/50），placeholder 使用 white/30', () => {
-    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
+    render(<ScriptEditor {...makeProps()} />);
     const el = screen.getByPlaceholderText('在此输入或粘贴提词稿件...');
     expect(el.className).toContain('text-white');
     expect(el.className).not.toContain('text-white/50');
@@ -60,17 +85,8 @@ describe('ScriptEditor', () => {
     expect(el.className).not.toContain('#71717A');
   });
 
-  it('智能拆分按钮与标题输入框同一行（靠右）', () => {
-    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
-    const btn = screen.getByRole('button', { name: '智能拆分' });
-    const title = screen.getByPlaceholderText('稿件标题');
-    expect(btn.parentElement).toBe(title.parentElement);
-    expect(btn.parentElement?.className).toContain('flex');
-    expect(btn.parentElement?.querySelector('[data-segmented-pill]')).toBeNull(); // 不再与自动暂停同模块
-  });
-
   it('返回按钮与标题输入框同一行（左侧）', () => {
-    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
+    render(<ScriptEditor {...makeProps()} />);
     const back = screen.getByTitle('返回');
     const title = screen.getByPlaceholderText('稿件标题');
     expect(back.parentElement).toBe(title.parentElement);
@@ -79,10 +95,75 @@ describe('ScriptEditor', () => {
   });
 
   it('返回按钮图标与页面内容左缘对齐（按钮左扩入页边距、图标居中）', () => {
-    render(<ScriptEditor script={makeScript()} pauseKeyword="" onPauseKeywordChange={() => {}} pauseOnParagraph={false} onPauseOnParagraphChange={() => {}} onSplit={() => {}} onSave={() => {}} onBack={() => {}} />);
+    render(<ScriptEditor {...makeProps()} />);
     const back = screen.getByTitle('返回');
     expect(back.className).toContain('-ml-3'); // 44px 盒左移 12px → 20px 图标起点恰好 16px
     expect(back.className).toContain('justify-center');
     expect(back.className).not.toContain('justify-start');
+  });
+
+  // ── 智能拆分工具栏 ──
+
+  it('智能拆分按钮与拆分模式分段控件同一行，且不在标题行', () => {
+    render(<ScriptEditor {...makeProps()} />);
+    const row = splitRow();
+    const pill = row.querySelector('[data-segmented-pill]');
+    const title = screen.getByPlaceholderText('稿件标题');
+    expect(splitButton().parentElement).toBe(row);
+    expect(pill).not.toBeNull();
+    expect(row.contains(pill)).toBe(true);
+    expect(title.parentElement).not.toBe(row);
+  });
+
+  it('默认空行模式不显示关键词输入框', () => {
+    render(<ScriptEditor {...makeProps()} />);
+    expect(screen.queryByPlaceholderText('输入拆分关键词')).toBeNull();
+  });
+
+  it('切换到关键词模式显示输入框并回调', () => {
+    const onSplitModeChange = vi.fn();
+    render(<ScriptEditor {...makeProps({ onSplitModeChange })} />);
+    fireEvent.click(within(splitRow()).getByRole('button', { name: '关键词' }));
+    expect(onSplitModeChange).toHaveBeenCalledWith('keyword');
+  });
+
+  it('拆分关键词输入触发回调', () => {
+    const onSplitKeywordChange = vi.fn();
+    render(<ScriptEditor {...makeProps({ splitMode: 'keyword', onSplitKeywordChange })} />);
+    fireEvent.change(screen.getByPlaceholderText('输入拆分关键词'), { target: { value: '主持人：' } });
+    expect(onSplitKeywordChange).toHaveBeenCalledWith('主持人：');
+  });
+
+  it('空行模式：正文含空行时按钮可用', () => {
+    render(<ScriptEditor {...makeProps({ script: makeScript({ content: '甲\n\n乙' }) })} />);
+    expect(splitButton().disabled).toBe(false);
+  });
+
+  it('空行模式：正文无空行时按钮禁用', () => {
+    render(<ScriptEditor {...makeProps({ script: makeScript({ content: '甲乙' }) })} />);
+    expect(splitButton().disabled).toBe(true);
+  });
+
+  it('关键词模式：关键词为空时按钮禁用', () => {
+    render(<ScriptEditor {...makeProps({ splitMode: 'keyword', splitKeyword: '', script: makeScript({ content: '甲主持人：乙' }) })} />);
+    expect(splitButton().disabled).toBe(true);
+  });
+
+  it('关键词模式：正文不含关键词时按钮禁用', () => {
+    render(<ScriptEditor {...makeProps({ splitMode: 'keyword', splitKeyword: '主持人：', script: makeScript({ content: '甲乙' }) })} />);
+    expect(splitButton().disabled).toBe(true);
+  });
+
+  it('关键词模式：正文含关键词时按钮可用', () => {
+    render(<ScriptEditor {...makeProps({ splitMode: 'keyword', splitKeyword: '主持人：', script: makeScript({ content: '甲主持人：乙' }) })} />);
+    expect(splitButton().disabled).toBe(false);
+  });
+
+  it('点击智能拆分传入编辑器当前内容（不等待防抖保存）', () => {
+    const onSplit = vi.fn();
+    render(<ScriptEditor {...makeProps({ script: makeScript({ content: '旧内容' }), onSplit })} />);
+    fireEvent.change(screen.getByPlaceholderText('在此输入或粘贴提词稿件...'), { target: { value: '新\n\n内容' } });
+    fireEvent.click(splitButton());
+    expect(onSplit).toHaveBeenCalledWith('新\n\n内容');
   });
 });

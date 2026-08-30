@@ -8,6 +8,7 @@ import { useScripts } from './store/useScripts';
 import { useSettings } from './store/useSettings';
 import { useFilmed } from './store/useFilmed';
 import { resolveIndexAfterEdit } from './lib/editResolve';
+import { splitByParagraphs, splitByKeyword } from './lib/split';
 
 type View = 'list' | 'prompter' | 'editor';
 
@@ -76,14 +77,17 @@ export default function App() {
     setView('editor');
   };
 
-  const handleSplit = () => {
+  const handleSplit = (content: string) => {
     if (!active) return;
-    const paragraphs = active.content.split(/\n{2,}/).filter((p) => p.trim() !== '');
-    if (paragraphs.length < 2) return;
-    for (const para of paragraphs) {
-      const lines = para.trim().split('\n');
+    const segments =
+      settings.splitMode === 'keyword' && settings.splitKeyword
+        ? splitByKeyword(content, settings.splitKeyword)
+        : splitByParagraphs(content);
+    if (segments.length < 2) return;
+    for (const seg of segments) {
+      const lines = seg.split('\n');
       const title = lines[0].trim();
-      importScript(title, para.trim());
+      importScript(title, seg);
     }
     deleteScript(active.id);
     setView('list');
@@ -119,6 +123,10 @@ export default function App() {
         onPauseKeywordChange={(kw) => updateSettings({ pauseKeyword: kw })}
         pauseOnParagraph={settings.pauseOnParagraph}
         onPauseOnParagraphChange={(v) => updateSettings({ pauseOnParagraph: v })}
+        splitMode={settings.splitMode}
+        onSplitModeChange={(m) => updateSettings({ splitMode: m })}
+        splitKeyword={settings.splitKeyword}
+        onSplitKeywordChange={(kw) => updateSettings({ splitKeyword: kw })}
         onSave={(id, title, content) => {
           updateScript(id, title, content);
           // 从提词器进入编辑的情形：判断返回后定位
