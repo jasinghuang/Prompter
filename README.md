@@ -144,6 +144,7 @@ Vite 6 · React 19 · TypeScript · TailwindCSS 4 · lucide-react · Vitest
 | iOS 屏幕常亮 | Wake Lock API 在 iOS Safari 的 `file://` 下不可用，网页版正常 |
 | 跨设备同步 | 不支持，各设备 localStorage 独立 |
 | iOS 全屏 | 仅 PWA「添加到主屏幕」可全屏 |
+| 页面缩放 | 已禁用整页捏合缩放（捏合用于调节字号，iOS 靠 viewport `maximum-scale=1` 拦截），系统无障碍缩放不可用 |
 
 ---
 

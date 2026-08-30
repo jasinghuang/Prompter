@@ -33,6 +33,33 @@ if (typeof window !== 'undefined' && typeof window.PointerEvent === 'undefined')
   window.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent;
 }
 
+// jsdom 无 Touch/TouchEvent：polyfill（携带 touches/changedTouches 触摸点列表）
+if (typeof window !== 'undefined' && typeof window.TouchEvent === 'undefined') {
+  class TouchPolyfill {
+    identifier: number;
+    clientX: number;
+    clientY: number;
+    target: EventTarget | null;
+    constructor(init: { identifier: number; clientX: number; clientY: number; target?: EventTarget }) {
+      this.identifier = init.identifier;
+      this.clientX = init.clientX;
+      this.clientY = init.clientY;
+      this.target = init.target ?? null;
+    }
+  }
+  class TouchEventPolyfill extends Event {
+    touches: TouchPolyfill[];
+    changedTouches: TouchPolyfill[];
+    constructor(type: string, init: EventInit & { touches?: TouchPolyfill[]; changedTouches?: TouchPolyfill[] } = {}) {
+      super(type, { bubbles: true, cancelable: true, ...init });
+      this.touches = init.touches ?? [];
+      this.changedTouches = init.changedTouches ?? init.touches ?? [];
+    }
+  }
+  window.TouchEvent = TouchEventPolyfill as unknown as typeof TouchEvent;
+  window.Touch = TouchPolyfill as unknown as typeof Touch;
+}
+
 afterEach(() => {
   cleanup();
   localStorage.clear();

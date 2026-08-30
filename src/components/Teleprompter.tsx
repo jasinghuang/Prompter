@@ -88,12 +88,16 @@ export function Teleprompter({
   const contentRef = useRef<HTMLDivElement>(null);
   const spansRef = useRef<HTMLElement[]>([]);
   const touchStartRef = useRef<{ y: number } | null>(null);
-  // 双指捏合：活跃手指 Map + 手势起始快照 + 轻点抑制冷却
-  const pointersRef = useRef<Map<number, { x: number; y: number; t: number }>>(new Map());
+  // 双指捏合：手势快照存 ref（字号变化触发 effect 重挂载时不丢失）+ 轻点抑制冷却 + 反馈胶囊
   const pinchRef = useRef<{ startDist: number; startFontSize: number } | null>(null);
+  const fontSizeRef = useRef(settings.fontSize);
   const suppressTapUntilRef = useRef(0);
   const [pinchFontSize, setPinchFontSize] = useState<number | null>(null);
   const pinchToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    fontSizeRef.current = settings.fontSize;
+  }, [settings.fontSize]);
 
   const charCount = useMemo(() => countReadableChars(script.content), [script.content]);
 
@@ -329,73 +333,70 @@ export function Teleprompter({
     onEdit();
   };
 
-  /** 手指离开/抬起/取消时统一收尾：移除手指、结束捏合、安排反馈胶囊隐藏 */
-  const releasePointer = useCallback((e: React.PointerEvent) => {
-    const wasPinching = pinchRef.current !== null;
-    pointersRef.current.delete(e.pointerId);
-    if (pointersRef.current.size < 2) pinchRef.current = null;
-    if (wasPinching) {
-      if (pinchToastTimerRef.current) clearTimeout(pinchToastTimerRef.current);
-      pinchToastTimerRef.current = setTimeout(() => setPinchFontSize(null), 600);
-    }
-    return wasPinching;
-  }, []);
-
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     touchStartRef.current = { y: e.clientY };
-    const now = Date.now();
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY, t: now });
-    const pointers = [...pointersRef.current.values()];
-    if (pointers.length >= 2) {
-      const oldest = pointers.reduce((a, b) => (a.t < b.t ? a : b));
-      if (now - oldest.t > 500) {
-        // 自愈：最旧手指过老（抬起事件丢失，如系统手势抢占），清空只保留新手势
-        pointersRef.current.clear();
-        pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY, t: now });
-        pinchRef.current = null;
-        return;
-      }
-    }
-    if (pointersRef.current.size === 2) {
-      const [a, b] = [...pointersRef.current.values()];
-      pinchRef.current = {
-        startDist: Math.hypot(a.x - b.x, a.y - b.y),
-        startFontSize: settings.fontSize,
-      };
-      suppressTapUntilRef.current = Date.now() + 500; // 捏合后短暂抑制轻点切换播放
-    }
-  }, [settings.fontSize]);
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!pointersRef.current.has(e.pointerId)) return;
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY, t: Date.now() });
-    const pinch = pinchRef.current;
-    if (!pinch || pointersRef.current.size < 2) return;
-    const [a, b] = [...pointersRef.current.values()];
-    const dist = Math.hypot(a.x - b.x, a.y - b.y);
-    if (Math.abs(dist - pinch.startDist) < 12) return; // 死区：轻点误判防护
-    const next = computePinchFontSize(dist, pinch.startDist, pinch.startFontSize);
-    setPinchFontSize(next);
-    onChangeSettings({ fontSize: next });
-  }, [onChangeSettings]);
-
-  const handlePointerCancel = useCallback((e: React.PointerEvent) => {
-    releasePointer(e);
-  }, [releasePointer]);
-
-  const handlePointerLeave = useCallback((e: React.PointerEvent) => {
-    releasePointer(e);
-  }, [releasePointer]);
+  }, []);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (releasePointer(e)) return;
     const start = touchStartRef.current;
     touchStartRef.current = null;
     if (!start) return;
     if (Date.now() < suppressTapUntilRef.current) return;
     if (Math.abs(e.clientY - start.y) > 8) return;
     setIsPlaying((p) => !p);
-  }, [releasePointer]);
+  }, []);
+
+  // 双指捏合调字号：原生 touch 事件（React 合成 touchmove 是 passive 无法 preventDefault）。
+  // iOS Safari 对 Pointer 多指与 touch-action 的支持不可靠，touch 事件实时反映手指列表。
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+
+    const distOf = (touches: TouchList | Touch[]) => {
+      if (touches.length < 2) return 0;
+      const a = touches[0];
+      const b = touches[1];
+      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinchRef.current = { startDist: distOf(e.touches), startFontSize: fontSizeRef.current };
+        suppressTapUntilRef.current = Date.now() + 500; // 捏合后短暂抑制轻点切换播放
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const pinch = pinchRef.current;
+      if (e.touches.length < 2 || !pinch) return;
+      e.preventDefault(); // 阻止双指期间的页面滚动/缩放
+      const dist = distOf(e.touches);
+      if (Math.abs(dist - pinch.startDist) < 12) return; // 死区：轻点误判防护
+      const next = computePinchFontSize(dist, pinch.startDist, pinch.startFontSize);
+      setPinchFontSize(next);
+      onChangeSettings({ fontSize: next });
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2 && pinchRef.current) {
+        pinchRef.current = null;
+        suppressTapUntilRef.current = Date.now() + 500;
+        if (pinchToastTimerRef.current) clearTimeout(pinchToastTimerRef.current);
+        pinchToastTimerRef.current = setTimeout(() => setPinchFontSize(null), 600);
+      }
+    };
+
+    vp.addEventListener('touchstart', onTouchStart, { passive: true });
+    vp.addEventListener('touchmove', onTouchMove, { passive: false });
+    vp.addEventListener('touchend', onTouchEnd);
+    vp.addEventListener('touchcancel', onTouchEnd);
+    return () => {
+      vp.removeEventListener('touchstart', onTouchStart);
+      vp.removeEventListener('touchmove', onTouchMove);
+      vp.removeEventListener('touchend', onTouchEnd);
+      vp.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [onChangeSettings]);
 
   const pad = `${settings.horizontalPadding}%`;
 
@@ -505,9 +506,6 @@ export function Teleprompter({
         ref={viewportRef}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
-        onPointerMove={handlePointerMove}
-        onPointerCancel={handlePointerCancel}
-        onPointerLeave={handlePointerLeave}
         className={`teleprompter-touch absolute inset-0 z-0 overflow-y-auto ${settings.mirror ? 'mirror-mode' : ''}`}
         style={{
           fontSize: `${settings.fontSize}px`,

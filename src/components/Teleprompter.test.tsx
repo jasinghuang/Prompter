@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { useState } from 'react';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 import { Teleprompter } from './Teleprompter';
 import { Script, DEFAULT_SETTINGS, TeleprompterSettings } from '../types';
@@ -197,13 +198,15 @@ describe('Teleprompter 双指捏合调字号', () => {
     return document.querySelector('.teleprompter-touch') as HTMLElement;
   }
 
+  /** 构造触摸点（jsdom Touch polyfill 见 test-setup） */
+  const t = (id: number, x: number, y: number) => ({ identifier: id, clientX: x, clientY: y });
+
   it('两指张开放大字号（钳制在上限）', () => {
     const h = renderTel(); // 默认字号 64
     const vp = viewport();
     act(() => {
-      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
-      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 }); // 间距 40
-      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 380, clientY: 200 }); // 间距 80 → 64×2=128 → clamp 120
+      fireEvent.touchStart(vp, { touches: [t(1, 300, 200), t(2, 340, 200)] }); // 间距 40
+      fireEvent.touchMove(vp, { touches: [t(1, 300, 200), t(2, 380, 200)] }); // 间距 80 → 64×2=128 → clamp 120
     });
     expect(h.onChangeSettings).toHaveBeenLastCalledWith({ fontSize: 120 });
   });
@@ -212,11 +215,24 @@ describe('Teleprompter 双指捏合调字号', () => {
     const h = renderTel();
     const vp = viewport();
     act(() => {
-      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
-      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 });
-      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 320, clientY: 200 }); // 间距 20 → 64×0.5=32
+      fireEvent.touchStart(vp, { touches: [t(1, 300, 200), t(2, 340, 200)] });
+      fireEvent.touchMove(vp, { touches: [t(1, 300, 200), t(2, 320, 200)] }); // 间距 20 → 64×0.5=32
     });
     expect(h.onChangeSettings).toHaveBeenLastCalledWith({ fontSize: 32 });
+  });
+
+  it('两指间距变化不足 12px 时不调整字号（轻点误判防护）', () => {
+    const h = renderTel();
+    const vp = viewport();
+    act(() => {
+      fireEvent.touchStart(vp, { touches: [t(1, 300, 200), t(2, 340, 200)] }); // 间距 40
+      fireEvent.touchMove(vp, { touches: [t(1, 300, 200), t(2, 345, 200)] }); // 变化 5px → 忽略
+    });
+    expect(h.onChangeSettings).not.toHaveBeenCalled();
+    act(() => {
+      fireEvent.touchMove(vp, { touches: [t(1, 300, 200), t(2, 360, 200)] }); // 变化 20px → 生效
+    });
+    expect(h.onChangeSettings).toHaveBeenLastCalledWith({ fontSize: 96 }); // 64 × 60/40
   });
 
   it('捏合中显示字号反馈胶囊，松手 0.6s 后消失', () => {
@@ -224,14 +240,12 @@ describe('Teleprompter 双指捏合调字号', () => {
     renderTel();
     const vp = viewport();
     act(() => {
-      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
-      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 });
-      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 380, clientY: 200 });
+      fireEvent.touchStart(vp, { touches: [t(1, 300, 200), t(2, 340, 200)] });
+      fireEvent.touchMove(vp, { touches: [t(1, 300, 200), t(2, 380, 200)] });
     });
     expect(screen.getByText('字号 120px')).toBeInTheDocument();
     act(() => {
-      fireEvent.pointerUp(vp, { pointerId: 1 });
-      fireEvent.pointerUp(vp, { pointerId: 2 });
+      fireEvent.touchEnd(vp, { touches: [], changedTouches: [t(1, 300, 200), t(2, 380, 200)] });
     });
     expect(screen.getByText('字号 120px')).toBeInTheDocument(); // 尚未消失
     act(() => { vi.advanceTimersByTime(600); });
@@ -243,12 +257,83 @@ describe('Teleprompter 双指捏合调字号', () => {
     renderTel();
     const vp = viewport();
     act(() => {
-      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
-      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 });
-      fireEvent.pointerUp(vp, { pointerId: 1, clientX: 300, clientY: 200 });
-      fireEvent.pointerUp(vp, { pointerId: 2, clientX: 340, clientY: 200 });
+      fireEvent.touchStart(vp, { touches: [t(1, 300, 200), t(2, 340, 200)] });
+      fireEvent.touchEnd(vp, { touches: [], changedTouches: [t(1, 300, 200), t(2, 340, 200)] });
     });
     expect(screen.getByLabelText('已暂停')).toBeInTheDocument(); // 仍处于暂停态
+  });
+
+  it('一指抬起后剩余手指拖动不再调整字号', () => {
+    const h = renderTel();
+    const vp = viewport();
+    act(() => {
+      fireEvent.touchStart(vp, { touches: [t(1, 300, 200), t(2, 340, 200)] });
+      fireEvent.touchEnd(vp, { touches: [t(1, 300, 200)], changedTouches: [t(2, 340, 200)] });
+      fireEvent.touchMove(vp, { touches: [t(1, 400, 200)] }); // 单指拖动 → 不再触发
+    });
+    expect(h.onChangeSettings).not.toHaveBeenCalled();
+  });
+
+  it('捏合过程连续移动持续生效（字号变化不中断手势）', () => {
+    // Harness：onChangeSettings 真实更新 settings prop，字号变化触发 effect 重挂载
+    function Harness() {
+      const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS });
+      return (
+        <Teleprompter
+          script={script}
+          settings={settings}
+          index={0}
+          onIndexChange={vi.fn()}
+          onChangeSettings={(patch) => setSettings((s) => ({ ...s, ...patch }))}
+          onBack={vi.fn()}
+          onEdit={vi.fn()}
+          onCompleted={vi.fn()}
+        />
+      );
+    }
+    render(<Harness />);
+    const vp = viewport();
+    act(() => {
+      fireEvent.touchStart(vp, { touches: [t(1, 300, 200), t(2, 340, 200)] }); // 间距 40
+      fireEvent.touchMove(vp, { touches: [t(1, 300, 200), t(2, 380, 200)] }); // 间距 80 → 120
+    });
+    // 真实设备上每次 move 是独立事件，中间夹着重渲染
+    act(() => {
+      fireEvent.touchMove(vp, { touches: [t(1, 300, 200), t(2, 320, 200)] }); // 间距 20 → 32
+    });
+    expect(screen.getByText('32')).toBeInTheDocument(); // 胶囊显示最终字号
+  });
+
+  it('真实设置更新下捏合胶囊在松手 0.6s 后消失', () => {
+    vi.useFakeTimers();
+    function Harness() {
+      const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS });
+      return (
+        <Teleprompter
+          script={script}
+          settings={settings}
+          index={0}
+          onIndexChange={vi.fn()}
+          onChangeSettings={(patch) => setSettings((s) => ({ ...s, ...patch }))}
+          onBack={vi.fn()}
+          onEdit={vi.fn()}
+          onCompleted={vi.fn()}
+        />
+      );
+    }
+    render(<Harness />);
+    const vp = viewport();
+    act(() => {
+      fireEvent.touchStart(vp, { touches: [t(1, 300, 200), t(2, 340, 200)] });
+      fireEvent.touchMove(vp, { touches: [t(1, 300, 200), t(2, 380, 200)] });
+    });
+    expect(screen.getByText('字号 120px')).toBeInTheDocument();
+    act(() => {
+      fireEvent.touchEnd(vp, { touches: [], changedTouches: [t(1, 300, 200), t(2, 380, 200)] });
+    });
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(screen.queryByText('字号 120px')).toBeNull();
+    vi.useRealTimers();
   });
 
   it('单指轻点仍可切换播放', () => {
@@ -259,50 +344,5 @@ describe('Teleprompter 双指捏合调字号', () => {
       fireEvent.pointerUp(vp, { pointerId: 1, clientX: 200, clientY: 100 });
     });
     expect(screen.getByLabelText('播放中')).toBeInTheDocument(); // 已开始播放
-  });
-
-  it('第一指抬起事件丢失后，新手指不触发捏合（自愈陈旧手指）', () => {
-    vi.useFakeTimers();
-    const h = renderTel();
-    const vp = viewport();
-    act(() => {
-      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
-    });
-    // pointerup 丢失（如系统手势抢占），1 秒后新手指落下
-    act(() => { vi.advanceTimersByTime(1000); });
-    act(() => {
-      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 });
-      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 380, clientY: 200 });
-    });
-    expect(h.onChangeSettings).not.toHaveBeenCalled();
-    vi.useRealTimers();
-  });
-
-  it('非捏合手指的 leave 不打断进行中的捏合', () => {
-    const h = renderTel();
-    const vp = viewport();
-    act(() => {
-      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
-      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 });
-      // 悬停鼠标移出视口（React 以 pointerout 合成 onPointerLeave），与捏合无关
-      fireEvent.pointerOut(vp, { pointerId: 99, relatedTarget: document.body });
-      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 380, clientY: 200 });
-    });
-    expect(h.onChangeSettings).toHaveBeenLastCalledWith({ fontSize: 120 });
-  });
-
-  it('两指间距变化不足 12px 时不调整字号（轻点误判防护）', () => {
-    const h = renderTel();
-    const vp = viewport();
-    act(() => {
-      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
-      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 }); // 间距 40
-      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 345, clientY: 200 }); // 变化 5px → 忽略
-    });
-    expect(h.onChangeSettings).not.toHaveBeenCalled();
-    act(() => {
-      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 360, clientY: 200 }); // 变化 20px → 生效
-    });
-    expect(h.onChangeSettings).toHaveBeenLastCalledWith({ fontSize: 96 }); // 64 × 60/40
   });
 });
