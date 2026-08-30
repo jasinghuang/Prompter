@@ -18,8 +18,17 @@ const SLIDER_CLASS = [
   '[&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white',
 ].join(' ');
 
-/** 标签+数值合体胶囊 */
-const PILL_CLASS = 'shrink-0 rounded-md bg-white/10 px-2.5 py-0.5 font-mono text-sm font-semibold tabular-nums text-white whitespace-nowrap';
+/** 暗淡标签 + 独立数值胶囊（标签与胶囊间距 4px） */
+function ParamLabel({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="flex shrink-0 items-center gap-1 whitespace-nowrap">
+      <span className="text-xs text-white/50">{label}</span>
+      <span className="rounded-md bg-white/10 px-2.5 py-0.5 font-mono text-sm font-semibold tabular-nums text-white">
+        {value}
+      </span>
+    </span>
+  );
+}
 
 export function Controls({ fontSize, speed, visible, onFontSizeChange, onSpeedChange }: Props) {
   return (
@@ -28,7 +37,7 @@ export function Controls({ fontSize, speed, visible, onFontSizeChange, onSpeedCh
         visible ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0 pointer-events-none'
       }`}
     >
-      <span className={PILL_CLASS}>字号 {fontSize}</span>
+      <ParamLabel label="字号" value={fontSize} />
       <input
         type="range"
         aria-label="字号"
@@ -39,7 +48,7 @@ export function Controls({ fontSize, speed, visible, onFontSizeChange, onSpeedCh
         onChange={(e) => onFontSizeChange(parseInt(e.target.value, 10))}
         className={SLIDER_CLASS}
       />
-      <span className={PILL_CLASS}>速度 {speed}</span>
+      <ParamLabel label="速度" value={speed} />
       <input
         type="range"
         aria-label="速度"

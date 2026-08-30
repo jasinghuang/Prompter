@@ -31,15 +31,14 @@ describe('Controls', () => {
     expect(onSpeedChange).toHaveBeenCalledWith(240);
   });
 
-  it('参数胶囊显示标签与当前值', () => {
+  it('标签与数值分离：暗淡标签 + 独立数值胶囊', () => {
     render(<Controls {...baseProps} fontSize={72} speed={200} />);
-    expect(screen.getByText('字号 72')).toBeInTheDocument();
-    expect(screen.getByText('速度 200')).toBeInTheDocument();
-  });
-
-  it('参数胶囊为白色等宽字体', () => {
-    render(<Controls {...baseProps} />);
-    for (const el of [screen.getByText('字号 64'), screen.getByText('速度 160')]) {
+    // 标签为暗淡小字
+    for (const el of [screen.getByText('字号'), screen.getByText('速度')]) {
+      expect(el.className).toContain('text-white/50');
+    }
+    // 数值在白色等宽胶囊中
+    for (const el of [screen.getByText('72'), screen.getByText('200')]) {
       expect(el.className).toContain('font-mono');
       expect(el.className).toContain('text-white');
       expect(el.className).not.toContain('text-white/50');
