@@ -69,7 +69,6 @@ export function Controls({ fontSize, speed, visible, onFontSizeChange, onSpeedCh
         step={2}
         onChange={onFontSizeChange}
       />
-      <span aria-hidden="true" className="h-6 w-px shrink-0 bg-white/10" />
       <ParamGroup
         label="速度"
         value={speed}

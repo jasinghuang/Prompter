@@ -1,5 +1,5 @@
-export const SPEED_MIN = 30;
-export const SPEED_MAX = 600;
+export const SPEED_MIN = 100;
+export const SPEED_MAX = 700;
 
 /** 每推进一个字符需要的毫秒数。 */
 export function msPerChar(wpn: number): number {

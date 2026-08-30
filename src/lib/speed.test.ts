@@ -8,9 +8,9 @@ import {
 } from './speed';
 
 describe('speed 常量', () => {
-  it('范围 30–600', () => {
-    expect(SPEED_MIN).toBe(30);
-    expect(SPEED_MAX).toBe(600);
+  it('范围 100–700', () => {
+    expect(SPEED_MIN).toBe(100);
+    expect(SPEED_MAX).toBe(700);
   });
 });
 
