@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { Teleprompter } from './Teleprompter';
 import { Script, DEFAULT_SETTINGS, TeleprompterSettings } from '../types';
 
@@ -124,5 +124,185 @@ describe('Teleprompter 读完动作', () => {
     });
     expect(h.onCompleted).not.toHaveBeenCalled();
     expect(h.onBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Teleprompter 回到顶部按钮', () => {
+  /**
+   * jsdom 无真实布局：mock 内容元素 scrollHeight 与视口 clientHeight，
+   * 触发 resize 使 measure() 重测，再设 scrollTop 并派发 scroll。
+   */
+  function setScroll(
+    vp: HTMLElement,
+    { contentHeight, clientHeight, scrollTop }: { contentHeight: number; clientHeight: number; scrollTop: number }
+  ) {
+    const ct = vp.firstElementChild as HTMLElement;
+    Object.defineProperty(ct, 'scrollHeight', { value: contentHeight, configurable: true });
+    Object.defineProperty(vp, 'clientHeight', { value: clientHeight, configurable: true });
+    act(() => { window.dispatchEvent(new Event('resize')); });
+    act(() => {
+      vp.scrollTop = scrollTop;
+      fireEvent.scroll(vp);
+    });
+  }
+
+  function viewport(): HTMLElement {
+    return document.querySelector('.teleprompter-touch') as HTMLElement;
+  }
+
+  it('滚到最底部且暂停时显示回到顶部按钮', () => {
+    renderTel();
+    setScroll(viewport(), { contentHeight: 1000, clientHeight: 500, scrollTop: 500 });
+    expect(screen.getByLabelText('回到顶部')).toBeInTheDocument();
+  });
+
+  it('不在底部时不显示', () => {
+    renderTel();
+    setScroll(viewport(), { contentHeight: 1000, clientHeight: 500, scrollTop: 100 });
+    expect(screen.queryByLabelText('回到顶部')).toBeNull();
+  });
+
+  it('内容不足一屏时不显示', () => {
+    renderTel();
+    setScroll(viewport(), { contentHeight: 400, clientHeight: 500, scrollTop: 0 });
+    expect(screen.queryByLabelText('回到顶部')).toBeNull();
+  });
+
+  it('点击回到顶部滚动归零并隐藏按钮', () => {
+    renderTel();
+    const vp = viewport();
+    setScroll(vp, { contentHeight: 1000, clientHeight: 500, scrollTop: 500 });
+    fireEvent.click(screen.getByLabelText('回到顶部'));
+    expect(vp.scrollTop).toBe(0);
+    act(() => { fireEvent.scroll(vp); });
+    expect(screen.queryByLabelText('回到顶部')).toBeNull();
+  });
+
+  it('播放中不显示回到顶部按钮', () => {
+    renderTel();
+    const vp = viewport();
+    setScroll(vp, { contentHeight: 1000, clientHeight: 500, scrollTop: 500 });
+    expect(screen.getByLabelText('回到顶部')).toBeInTheDocument();
+    // 轻点屏幕开始播放
+    act(() => {
+      fireEvent.pointerDown(vp, { clientY: 100 });
+      fireEvent.pointerUp(vp, { clientY: 100 });
+    });
+    expect(screen.queryByLabelText('回到顶部')).toBeNull();
+  });
+});
+
+describe('Teleprompter 双指捏合调字号', () => {
+  function viewport(): HTMLElement {
+    return document.querySelector('.teleprompter-touch') as HTMLElement;
+  }
+
+  it('两指张开放大字号（钳制在上限）', () => {
+    const h = renderTel(); // 默认字号 64
+    const vp = viewport();
+    act(() => {
+      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
+      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 }); // 间距 40
+      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 380, clientY: 200 }); // 间距 80 → 64×2=128 → clamp 120
+    });
+    expect(h.onChangeSettings).toHaveBeenLastCalledWith({ fontSize: 120 });
+  });
+
+  it('两指收拢缩小字号', () => {
+    const h = renderTel();
+    const vp = viewport();
+    act(() => {
+      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
+      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 });
+      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 320, clientY: 200 }); // 间距 20 → 64×0.5=32
+    });
+    expect(h.onChangeSettings).toHaveBeenLastCalledWith({ fontSize: 32 });
+  });
+
+  it('捏合中显示字号反馈胶囊，松手 0.6s 后消失', () => {
+    vi.useFakeTimers();
+    renderTel();
+    const vp = viewport();
+    act(() => {
+      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
+      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 });
+      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 380, clientY: 200 });
+    });
+    expect(screen.getByText('字号 120px')).toBeInTheDocument();
+    act(() => {
+      fireEvent.pointerUp(vp, { pointerId: 1 });
+      fireEvent.pointerUp(vp, { pointerId: 2 });
+    });
+    expect(screen.getByText('字号 120px')).toBeInTheDocument(); // 尚未消失
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(screen.queryByText('字号 120px')).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it('捏合结束不切换播放状态', () => {
+    renderTel();
+    const vp = viewport();
+    act(() => {
+      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
+      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 });
+      fireEvent.pointerUp(vp, { pointerId: 1, clientX: 300, clientY: 200 });
+      fireEvent.pointerUp(vp, { pointerId: 2, clientX: 340, clientY: 200 });
+    });
+    expect(screen.getByLabelText('播放')).toBeInTheDocument(); // 仍处于暂停态
+  });
+
+  it('单指轻点仍可切换播放', () => {
+    renderTel();
+    const vp = viewport();
+    act(() => {
+      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 200, clientY: 100 });
+      fireEvent.pointerUp(vp, { pointerId: 1, clientX: 200, clientY: 100 });
+    });
+    expect(screen.getByLabelText('暂停')).toBeInTheDocument(); // 已开始播放
+  });
+
+  it('第一指抬起事件丢失后，新手指不触发捏合（自愈陈旧手指）', () => {
+    vi.useFakeTimers();
+    const h = renderTel();
+    const vp = viewport();
+    act(() => {
+      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
+    });
+    // pointerup 丢失（如系统手势抢占），1 秒后新手指落下
+    act(() => { vi.advanceTimersByTime(1000); });
+    act(() => {
+      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 });
+      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 380, clientY: 200 });
+    });
+    expect(h.onChangeSettings).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('非捏合手指的 leave 不打断进行中的捏合', () => {
+    const h = renderTel();
+    const vp = viewport();
+    act(() => {
+      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
+      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 });
+      // 悬停鼠标移出视口（React 以 pointerout 合成 onPointerLeave），与捏合无关
+      fireEvent.pointerOut(vp, { pointerId: 99, relatedTarget: document.body });
+      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 380, clientY: 200 });
+    });
+    expect(h.onChangeSettings).toHaveBeenLastCalledWith({ fontSize: 120 });
+  });
+
+  it('两指间距变化不足 12px 时不调整字号（轻点误判防护）', () => {
+    const h = renderTel();
+    const vp = viewport();
+    act(() => {
+      fireEvent.pointerDown(vp, { pointerId: 1, clientX: 300, clientY: 200 });
+      fireEvent.pointerDown(vp, { pointerId: 2, clientX: 340, clientY: 200 }); // 间距 40
+      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 345, clientY: 200 }); // 变化 5px → 忽略
+    });
+    expect(h.onChangeSettings).not.toHaveBeenCalled();
+    act(() => {
+      fireEvent.pointerMove(vp, { pointerId: 2, clientX: 360, clientY: 200 }); // 变化 20px → 生效
+    });
+    expect(h.onChangeSettings).toHaveBeenLastCalledWith({ fontSize: 96 }); // 64 × 60/40
   });
 });

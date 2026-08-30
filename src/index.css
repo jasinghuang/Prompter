@@ -48,6 +48,8 @@ body {
   color: var(--color-text-primary);
   font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   overscroll-behavior: none;
+  /* 双指捏合不缩放页面（提词文字区由 JS 接管捏合调字号） */
+  touch-action: pan-x pan-y;
 }
 
 .word { display: inline; }

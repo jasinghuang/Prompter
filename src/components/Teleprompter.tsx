@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, CirclePause, Edit3, Settings } from 'lucide-react';
+import { ArrowUp, ChevronLeft, CirclePause, Edit3, Settings } from 'lucide-react';
 import { Script, TeleprompterSettings } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
@@ -10,6 +10,7 @@ import { usePauseOnKeyword } from '../hooks/usePauseOnKeyword';
 import { usePauseOnParagraph } from '../hooks/usePauseOnParagraph';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useTransientFlag } from '../hooks/useTransientFlag';
+import { computePinchFontSize } from '../lib/pinch';
 import { ScriptText } from './ScriptText';
 import { Controls } from './Controls';
 import { SettingsPanel } from './SettingsPanel';
@@ -72,6 +73,7 @@ export function Teleprompter({
     return () => {
       if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
       if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+      if (pinchToastTimerRef.current) clearTimeout(pinchToastTimerRef.current);
     };
   }, []);
 
@@ -80,11 +82,18 @@ export function Teleprompter({
   const activeIndexRef = useRef(index);
   const [maxOffset, setMaxOffset] = useState(0);
   const maxOffsetRef = useRef(0);
+  const [atBottom, setAtBottom] = useState(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const spansRef = useRef<HTMLElement[]>([]);
   const touchStartRef = useRef<{ y: number } | null>(null);
+  // 双指捏合：活跃手指 Map + 手势起始快照 + 轻点抑制冷却
+  const pointersRef = useRef<Map<number, { x: number; y: number; t: number }>>(new Map());
+  const pinchRef = useRef<{ startDist: number; startFontSize: number } | null>(null);
+  const suppressTapUntilRef = useRef(0);
+  const [pinchFontSize, setPinchFontSize] = useState<number | null>(null);
+  const pinchToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const charCount = useMemo(() => countReadableChars(script.content), [script.content]);
 
@@ -119,6 +128,7 @@ export function Teleprompter({
       const max = Math.max(0, ct.scrollHeight - vp.clientHeight);
       maxOffsetRef.current = max;
       setMaxOffset(max);
+      setAtBottom(max > 0 && vp.scrollTop >= max - 8);
       const target = spansRef.current.find((s) => Number(s.dataset.idx) === activeIndexRef.current);
       if (target) {
         vp.scrollTop = target.offsetTop - vp.clientHeight / 2 + target.offsetHeight / 2;
@@ -201,6 +211,8 @@ export function Teleprompter({
     const onScroll = () => {
       scrollRef.current = vp.scrollTop;
       computeActive(vp.scrollTop);
+      const max = maxOffsetRef.current;
+      setAtBottom(max > 0 && vp.scrollTop >= max - 8); // 8px 容差兼容 iOS 橡皮筋回弹
     };
     vp.addEventListener('scroll', onScroll, { passive: true });
     return () => vp.removeEventListener('scroll', onScroll);
@@ -308,22 +320,82 @@ export function Teleprompter({
     onIndexChange(activeIndexRef.current);
     onBack();
   };
+  const handleBackToTop = () => {
+    setIsPlaying(false);
+    scrollToIndex(0);
+  };
   const handleEdit = () => {
     onIndexChange(activeIndexRef.current);
     onEdit();
   };
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    touchStartRef.current = { y: e.clientY };
+  /** 手指离开/抬起/取消时统一收尾：移除手指、结束捏合、安排反馈胶囊隐藏 */
+  const releasePointer = useCallback((e: React.PointerEvent) => {
+    const wasPinching = pinchRef.current !== null;
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+    if (wasPinching) {
+      if (pinchToastTimerRef.current) clearTimeout(pinchToastTimerRef.current);
+      pinchToastTimerRef.current = setTimeout(() => setPinchFontSize(null), 600);
+    }
+    return wasPinching;
   }, []);
 
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    touchStartRef.current = { y: e.clientY };
+    const now = Date.now();
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY, t: now });
+    const pointers = [...pointersRef.current.values()];
+    if (pointers.length >= 2) {
+      const oldest = pointers.reduce((a, b) => (a.t < b.t ? a : b));
+      if (now - oldest.t > 500) {
+        // 自愈：最旧手指过老（抬起事件丢失，如系统手势抢占），清空只保留新手势
+        pointersRef.current.clear();
+        pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY, t: now });
+        pinchRef.current = null;
+        return;
+      }
+    }
+    if (pointersRef.current.size === 2) {
+      const [a, b] = [...pointersRef.current.values()];
+      pinchRef.current = {
+        startDist: Math.hypot(a.x - b.x, a.y - b.y),
+        startFontSize: settings.fontSize,
+      };
+      suppressTapUntilRef.current = Date.now() + 500; // 捏合后短暂抑制轻点切换播放
+    }
+  }, [settings.fontSize]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!pointersRef.current.has(e.pointerId)) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY, t: Date.now() });
+    const pinch = pinchRef.current;
+    if (!pinch || pointersRef.current.size < 2) return;
+    const [a, b] = [...pointersRef.current.values()];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    if (Math.abs(dist - pinch.startDist) < 12) return; // 死区：轻点误判防护
+    const next = computePinchFontSize(dist, pinch.startDist, pinch.startFontSize);
+    setPinchFontSize(next);
+    onChangeSettings({ fontSize: next });
+  }, [onChangeSettings]);
+
+  const handlePointerCancel = useCallback((e: React.PointerEvent) => {
+    releasePointer(e);
+  }, [releasePointer]);
+
+  const handlePointerLeave = useCallback((e: React.PointerEvent) => {
+    releasePointer(e);
+  }, [releasePointer]);
+
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (releasePointer(e)) return;
     const start = touchStartRef.current;
     touchStartRef.current = null;
     if (!start) return;
+    if (Date.now() < suppressTapUntilRef.current) return;
     if (Math.abs(e.clientY - start.y) > 8) return;
     setIsPlaying((p) => !p);
-  }, []);
+  }, [releasePointer]);
 
   const pad = `${settings.horizontalPadding}%`;
 
@@ -430,6 +502,9 @@ export function Teleprompter({
         ref={viewportRef}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
+        onPointerMove={handlePointerMove}
+        onPointerCancel={handlePointerCancel}
+        onPointerLeave={handlePointerLeave}
         className={`teleprompter-touch absolute inset-0 z-0 overflow-y-auto ${settings.mirror ? 'mirror-mode' : ''}`}
         style={{
           fontSize: `${settings.fontSize}px`,
@@ -441,7 +516,7 @@ export function Teleprompter({
           WebkitOverflowScrolling: 'touch',
         }}
       >
-        <div ref={contentRef} className="mx-auto max-w-[56rem] pb-[18vh] pt-[16vh]">
+        <div ref={contentRef} className="mx-auto max-w-[56rem] pb-[25vh] pt-[16vh]">
           <ScriptText content={script.content} />
         </div>
       </div>
@@ -457,6 +532,18 @@ export function Teleprompter({
         onSpeedChange={(v) => onChangeSettings({ scrollSpeed: v })}
       />
 
+      {/* ── Back To Top（停在最底部且暂停时出现） ── */}
+      {atBottom && !isPlaying && (
+        <button
+          onClick={handleBackToTop}
+          aria-label="回到顶部"
+          className="absolute inset-x-0 bottom-[calc(13rem+env(safe-area-inset-bottom))] z-40 mx-auto flex w-fit items-center gap-1.5 rounded-full border border-white/10 glass-surface px-4 py-2.5 text-xs text-white/80 transition-all hover:text-white active:scale-95"
+        >
+          <ArrowUp size={14} />
+          回到顶部
+        </button>
+      )}
+
       {/* ── Wake Lock Failed Toast ── */}
       {wakeLockFailed && (
         <div className="absolute inset-x-0 bottom-36 z-40 mx-auto w-fit rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-[#D4A432]">
@@ -468,6 +555,13 @@ export function Teleprompter({
       {pauseReason && (
         <div className="absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-[#D4A432]">
           {pauseReason}
+        </div>
+      )}
+
+      {/* ── Pinch Font Size Feedback ── */}
+      {pinchFontSize !== null && (
+        <div className="absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-[#D4A432]">
+          字号 {pinchFontSize}px
         </div>
       )}
 

@@ -17,6 +17,22 @@ if (typeof globalThis.localStorage === 'undefined') {
   } as Storage;
 }
 
+// jsdom 无 PointerEvent：polyfill（继承 MouseEvent 以携带 clientX/Y，并保留 pointerId）
+if (typeof window !== 'undefined' && typeof window.PointerEvent === 'undefined') {
+  class PointerEventPolyfill extends MouseEvent {
+    pointerId: number;
+    pointerType: string;
+    isPrimary: boolean;
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init);
+      this.pointerId = init.pointerId ?? 0;
+      this.pointerType = init.pointerType ?? '';
+      this.isPrimary = init.isPrimary ?? false;
+    }
+  }
+  window.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent;
+}
+
 afterEach(() => {
   cleanup();
   localStorage.clear();
