@@ -18,46 +18,65 @@ const SLIDER_CLASS = [
   '[&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white',
 ].join(' ');
 
-/** 暗淡标签 + 独立数值胶囊（标签与胶囊间距 4px） */
-function ParamLabel({ label, value }: { label: string; value: number }) {
+/** 参数组：暗淡标签 + 数值胶囊 + 滑块，组内间距紧凑 */
+function ParamGroup({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+}) {
   return (
-    <span className="flex shrink-0 items-center gap-1 whitespace-nowrap">
-      <span className="text-xs text-white/50">{label}</span>
-      <span className="rounded-md bg-white/10 px-2.5 py-0.5 font-mono text-sm font-semibold tabular-nums text-white">
+    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <span className="shrink-0 text-xs text-white/50">{label}</span>
+      <span className="shrink-0 rounded-md bg-white/10 px-2.5 py-0.5 font-mono text-sm font-semibold tabular-nums text-white">
         {value}
       </span>
-    </span>
+      <input
+        type="range"
+        aria-label={label}
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseInt(e.target.value, 10))}
+        className={SLIDER_CLASS}
+      />
+    </div>
   );
 }
 
 export function Controls({ fontSize, speed, visible, onFontSizeChange, onSpeedChange }: Props) {
   return (
     <div
-      className={`absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 flex items-center gap-4 rounded-2xl border border-white/10 glass-bar px-4 py-3 transition-all duration-300 ${
+      className={`absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 flex items-center gap-3 rounded-2xl border border-white/10 glass-bar px-4 py-3 transition-all duration-300 ${
         visible ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0 pointer-events-none'
       }`}
     >
-      <ParamLabel label="字号" value={fontSize} />
-      <input
-        type="range"
-        aria-label="字号"
+      <ParamGroup
+        label="字号"
+        value={fontSize}
         min={FONT_SIZE_MIN}
         max={FONT_SIZE_MAX}
         step={2}
-        value={fontSize}
-        onChange={(e) => onFontSizeChange(parseInt(e.target.value, 10))}
-        className={SLIDER_CLASS}
+        onChange={onFontSizeChange}
       />
-      <ParamLabel label="速度" value={speed} />
-      <input
-        type="range"
-        aria-label="速度"
+      <span aria-hidden="true" className="h-6 w-px shrink-0 bg-white/10" />
+      <ParamGroup
+        label="速度"
+        value={speed}
         min={SPEED_MIN}
         max={SPEED_MAX}
         step={10}
-        value={speed}
-        onChange={(e) => onSpeedChange(parseInt(e.target.value, 10))}
-        className={SLIDER_CLASS}
+        onChange={onSpeedChange}
       />
     </div>
   );

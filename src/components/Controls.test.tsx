@@ -50,4 +50,17 @@ describe('Controls', () => {
     const bar = document.querySelector('.glass-bar') as HTMLElement;
     expect(bar.className).toContain('pointer-events-none');
   });
+
+  it('每个参数自成一组（标签+胶囊+滑块），两组间有竖线分隔', () => {
+    render(<Controls {...baseProps} />);
+    const fontSlider = screen.getByLabelText('字号');
+    const speedSlider = screen.getByLabelText('速度');
+    // 滑块与胶囊同组
+    expect(fontSlider.parentElement?.contains(screen.getByText('64'))).toBe(true);
+    expect(speedSlider.parentElement?.contains(screen.getByText('160'))).toBe(true);
+    // 两组分开且中间有分隔竖线
+    expect(fontSlider.parentElement).not.toBe(speedSlider.parentElement);
+    const bar = document.querySelector('.glass-bar') as HTMLElement;
+    expect(bar.querySelector('[aria-hidden="true"]')).not.toBeNull();
+  });
 });
