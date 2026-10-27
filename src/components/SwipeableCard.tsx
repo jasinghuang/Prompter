@@ -207,8 +207,8 @@ export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SET
             )}
             <h3 className={`truncate text-base font-semibold ${isFilmed ? 'text-white/50 line-through' : 'text-white'}`}>{script.title}</h3>
           </div>
-          {/* Action buttons — ghost 样式：默认无底色，悬停才现淡底（多选中禁用） */}
-          <div className={`flex shrink-0 gap-1 ml-2${selectMode ? ' pointer-events-none opacity-30' : ''}`}>
+          {/* Action buttons — ghost 样式：默认无底色，悬停才现淡底（多选中隐藏让位给选择圈，保留占位避免卡片高度跳动） */}
+          <div className={`flex shrink-0 gap-1 ml-2${selectMode ? ' invisible' : ''}`}>
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(script.id); }}
               className="flex h-[var(--ctl-3-h)] items-center justify-center rounded-lg px-2.5 text-xs text-white/40 transition-colors hover:bg-white/15 hover:text-white active:scale-95"
