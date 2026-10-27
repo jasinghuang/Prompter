@@ -240,18 +240,18 @@ export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SET
             <span className="text-white/15">|</span>
             <span>约{formatTime(estimateDurationSeconds(charCount, speed))}</span>
           </div>
-          <div className={`ml-auto flex shrink-0 items-center gap-0.5${selectMode ? ' pointer-events-none opacity-30' : ''}`}>
+          <div className={`ml-auto flex shrink-0 items-center gap-1.5${selectMode ? ' pointer-events-none opacity-30' : ''}`}>
             <button
               onClick={(e) => { e.stopPropagation(); onOpenFolderPicker?.(); }}
               aria-label="移动到文件夹"
-              className="flex items-center gap-1 rounded-full px-1.5 py-1 transition-colors hover:bg-white/10"
+              className="flex items-center gap-1 rounded-full px-2 py-1.5 transition-colors hover:bg-white/10"
             >
               <Folder size={14} className={script.folder ? 'text-[#D4A432]' : 'text-white/35'} />
               {script.folder && <span className="max-w-[16vw] truncate text-white/50">{script.folder}</span>}            </button>
             <button
               onClick={(e) => { e.stopPropagation(); onToggleStar?.(); }}
               aria-label={starred ? '取消星标' : '星标'}
-              className="rounded-full p-1 transition-colors hover:bg-white/10"
+              className="rounded-full p-1.5 transition-colors hover:bg-white/10"
             >
               <Star
                 size={15}
