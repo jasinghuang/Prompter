@@ -19,7 +19,7 @@
 | CF6 | 死代码 | ScriptList searchRef 声明后从未读 | ScriptList.tsx | 1 | ✅ 已修 c227944 |
 | CF11 | 死代码 | useAutoScroll 的 RAF fallback 永不可达 | useAutoScroll.ts | 1 | ✅ 已修 c227944 |
 | CF7 | API/死代码 | useFilmed.isFilmed 生产未用（仅测试） | useFilmed.ts | — | ⏸ 保留（hook API） |
-| CF8 | API/死代码 | useTimer.reset 生产未用（仅测试） | useTimer.ts | — | ⏸ 保留（hook API） |
+| CF8 | API/死代码 | useTimer.reset 生产未用（仅测试） | useTimer.ts | — | 🗑 已移除（2026-10-27 清理） |
 | CF9 | 重构 | 滑动手势应抽成 hook（减 ~50 行） | ScriptList.tsx | 2 | ✅ 已修 34757a3 |
 | CF10 | 重构 | Teleprompter 11 个 effect，应拆暂停逻辑 | Teleprompter.tsx | 2 | ✅ 已修 2dfd3fa |
 
@@ -88,10 +88,11 @@
 - **reviewer 建议**：删除导出，或让 ScriptList 用它
 - **裁决：保留**。`isFilmed` 是 store hook 的完整查询 API（与 `filmedIds` 配对），有测试覆盖。ScriptList 直接读 `filmedIds.has` 是渲染优化（避免每次渲染调函数），不代表 isFilmed 无价值。hook API 完整性 > 洁癖。
 
-### CF8 — useTimer.reset 生产未用（保留）
+### CF8 — useTimer.reset 生产未用（已移除）
 - **文件**：`src/hooks/useTimer.ts:29-32`
 - **reviewer 建议**：删除，或在 Teleprompter 显式用
-- **裁决：保留**。reset 是计时器的合理 public API（归零语义），有测试覆盖。Teleprompter 每个 script 新挂载隐式重置——脆弱但工作，未来若改为同挂载切稿可能需要 reset。API 完整性 > 洁癖。
+- **原裁决：保留**。reset 是计时器的合理 public API（归零语义），有测试覆盖。Teleprompter 每个 script 新挂载隐式重置——脆弱但工作，未来若改为同挂载切稿可能需要 reset。API 完整性 > 洁癖。
+- **2026-10-27 更新**：推翻原裁决，随死代码清理一并移除。「同挂载切稿」场景至今未发生，且 localStorage 进度恢复本就依赖重新挂载；真需要时从 git 历史恢复即可。
 
 ### CF9 — 滑动手势抽成 hook（重构，批次2）
 - **文件**：`src/components/ScriptList.tsx:43-91, 259-261`

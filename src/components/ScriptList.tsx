@@ -1,5 +1,5 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { Search, Plus, FileText, ArrowUpDown, Trash2, Clock } from 'lucide-react';
+import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { Search, Plus, FileText, ArrowUpDown, Trash2, Clock, Star, Folder, FolderPlus, Check } from 'lucide-react';
 import { Script } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SwipeableCard } from './SwipeableCard';
@@ -7,15 +7,21 @@ import { SwipeableCard } from './SwipeableCard';
 interface Props {
   scripts: Script[];
   filmedIds: Set<string>;
+  /** 滚动速度（字/分），卡片据此显示预计口播时长 */
+  speed?: number;
   onOpen: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onCreate: () => void;
   onToggleFilmed: (id: string) => void;
+  onToggleStar?: (id: string) => void;
+  onMoveToFolder?: (id: string, folder: string | null) => void;
   onDeleteAll?: () => void;
 }
 
 type SortKey = 'date' | 'title' | 'chars';
+/** 列表过滤器：all = 全部 / starred = 星标 / 其余值 = 文件夹名 */
+type Filter = 'all' | 'starred' | string;
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'date', label: '日期' },
@@ -48,13 +54,24 @@ function loadSort(): { sort: SortKey; asc: boolean } {
   return { sort: 'date', asc: false };
 }
 
-export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCreate, onToggleFilmed, onDeleteAll }: Props) {
+export function ScriptList({ scripts, filmedIds, speed, onOpen, onEdit, onDelete, onCreate, onToggleFilmed, onToggleStar, onMoveToFolder, onDeleteAll }: Props) {
   const [query, setQuery] = useState('');
   const initPrefs = useMemo(() => loadSort(), []);
   const [sort, setSort] = useState<SortKey>(initPrefs.sort);
   const [asc, setAsc] = useState<boolean>(initPrefs.asc);
   const [confirmClear, setConfirmClear] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  // 文件夹/星标过滤与移动弹层
+  const [filter, setFilter] = useState<Filter>('all');
+  const [movingId, setMovingId] = useState<string | null>(null);
+  // 新建文件夹弹层（从「移动到文件夹」弹层进入，创建后把目标稿件移入）
+  const [creatingFolder, setCreatingFolder] = useState<{ assignTo: string } | null>(null);
+  const [newFolderName, setNewFolderName] = useState('');
+
+  // FLIP：卡片 DOM 引用 + 上一帧页面坐标（页面坐标不受滚动影响）
+  const cardEls = useRef(new Map<string, HTMLDivElement>());
+  const prevRects = useRef(new Map<string, { x: number; y: number }>());
+  const prevWidth = useRef(0);
 
   const charCounts = useMemo(() => {
     const map = new Map<string, number>();
@@ -62,20 +79,62 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
     return map;
   }, [scripts]);
 
+  // 文件夹由稿件数据派生：没有稿件的文件夹自动从 chips 消失，无需单独管理实体
+  const folders = useMemo(
+    () => [...new Set(scripts.map((s) => s.folder).filter((f): f is string => !!f))].sort((a, b) => a.localeCompare(b, 'zh')),
+    [scripts]
+  );
+
+  // 当前过滤的文件夹已无稿件（派生模型下空文件夹不存在）→ 回到「全部」
+  useEffect(() => {
+    if (filter !== 'all' && filter !== 'starred' && !folders.includes(filter)) setFilter('all');
+  }, [folders, filter]);
+
   const sorted = useMemo(() => {
     const list = [...scripts];
     const dir = asc ? 1 : -1;
     if (sort === 'title') list.sort((a, b) => dir * a.title.localeCompare(b.title, 'zh'));
     else if (sort === 'chars') list.sort((a, b) => dir * ((charCounts.get(a.id) ?? 0) - (charCounts.get(b.id) ?? 0)));
     else list.sort((a, b) => dir * (b.createdAt - a.createdAt));
-    return list;
+    // 星标稳定置顶（组内保持当前排序）
+    return [...list.filter((s) => s.starred), ...list.filter((s) => !s.starred)];
   }, [scripts, sort, asc, charCounts]);
 
-  const filtered = sorted.filter(
-    (s) =>
-      s.title.toLowerCase().includes(query.toLowerCase()) ||
-      s.content.toLowerCase().includes(query.toLowerCase())
-  );
+  const filtered = useMemo(() => {
+    let list = sorted;
+    if (filter === 'starred') list = list.filter((s) => s.starred);
+    else if (filter !== 'all') list = list.filter((s) => s.folder === filter);
+    const q = query.toLowerCase();
+    if (q) {
+      list = list.filter((s) => s.title.toLowerCase().includes(q) || s.content.toLowerCase().includes(q));
+    }
+    return list;
+  }, [sorted, filter, query]);
+
+  // FLIP 动画：任何导致卡片位移的渲染（删除/撤销/排序/筛选）后，
+  // 从旧位置反 transform 起步再过渡到 0，产生「卡片滑入新位置」的丝滑效果。
+  // 依赖留空 → 每次渲染后运行；坐标未变的卡片自动跳过。
+  useLayoutEffect(() => {
+    const sameWidth = prevWidth.current === window.innerWidth;
+    prevWidth.current = window.innerWidth;
+    const next = new Map<string, { x: number; y: number }>();
+    cardEls.current.forEach((el, id) => {
+      const rect = el.getBoundingClientRect();
+      const pos = { x: rect.left + window.scrollX, y: rect.top + window.scrollY };
+      next.set(id, pos);
+      const before = sameWidth ? prevRects.current.get(id) : undefined;
+      if (!before) return;
+      const dx = before.x - pos.x;
+      const dy = before.y - pos.y;
+      if (!dx && !dy) return;
+      el.style.transition = 'none';
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      void el.offsetHeight; // 强制回流，让起始 transform 先生效
+      el.style.transition = 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)';
+      el.style.transform = '';
+    });
+    prevRects.current = next;
+  });
 
   const recentScripts = useMemo(() => {
     if (!searchFocused || query) return [];
@@ -89,13 +148,22 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
     onOpen(id);
   }, [onOpen]);
 
+  const handleCreateFolder = () => {
+    const name = newFolderName.trim();
+    if (!name || !creatingFolder) return;
+    onMoveToFolder?.(creatingFolder.assignTo, name);
+    setCreatingFolder(null);
+  };
+
   // Escape closes modals
   useEffect(() => {
-    if (!confirmClear) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setConfirmClear(false); } };
+    if (!confirmClear && !movingId && !creatingFolder) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setConfirmClear(false); setMovingId(null); setCreatingFolder(null); }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [confirmClear]);
+  }, [confirmClear, movingId, creatingFolder]);
 
   // 记忆排序偏好（skip mount to avoid writing back the just-loaded defaults）
   const sortMounted = useRef(false);
@@ -153,7 +221,7 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-28 rounded-full border border-white/10 bg-white/5 py-2 pl-8 pr-2.5 text-sm text-white placeholder-white/30 transition-all focus:w-48 focus:border-[#D4A432]/40 focus:bg-white/10 focus:outline-none sm:w-48"
+              className="h-10 w-28 rounded-full border border-white/10 bg-white/5 pl-8 pr-2.5 text-sm text-white placeholder-white/30 transition-all focus:w-48 focus:border-[#D4A432]/40 focus:bg-white/10 focus:outline-none sm:w-48"
             />
             {/* Recent quick-access */}
             {searchFocused && !query && recentScripts.length > 0 && (
@@ -177,10 +245,9 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
               try { localStorage.setItem(SCROLL_KEY, String(window.scrollY)); } catch { /* noop */ }
               onCreate();
             }}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-4 py-2.5 text-sm font-bold text-[#0A0A0B] transition-all active:scale-95"
-            style={{ minHeight: '44px' }}
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-3.5 text-sm font-bold text-[#0A0A0B] transition-all active:scale-95"
           >
-            <Plus size={16} />新建稿件
+            <Plus size={15} />新建稿件
           </button>
         </div>
       </header>
@@ -192,37 +259,58 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
           paddingRight: 'calc(1rem + env(safe-area-inset-right))',
         }}
       >
-        {/* Toolbar — glass chips */}
-        {scripts.length > 0 && onDeleteAll && (
-          <div className="mb-4 flex items-center gap-3 text-xs text-white/35">
-            <span>{scripts.length} 篇</span>
+        {/* Filter Chips — 全部 / 星标 / 文件夹（横向滚动）。
+            文件夹由稿件派生（无实体管理），新建入口在卡片的「移动到文件夹」弹层里 */}
+        {scripts.length > 0 && (
+          <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <FilterChip active={filter === 'all'} onClick={() => setFilter('all')}>
+              全部
+              <span className="rounded-full bg-white/12 px-1.5 text-[11px] font-semibold tabular-nums text-white/55">
+                {scripts.length}
+              </span>
+            </FilterChip>
+            <FilterChip active={filter === 'starred'} onClick={() => setFilter('starred')}>
+              <Star size={13} className={filter === 'starred' ? 'fill-current' : ''} />
+              星标
+            </FilterChip>
+            {folders.map((f) => (
+              <FilterChip key={f} active={filter === f} onClick={() => setFilter(f)}>
+                <Folder size={13} />
+                {f}
+                <span className="rounded-full bg-white/12 px-1.5 text-[11px] font-semibold tabular-nums text-white/55">
+                  {scripts.filter((s) => s.folder === f).length}
+                </span>
+              </FilterChip>
+            ))}
+          </div>
+        )}
 
-            {/* Sort */}
-            <div className="flex items-center rounded-full glass-button py-0.5 pl-2 pr-1">
-              <ArrowUpDown size={11} className="mr-1 shrink-0 text-white/30" />
-              {SORT_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => {
-                    if (sort === opt.value) setAsc((v) => !v);
-                    else { setSort(opt.value); setAsc(false); }
-                  }}
-                  className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-all duration-200 ${
-                    sort === opt.value
-                      ? 'bg-white/15 text-white'
-                      : 'text-white/35 hover:text-white/60'
-                  }`}
-                >
-                  {opt.label}{sort === opt.value ? (asc ? '↑' : '↓') : ''}
-                </button>
-              ))}
-            </div>
+        {/* Toolbar — T3 工具操作（32px 玻璃胶囊） */}
+        {scripts.length > 0 && onDeleteAll && (
+          <div className="mb-5 flex items-center gap-1.5">
+            <ArrowUpDown size={13} className="mx-1 shrink-0 text-white/25" />
+            {SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  if (sort === opt.value) setAsc((v) => !v);
+                  else { setSort(opt.value); setAsc(false); }
+                }}
+                className={`flex h-[var(--ctl-3-h)] shrink-0 items-center whitespace-nowrap rounded-full px-3 text-[13px] font-medium transition-colors ${
+                  sort === opt.value
+                    ? 'bg-white/15 text-white'
+                    : 'chip-glass text-white/40 hover:text-white/70'
+                }`}
+              >
+                {opt.label}{sort === opt.value ? (asc ? ' ↑' : ' ↓') : ''}
+              </button>
+            ))}
 
             <button
               onClick={() => setConfirmClear(true)}
-              className="ml-auto flex items-center gap-1.5 rounded-full border border-red-400/15 bg-red-500/10 px-3 py-1 text-red-400/80 transition-all hover:bg-red-500/20 hover:text-red-300 active:scale-95"
+              className="ml-auto flex h-[var(--ctl-3-h)] shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-[#D4A432]/80 transition-colors hover:bg-[#D4A432]/15 hover:text-[#D4A432] active:scale-95"
             >
-              <Trash2 size={12} /> 清空全部
+              <Trash2 size={13} /> 清空全部
             </button>
           </div>
         )}
@@ -234,27 +322,47 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
               <FileText size={40} className="mb-4 text-white/10" />
               <p className="text-sm text-white/30">暂无稿件</p>
             </div>
-          ) : (
+          ) : query ? (
             /* filtered-empty — search miss */
             <div className="flex flex-col items-center justify-center py-24 text-center">
               <Search size={40} className="mb-4 text-white/10" />
               <p className="text-sm text-white/30">未找到与「{query}」匹配的稿件</p>
               <button onClick={() => setQuery('')} className="mt-3 rounded-full px-4 py-1.5 text-xs text-white/40 transition-colors hover:bg-white/10 hover:text-white/60">清除搜索</button>
             </div>
+          ) : (
+            /* folder-empty — 该过滤条件下没有稿件（派生模型下很快被守卫弹回「全部」，兜底展示） */
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <Folder size={40} className="mb-4 text-white/10" />
+              <p className="text-sm text-white/30">
+                {filter === 'starred' ? '还没有星标稿件，点击卡片右下角的星标收藏' : `「${filter}」中没有稿件`}
+              </p>
+              <button onClick={() => setFilter('all')} className="mt-3 rounded-full px-4 py-1.5 text-xs text-white/40 transition-colors hover:bg-white/10 hover:text-white/60">查看全部</button>
+            </div>
           )
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {filtered.map((s) => (
-              <SwipeableCard
+              <div
                 key={s.id}
-                script={s}
-                isFilmed={filmedIds.has(s.id)}
-                charCount={charCounts.get(s.id) ?? 0}
-                onOpen={handleOpen}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onToggleFilmed={onToggleFilmed}
-              />
+                ref={(el) => {
+                  if (el) cardEls.current.set(s.id, el);
+                  else cardEls.current.delete(s.id);
+                }}
+              >
+                <SwipeableCard
+                  script={s}
+                  isFilmed={filmedIds.has(s.id)}
+                  charCount={charCounts.get(s.id) ?? 0}
+                  speed={speed}
+                  starred={!!s.starred}
+                  onToggleStar={onToggleStar ? () => onToggleStar(s.id) : undefined}
+                  onOpenFolderPicker={onMoveToFolder ? () => setMovingId(s.id) : undefined}
+                  onOpen={handleOpen}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onToggleFilmed={onToggleFilmed}
+                />
+              </div>
             ))}
           </div>
         )}
@@ -279,6 +387,116 @@ export function ScriptList({ scripts, filmedIds, onOpen, onEdit, onDelete, onCre
         </div>
       )}
 
+      {/* Move To Folder Sheet */}
+      {movingId && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center p-4 sm:items-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMovingId(null)} />
+          <div data-testid="folder-sheet" className="relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 glass-surface">
+            <header className="shrink-0 px-6 pt-6 pb-2">
+              <h3 className="flex items-center gap-2 text-base font-bold text-white">
+                <Folder size={16} className="text-white/40" />移动到文件夹
+              </h3>
+            </header>
+            <div className="flex-1 overflow-y-auto p-3">
+              <FolderOption
+                label="未分组"
+                active={!scripts.find((s) => s.id === movingId)?.folder}
+                onClick={() => { onMoveToFolder?.(movingId, null); setMovingId(null); }}
+              />
+              {folders.map((f) => (
+                <FolderOption
+                  key={f}
+                  label={f}
+                  count={scripts.filter((s) => s.folder === f).length}
+                  active={scripts.find((s) => s.id === movingId)?.folder === f}
+                  onClick={() => { onMoveToFolder?.(movingId, f); setMovingId(null); }}
+                />
+              ))}
+              <FolderOption
+                label="＋ 新建文件夹…"
+                isNew
+                onClick={() => { setNewFolderName(''); setCreatingFolder({ assignTo: movingId }); setMovingId(null); }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Folder Dialog */}
+      {creatingFolder && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCreatingFolder(null)} />
+          <div className="relative flex w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 glass-surface">
+            <header className="shrink-0 px-6 pt-6">
+              <h3 className="flex items-center gap-2 text-base font-bold text-white">
+                <FolderPlus size={16} className="text-white/40" />新建文件夹
+              </h3>
+            </header>
+            <div className="px-6 py-4">
+              <input
+                autoFocus
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing) return; // 中文输入法选字回车不当作提交
+                  if (e.key === 'Enter') handleCreateFolder();
+                }}
+                placeholder="文件夹名称"
+                className="w-full rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/30 transition-colors focus:border-[#D4A432] focus:outline-none"
+              />
+            </div>
+            <footer className="shrink-0 flex gap-3 px-6 pb-6 pt-1">
+              <button onClick={() => setCreatingFolder(null)} className="flex-1 rounded-xl bg-white/5 py-3 text-sm font-bold text-white transition-colors hover:bg-white/10 active:scale-95">取消</button>
+              <button
+                onClick={handleCreateFolder}
+                disabled={!newFolderName.trim()}
+                className="flex-1 rounded-xl bg-[#D4A432] py-3 text-sm font-bold text-[#0A0A0B] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                创建
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
     </div>
+  );
+}
+
+/** 过滤 chip（T2 内容导航 · 40px/14px）。选中态与排序 chips 一致（bg-white/15 高亮）。编辑页分组行复用 */
+export function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex h-[var(--ctl-2-h)] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors ${
+        active ? 'bg-white/15 text-white' : 'chip-glass text-white/45 hover:text-white/80'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** 文件夹选项行（移动弹层内） */
+function FolderOption({ label, count, active, isNew, onClick }: {
+  label: string;
+  count?: number;
+  active?: boolean;
+  isNew?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm transition-colors hover:bg-white/10 active:scale-[0.98]"
+    >
+      <span className={`flex min-w-0 items-center gap-2 ${isNew ? 'text-[#D4A432]' : active ? 'text-white' : 'text-white/70'}`}>
+        <span className="min-w-0 truncate">{label}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        {count !== undefined && <span className="text-xs text-white/25">{count}</span>}
+        {active && <Check size={14} className="text-[#D4A432]" />}
+      </span>
+    </button>
   );
 }

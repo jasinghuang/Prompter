@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, ChevronLeft, CirclePause, Edit3, Settings } from 'lucide-react';
+import { ArrowUp, ChevronLeft, CircleCheck, PenLine, Play, SlidersHorizontal } from 'lucide-react';
 import { Script, TeleprompterSettings } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
@@ -24,6 +24,10 @@ interface Props {
   onBack: () => void;
   onEdit: () => void;
   onCompleted: () => void;
+  /** 当前稿件是否已标记拍摄 */
+  isFilmed: boolean;
+  /** 标记/取消标记拍摄（播放页「已完成」按钮） */
+  onToggleFilmed: () => void;
 }
 
 const ONBOARD_KEY = 'prompter_onboarded';
@@ -53,10 +57,14 @@ export function Teleprompter({
   onBack,
   onEdit,
   onCompleted,
+  isFilmed,
+  onToggleFilmed,
 }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !hasOnboarded());
+  // 手指/指针按住屏幕（拖拽浏览）时隐藏中央播放提示，松手恢复
+  const [pointerDown, setPointerDown] = useState(false);
   const [wakeLockFailed, showWakeLockFailed] = useTransientFlag(3000);
   const [pauseReason, setPauseReason] = useState<string | null>(null);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -334,10 +342,12 @@ export function Teleprompter({
   };
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    setPointerDown(true);
     touchStartRef.current = { y: e.clientY };
   }, []);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    setPointerDown(false);
     const start = touchStartRef.current;
     touchStartRef.current = null;
     if (!start) return;
@@ -429,63 +439,88 @@ export function Teleprompter({
         </div>
       )}
 
-      {/* ── Top Toolbar ── */}
+      {/* ── Top Bar — 双胶囊（左：导航/状态，右：操作）────────────
+          胶囊 44px 触控行（内格 34px/图标 18px/分颊 1px），无 backdrop-filter 规避残影 */}
       <div
-        className="absolute inset-x-0 top-0 z-50 flex items-center justify-between pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]"
+        className="absolute inset-x-0 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 flex items-center gap-2.5 px-4"
         style={{
-          paddingLeft: 'calc(0.75rem + env(safe-area-inset-left))',
-          paddingRight: 'calc(0.75rem + env(safe-area-inset-right))',
+          paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
+          paddingRight: 'calc(1rem + env(safe-area-inset-right))',
         }}
       >
-        <div className="flex items-center gap-2">
+        {/* 左胶囊：返回 + 录制状态/计时 */}
+        <div className="flex h-11 shrink-0 items-center rounded-full border border-white/[0.07] bg-[rgba(19,19,22,0.72)] px-[5px]">
           <button
             onClick={handleBack}
-            className="glass-button flex items-center justify-center rounded-full p-2 text-white/50 hover:text-white active:scale-95"
             aria-label="返回"
-            style={{ minHeight: '44px', minWidth: '44px' }}
+            className="flex h-[34px] min-w-[34px] items-center justify-center rounded-full px-[11px] text-white/55 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={18} />
           </button>
-
-          {/* Timer + Status Indicator — equal-size container */}
-          <div className="flex items-center gap-1.5 rounded-full glass-button px-3 py-1.5">
+          <span aria-hidden="true" className="mx-[5px] h-4 w-px bg-white/10" />
+          <div
+            className="flex h-[34px] items-center gap-[7px] rounded-full px-[11px]"
+            aria-label={isPlaying ? '播放中' : '已暂停'}
+          >
             <span
-              className="flex h-4 w-4 items-center justify-center"
-              aria-label={isPlaying ? '播放中' : '已暂停'}
-            >
-              {isPlaying ? (
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inset-0 rounded-full" style={{ background: 'var(--color-danger)', boxShadow: 'var(--shadow-record)' }} />
-                </span>
-              ) : (
-                <CirclePause size={10} className="text-white/30" />
-              )}
-            </span>
-            <span className="font-mono text-xs tabular-nums text-white/50">
+              className="h-2 w-2 rounded-full"
+              style={isPlaying
+                ? { background: 'var(--color-danger)', boxShadow: 'var(--shadow-record)' }
+                : { background: 'rgba(255,255,255,0.25)' }}
+            />
+            <span className="font-mono text-[13px] tracking-wide tabular-nums text-white/60">
               {formatTime(elapsedSeconds)}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="min-w-0 flex-1" />
+
+        {/* 右胶囊：标记已拍摄 / 编辑 / 设置 */}
+        <div className="flex h-11 shrink-0 items-center rounded-full border border-white/[0.07] bg-[rgba(19,19,22,0.72)] px-[5px]">
+          <button
+            onClick={() => {
+              onToggleFilmed();
+              showPauseToast(isFilmed ? '已取消已拍摄标记' : '已标记拍摄 ✓');
+            }}
+            aria-label={isFilmed ? '取消已拍摄标记' : '标记为已拍摄'}
+            title={isFilmed ? '取消已拍摄标记' : '标记为已拍摄'}
+            className={`flex h-[34px] min-w-[34px] items-center justify-center rounded-full px-[11px] transition-colors active:scale-95 ${
+              isFilmed ? 'bg-green-500/[0.16] text-green-400' : 'text-white/65 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <CircleCheck size={18} strokeWidth={2.4} />
+          </button>
+          <span aria-hidden="true" className="mx-[5px] h-4 w-px bg-white/10" />
           <button
             onClick={handleEdit}
-            className="glass-button flex items-center justify-center rounded-full p-2 text-white/50 hover:text-white active:scale-95"
             aria-label="编辑"
-            style={{ minHeight: '44px', minWidth: '44px' }}
+            className="flex h-[34px] min-w-[34px] items-center justify-center rounded-full px-[11px] text-white/55 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
           >
-            <Edit3 size={20} />
+            <PenLine size={18} />
           </button>
+          <span aria-hidden="true" className="mx-[5px] h-4 w-px bg-white/10" />
           <button
             onClick={() => setShowSettings(true)}
-            className="glass-button flex items-center justify-center rounded-full p-2 text-white/50 hover:text-white active:scale-95"
             aria-label="设置"
-            style={{ minHeight: '44px', minWidth: '44px' }}
+            className="flex h-[34px] min-w-[34px] items-center justify-center rounded-full px-[11px] text-white/65 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
           >
-            <Settings size={20} />
+            <SlidersHorizontal size={18} strokeWidth={2.4} />
           </button>
         </div>
       </div>
+
+      {/* ── Center Play Hint（暂停时提示可点击播放）──
+          pointer-events-none：点击穿透到屏幕本身，用户瞄准图标点也能播放，
+          从物理上消除「必须点中按钮」的误解 */}
+      {!isPlaying && !pointerDown && !showOnboarding && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-3">
+          <div className="play-hint flex h-[72px] w-[72px] items-center justify-center rounded-full border border-white/10 bg-black/35">
+            <Play size={30} className="ml-1 text-white/80" fill="currentColor" />
+          </div>
+          <span className="play-hint text-xs text-white/45">点击屏幕任意位置播放</span>
+        </div>
+      )}
 
       {/* ── Reading Guide Lines (soft glass) ── */}
       <div
@@ -514,7 +549,6 @@ export function Teleprompter({
           textAlign: settings.textAlign,
           paddingLeft: pad,
           paddingRight: pad,
-          WebkitOverflowScrolling: 'touch',
         }}
       >
         <div ref={contentRef} className="mx-auto max-w-[56rem] pb-[18vh] pt-[16vh]">

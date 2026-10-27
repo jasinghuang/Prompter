@@ -9,6 +9,9 @@ const makeScript = (over: Partial<Script> = {}): Script => ({
 
 const makeProps = (over: Record<string, unknown> = {}) => ({
   script: makeScript(),
+  folder: undefined,
+  folders: ['口播', 'vlog'] as string[],
+  onFolderChange: vi.fn(),
   pauseKeyword: '',
   onPauseKeywordChange: vi.fn(),
   pauseOnParagraph: false,
@@ -165,5 +168,44 @@ describe('ScriptEditor', () => {
     fireEvent.change(screen.getByPlaceholderText('在此输入或粘贴提词稿件...'), { target: { value: '新\n\n内容' } });
     fireEvent.click(splitButton());
     expect(onSplit).toHaveBeenCalledWith('新\n\n内容');
+  });
+
+  it('分组行：未分组默认高亮，点选文件夹回调 onFolderChange', () => {
+    const onFolderChange = vi.fn();
+    render(<ScriptEditor {...makeProps({ onFolderChange })} />);
+    // 未分组 chip 高亮
+    expect(screen.getByText('未分组').className).toContain('bg-white/15');
+    fireEvent.click(screen.getByText('口播'));
+    expect(onFolderChange).toHaveBeenCalledWith('口播');
+  });
+
+  it('分组行：当前文件夹高亮，点「未分组」回调 null', () => {
+    const onFolderChange = vi.fn();
+    render(<ScriptEditor {...makeProps({ folder: 'vlog', onFolderChange })} />);
+    expect(screen.getByText('vlog').className).toContain('bg-white/15');
+    fireEvent.click(screen.getByText('未分组'));
+    expect(onFolderChange).toHaveBeenCalledWith(null);
+  });
+
+  it('分组行：内联新建分组，回车提交回调新名称', () => {
+    const onFolderChange = vi.fn();
+    render(<ScriptEditor {...makeProps({ onFolderChange })} />);
+    fireEvent.click(screen.getByLabelText('新建分组'));
+    fireEvent.change(screen.getByLabelText('新分组名'), { target: { value: '带货' } });
+    fireEvent.keyDown(screen.getByLabelText('新分组名'), { key: 'Enter' });
+    expect(onFolderChange).toHaveBeenCalledWith('带货');
+  });
+
+  it('分组行：中文输入法选字的回车（isComposing）不误提交', () => {
+    const onFolderChange = vi.fn();
+    render(<ScriptEditor {...makeProps({ onFolderChange })} />);
+    fireEvent.click(screen.getByLabelText('新建分组'));
+    const input = screen.getByLabelText('新分组名');
+    fireEvent.change(input, { target: { value: '带货' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    expect(onFolderChange).not.toHaveBeenCalled(); // 值尚未合成，不提交
+    expect(input).toBeInTheDocument(); // 输入框保持打开
+    fireEvent.keyDown(input, { key: 'Enter' }); // 真正的回车才提交
+    expect(onFolderChange).toHaveBeenCalledWith('带货');
   });
 });

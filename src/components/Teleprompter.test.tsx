@@ -47,6 +47,7 @@ function renderTel(settings: TeleprompterSettings = DEFAULT_SETTINGS) {
     onBack: vi.fn(),
     onEdit: vi.fn(),
     onCompleted: vi.fn(),
+    onToggleFilmed: vi.fn(),
   };
   render(
     <Teleprompter
@@ -58,6 +59,8 @@ function renderTel(settings: TeleprompterSettings = DEFAULT_SETTINGS) {
       onBack={handlers.onBack}
       onEdit={handlers.onEdit}
       onCompleted={handlers.onCompleted}
+      isFilmed={false}
+      onToggleFilmed={handlers.onToggleFilmed}
     />
   );
   return handlers;
@@ -116,6 +119,19 @@ describe('Teleprompter 读完动作', () => {
     act(() => reachEnd!());
     expect(resetKeywordPause).toHaveBeenCalledTimes(1);
     expect(resetParagraphPause).toHaveBeenCalledTimes(1);
+  });
+
+  it('顶栏圆形「标记已拍摄」按钮：点击回调并弹 toast', () => {
+    const h = renderTel();
+    fireEvent.click(screen.getByLabelText('标记为已拍摄'));
+    expect(h.onToggleFilmed).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('已标记拍摄 ✓')).toBeInTheDocument();
+  });
+
+  it('暂停时中央显示播放提示，容器穿透不拦截点击', () => {
+    renderTel();
+    const hint = screen.getByText('点击屏幕任意位置播放');
+    expect(hint.closest('div')!.className).toContain('pointer-events-none');
   });
 
   it('手动返回不触发 onCompleted', () => {

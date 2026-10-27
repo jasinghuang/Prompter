@@ -30,3 +30,18 @@ export function detectIOS(): boolean {
   const ua = navigator.userAgent || '';
   return /iPad|iPhone|iPod/.test(ua) || (ua.includes('Macintosh') && 'ontouchend' in document);
 }
+
+export interface SolidGlassState {
+  isIOS: boolean;
+  standalone: boolean;
+}
+
+/**
+ * iOS standalone（PWA）下是否降级为无模糊玻璃：
+ * WebKit 的 backdrop-filter 在 iOS standalone 有已知渲染 bug——
+ * 静止画面出现花屏/残影，旋转屏幕重建图层后才消失。
+ * 该环境改用纯半透明底（html.glass-solid），其余环境保留毛玻璃。
+ */
+export function shouldUseSolidGlass(state: SolidGlassState): boolean {
+  return state.isIOS && state.standalone;
+}

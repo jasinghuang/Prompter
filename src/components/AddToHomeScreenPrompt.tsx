@@ -41,7 +41,7 @@ export function AddToHomeScreenPrompt() {
   const isIOS = detectIOS();
 
   return (
-    <div className="fixed bottom-5 left-1/2 z-[90] flex w-[92vw] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/5 bg-white/10 backdrop-blur-xl p-4 backdrop-blur-xl">
+    <div className="fixed bottom-5 left-1/2 z-[90] flex w-[92vw] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/5 bg-white/10 backdrop-blur-xl p-4">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[rgba(212,164,50,0.12)]">
         <Share size={18} className="text-[#D4A432]" />
       </div>

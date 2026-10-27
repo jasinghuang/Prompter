@@ -66,6 +66,33 @@ describe('App', () => {
     expect(scripts.map((s: { title: string }) => s.title)).toEqual(['主持人：大家好', '开场白']);
   });
 
+  it('智能拆分的产物继承父稿件的文件夹', async () => {
+    localStorage.setItem('prompter_scripts', JSON.stringify([
+      { id: '1', title: '批次', content: '甲段\n\n乙段', createdAt: 1, updatedAt: 1, folder: '带货' },
+    ]));
+    render(<App />);
+    fireEvent.click(screen.getByText('批次')); // 打开提词页
+    fireEvent.click(screen.getByLabelText('编辑')); // 顶栏编辑进入编辑页
+    fireEvent.click(screen.getByRole('button', { name: /智能拆分/ }));
+    await act(async () => { await new Promise((r) => setTimeout(r, 300)); });
+    const scripts = JSON.parse(localStorage.getItem('prompter_scripts')!);
+    expect(scripts).toHaveLength(2);
+    expect(scripts.every((s: { folder?: string }) => s.folder === '带货')).toBe(true);
+  });
+
+  it('新建稿件 → 编辑页归入新分组 → 返回列表出现文件夹 chip 与卡片标签', async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /新建稿件/ }));
+    fireEvent.change(screen.getByPlaceholderText('在此输入或粘贴提词稿件...'), { target: { value: '内容' } });
+    fireEvent.click(screen.getByLabelText('新建分组'));
+    fireEvent.change(screen.getByLabelText('新分组名'), { target: { value: '带货' } });
+    fireEvent.keyDown(screen.getByLabelText('新分组名'), { key: 'Enter' });
+    fireEvent.click(screen.getByTitle('返回'));
+    // chips 行与卡片分组标签都出现（两处「带货」）
+    await waitFor(() => expect(screen.getAllByText('带货').length).toBeGreaterThanOrEqual(2));
+    expect(JSON.parse(localStorage.getItem('prompter_scripts')!)[0].folder).toBe('带货');
+  });
+
   it('清理已删除稿件的 filmed 残留', () => {
     localStorage.setItem('prompter_filmed', JSON.stringify(['gone']));
     localStorage.setItem('prompter_scripts', JSON.stringify([
@@ -74,5 +101,36 @@ describe('App', () => {
     render(<App />);
     // clearStale 应移除不存在的 'gone'
     expect(JSON.parse(localStorage.getItem('prompter_filmed')!)).toEqual([]);
+  });
+
+  it('删除后 2 秒内可撤销：恢复稿件与已拍摄标记', async () => {
+    localStorage.setItem('prompter_scripts', JSON.stringify([
+      { id: '1', title: '甲', content: '内容一', createdAt: 2, updatedAt: 2 },
+      { id: '2', title: '乙', content: '内容二', createdAt: 1, updatedAt: 1 },
+    ]));
+    localStorage.setItem('prompter_filmed', JSON.stringify(['1']));
+    render(<App />);
+    // 删除第一张卡（按钮 → 退场动画 → 真正删除）
+    fireEvent.click(screen.getByTestId('delete-1'));
+    fireEvent(screen.getByTestId('content-1').parentElement!, new Event('animationend', { bubbles: true }));
+    await waitFor(() => expect(screen.queryByText('甲')).toBeNull());
+    // 撤销提示出现（仅「撤销删除」四个字，位于顶部）
+    expect(screen.getByText('撤销删除')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('撤销删除'));
+    // 卡片与已拍摄标记均恢复
+    await waitFor(() => expect(screen.getByText('甲')).toBeInTheDocument());
+    expect(JSON.parse(localStorage.getItem('prompter_scripts')!).map((s: { id: string }) => s.id)).toEqual(['1', '2']);
+    expect(JSON.parse(localStorage.getItem('prompter_filmed')!)).toContain('1');
+  });
+
+  it('撤销提示 2 秒后自动消失', async () => {
+    localStorage.setItem('prompter_scripts', JSON.stringify([
+      { id: '1', title: '甲', content: '内容一', createdAt: 1, updatedAt: 1 },
+    ]));
+    render(<App />);
+    fireEvent.click(screen.getByTestId('delete-1'));
+    fireEvent(screen.getByTestId('content-1').parentElement!, new Event('animationend', { bubbles: true }));
+    await waitFor(() => expect(screen.getByText('撤销删除')).toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('撤销删除')).toBeNull(), { timeout: 3000 });
   });
 });

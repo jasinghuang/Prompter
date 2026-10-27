@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方案 B 精细化 · 尺寸/留白/图标</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --canvas: #0A0A0B; --border: #26262B;
+    --t1: #F5F5F5; --t2: #A1A1AA; --t3: #71717A;
+    --accent: #D4A432;
+  }
+  body { background: var(--canvas); color: var(--t1); font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; padding: 36px 20px 120px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 21px; margin-bottom: 6px; }
+  .sub { color: var(--t3); font-size: 13px; margin-bottom: 22px; line-height: 1.7; }
+  .desc { font-size: 13px; color: var(--t2); line-height: 1.8; margin-bottom: 16px; max-width: 780px; }
+  .desc b { color: var(--t1); }
+  section { margin-bottom: 48px; }
+
+  .switcher { display: flex; align-items: center; gap: 20px; margin-bottom: 28px; flex-wrap: wrap; }
+  .grp { display: flex; align-items: center; gap: 8px; }
+  .grp .lbl { font-size: 12px; color: var(--t2); }
+  .seg { display: flex; background: rgba(255,255,255,.06); border-radius: 99px; padding: 3px; }
+  .seg button { border: 0; background: none; color: rgba(255,255,255,.45); font-size: 12px; padding: 7px 14px; border-radius: 99px; cursor: pointer; }
+  .seg button.on { background: rgba(255,255,255,.16); color: #fff; }
+
+  /* ── 舞台 ── */
+  .stage { position: relative; height: 330px; border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
+    background: radial-gradient(130% 170% at 50% 0%, #101014 0%, var(--canvas) 65%); }
+  .script { position: absolute; inset: 0; padding: 76px 84px; font-size: 20px; line-height: 1.85; color: rgba(255,255,255,.85); }
+  .guide { position: absolute; top: 50%; width: 4px; height: 84px; border-radius: 99px; background: #D4A432; box-shadow: 0 0 12px 1px rgba(212,164,50,.55); transform: translateY(-50%); pointer-events: none; }
+  .guide.l { left: 20px; } .guide.r { right: 20px; }
+
+  /* ── 精细化胶囊 ── */
+  .topbar { position: absolute; top: 12px; left: 0; right: 0; display: flex; align-items: center; padding: 0 16px; z-index: 10; gap: 10px; }
+  .dock { display: flex; align-items: center; height: 44px; background: rgba(19,19,22,.72); border: 1px solid rgba(255,255,255,.07); border-radius: 99px; padding: 0 5px; }
+  .cell { height: 34px; min-width: 34px; padding: 0 11px; border-radius: 99px; display: flex; align-items: center; justify-content: center; gap: 7px; color: rgba(255,255,255,.55); transition: all .15s; }
+  .cell:active { background: rgba(255,255,255,.1); }
+  .cell svg { width: 18px; height: 18px; }
+  .div { width: 1px; height: 16px; background: rgba(255,255,255,.1); margin: 0 5px; }
+  .sp { flex: 1; }
+  .time { font-family: ui-monospace, monospace; font-size: 13px; color: rgba(255,255,255,.6); letter-spacing: .02em; }
+  .dot { width: 8px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.25); }
+  body.playing .dot { background: #EF4444; box-shadow: 0 0 6px rgba(239,68,68,.65); }
+  body.filmed .cell.film { background: rgba(34,197,94,.16); color: #22C55E; }
+  .cell.film { color: rgba(255,255,255,.55); }
+
+  /* 标注 */
+  .anno { position: absolute; font-family: ui-monospace, monospace; font-size: 10px; color: #4ADE80; background: rgba(74,222,128,.1); border: 1px solid rgba(74,222,128,.35); border-radius: 6px; padding: 2px 6px; white-space: nowrap; z-index: 20; }
+  body.noanno .anno { display: none; }
+  .bracket { position: absolute; border: 1px dashed rgba(74,222,128,.5); border-radius: 8px; z-index: 19; pointer-events: none; }
+  body.noanno .bracket { display: none; }
+
+  /* ── 图标对比 ── */
+  .icons { display: flex; gap: 26px; flex-wrap: wrap; }
+  .icard { border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; width: 216px; background: rgba(19,19,22,.5); }
+  .icard h4 { font-size: 13px; margin-bottom: 4px; }
+  .icard p { font-size: 11px; color: var(--t3); line-height: 1.6; margin-bottom: 12px; }
+  .irow { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.05); }
+  .irow .demo { display: flex; align-items: center; justify-content: center; width: 44px; height: 34px; border-radius: 99px; background: rgba(255,255,255,.07); color: rgba(255,255,255,.55); }
+  .irow .demo svg { width: 18px; height: 18px; }
+  .irow .demo.green { background: rgba(34,197,94,.16); color: #22C55E; }
+  .irow .nm { font-size: 12px; color: var(--t2); flex: 1; }
+  .pick { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+  .pick.rec { background: var(--accent); color: #0A0A0B; }
+  .pick.alt { background: rgba(255,255,255,.08); color: var(--t3); }
+
+  table.spec { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+  table.spec th, table.spec td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.06); color: var(--t2); }
+  table.spec th { color: var(--t1); font-weight: 600; }
+  table.spec td:first-child { color: var(--t3); white-space: nowrap; }
+  code { font-family: ui-monospace, monospace; color: var(--accent); font-size: 11px; }
+  .statecap { font-size: 11px; color: var(--t3); margin-top: 8px; line-height: 1.7; }
+</style>
+</head>
+<body class="paused noanno">
+<div class="wrap">
+  <h1>方案 B 精细化 · 尺寸 / 留白 / 图标</h1>
+  <p class="sub">在方案 B 基础上重新推敲了构造尺寸与图标系统。开关可切换状态；打开「标注」查看每个尺寸的来源。</p>
+
+  <div class="switcher">
+    <div class="grp"><span class="lbl">状态</span>
+      <div class="seg" id="segState"><button data-v="paused" class="on">⏸ 暂停</button><button data-v="playing">▶ 播放中</button></div>
+    </div>
+    <div class="grp"><span class="lbl">已拍摄</span>
+      <div class="seg" id="segFilmed"><button data-v="unfilmed" class="on">未拍</button><button data-v="filmed">✓ 已拍</button></div>
+    </div>
+    <div class="grp"><span class="lbl">标注</span>
+      <div class="seg" id="segAnno"><button data-v="noanno" class="on">隐藏</button><button data-v="anno">显示尺寸</button></div>
+    </div>
+  </div>
+
+  <section>
+    <div class="stage" id="stage">
+      <div class="topbar">
+        <div class="dock" style="position:relative">
+          <div class="cell">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </div>
+          <div class="div"></div>
+          <div class="cell"><span class="dot"></span><span class="time">03:24</span></div>
+        </div>
+        <div class="sp"></div>
+        <div class="dock" style="position:relative">
+          <div class="cell film">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.2"/><path d="m8.5 12.2 2.4 2.4 4.6-5.2"/></svg>
+          </div>
+          <div class="div"></div>
+          <div class="cell">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></svg>
+          </div>
+          <div class="div"></div>
+          <div class="cell">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" x2="14" y1="5" y2="5"/><line x1="10" x2="3" y1="5" y2="5"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="19" y2="19"/><line x1="12" x2="3" y1="19" y2="19"/><line x1="14" x2="14" y1="3" y2="7"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="17" y2="21"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="guide l"></div><div class="guide r"></div>
+      <div class="script">广发证券新客开户福利来了！从现在起，新客来开户，可立享专属 VIP 优惠佣金、沪深 Level-2 十档行情、超 30 款智能投资工具等多重新客福利……<br>你还在等什么？点击下方链接有专人接待您。</div>
+
+      <!-- 尺寸标注 -->
+      <div class="bracket" id="bk-left" style="left:16px;top:12px;height:44px;width:190px"></div>
+      <div class="anno" style="left:16px;top:62px">胶囊高 44px（=T1 触控行）· 内格 34px · 图标 18px · 计时 13px mono</div>
+      <div class="anno" style="right:16px;top:62px">分颊宽 1px/高 16px · 格间距 5px · 边距 16px（+safe-area）</div>
+      <div class="anno" style="left:50%;transform:translateX(-50%);bottom:14px">胶囊底 rgba(19,19,22,.72) + 1px 白 7% 描边 —— 与玻璃卡同族</div>
+    </div>
+    <p class="statecap">左胶囊=导航/状态（返回·录制计时）｜右胶囊=操作（标记·编辑·设置）。已拍摄时 ✓ 格内衬绿色。切换「已拍摄」「播放中」看状态变化。</p>
+  </section>
+
+  <section>
+    <div style="font-size:15px;font-weight:600;margin-bottom:10px">图标系统（每个按钮两套候选）</div>
+    <div class="icons">
+      <div class="icard">
+        <h4>① 标记已拍摄</h4>
+        <p>状态开关需要「可完成感」，圆容器勾比裸勾更易读。</p>
+        <div class="irow"><div class="demo green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.2"/><path d="m8.5 12.2 2.4 2.4 4.6-5.2"/></svg></div><span class="nm">CircleCheck 圆勾</span><span class="pick rec">推荐</span></div>
+        <div class="irow"><div class="demo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><span class="nm">Check 裸勾（现状）</span><span class="pick alt">备选</span></div>
+      </div>
+      <div class="icard">
+        <h4>② 编辑稿件</h4>
+        <p>铅笔语义最准，两版笔画密度不同。</p>
+        <div class="irow"><div class="demo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></svg></div><span class="nm">PenLine 细铅笔</span><span class="pick rec">推荐</span></div>
+        <div class="irow"><div class="demo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div><span class="nm">Edit3 粗铅笔（现状）</span><span class="pick alt">备选</span></div>
+      </div>
+      <div class="icard">
+        <h4>③ 设置</h4>
+        <p>设置面板以滑杆为主，混音台滑杆比齿轮更贴合、也更干净。</p>
+        <div class="irow"><div class="demo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" x2="14" y1="5" y2="5"/><line x1="10" x2="3" y1="5" y2="5"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="19" y2="19"/><line x1="12" x2="3" y1="19" y2="19"/><line x1="14" x2="14" y1="3" y2="7"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="17" y2="21"/></svg></div><span class="nm">SlidersHorizontal</span><span class="pick rec">推荐</span></div>
+        <div class="irow"><div class="demo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></div><span class="nm">Settings 齿轮（现状）</span><span class="pick alt">备选</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div style="font-size:15px;font-weight:600;margin-bottom:10px">构造规格</div>
+    <table class="spec">
+      <tr><th>部位</th><th>规格</th><th>依据</th></tr>
+      <tr><td>胶囊外高</td><td><code>44px</code>（内格 34 + 上下 padding 5）</td><td>= T1 触控行高，与新建稿件/现圆钮一致</td></tr>
+      <tr><td>图标</td><td><code>18px</code> / strokeWidth 2</td><td>34px 格内的黄金比例</td></tr>
+      <tr><td>分颊</td><td>1px × 16px，白 10%，两侧 5px</td><td>分组可感知但不切割触摸区</td></tr>
+      <tr><td>计时文字</td><td>13px mono / 白 60%</td><td>= T3 工具层级</td></tr>
+      <tr><td>胶囊底</td><td><code>rgba(19,19,22,.72)</code> + 1px 白 7% 描边</td><td>与 glass-card 同族（不再用模糊，规避残影 bug）</td></tr>
+      <tr><td>离屏边距</td><td>上 12px、左右 16px（+ safe-area inset）</td><td>横屏刘海安全</td></tr>
+      <tr><td>已拍摄态</td><td>✓ 格内衬 <code>绿 16%</code>、图标绿色</td><td>状态落在格内，不污染整胶囊</td></tr>
+    </table>
+  </section>
+</div>
+
+<script>
+  for (const [id, cls] of [['segState', null], ['segFilmed', 'filmed'], ['segAnno', 'noanno']]) {
+    document.getElementById(id).addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      [...b.parentElement.children].forEach(x => x.classList.remove('on'));
+      b.classList.add('on');
+      if (id === 'segState') {
+        document.body.classList.toggle('playing', b.dataset.v === 'playing');
+        document.body.classList.toggle('paused', b.dataset.v === 'paused');
+      }
+      if (id === 'segFilmed') document.body.classList.toggle('filmed', b.dataset.v === 'filmed');
+      if (id === 'segAnno') document.body.classList.toggle('noanno', b.dataset.v === 'noanno');
+    });
+  }
+</script>
+</body>
+</html>

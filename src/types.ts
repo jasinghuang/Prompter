@@ -4,6 +4,10 @@ export interface Script {
   content: string;
   createdAt: number;
   updatedAt: number;
+  /** 星标（收藏），默认无 */
+  starred?: boolean;
+  /** 所属文件夹名（undefined = 未分组） */
+  folder?: string;
 }
 
 export type ScrollMode = 'manual' | 'auto';

@@ -21,16 +21,6 @@ describe('useTimer', () => {
     expect(result.current.elapsedSeconds).toBe(3);
   });
 
-  it('reset 归零并停止', () => {
-    const { result } = renderHook(() => useTimer());
-    act(() => result.current.start());
-    act(() => vi.advanceTimersByTime(5000));
-    act(() => result.current.reset());
-    expect(result.current.elapsedSeconds).toBe(0);
-    act(() => vi.advanceTimersByTime(5000));
-    expect(result.current.elapsedSeconds).toBe(0);
-  });
-
   it('卸载时清理定时器', () => {
     const { result, unmount } = renderHook(() => useTimer());
     act(() => result.current.start());

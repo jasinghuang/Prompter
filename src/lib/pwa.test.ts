@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldShowInstallPrompt } from './pwa';
+import { shouldShowInstallPrompt, shouldUseSolidGlass } from './pwa';
 
 describe('shouldShowInstallPrompt', () => {
   it('已 standalone 时不显示', () => {
@@ -30,5 +30,19 @@ describe('shouldShowInstallPrompt', () => {
     expect(
       shouldShowInstallPrompt({ standalone: false, dismissed: false, isIOS: false, hasBeforeInstallPrompt: false })
     ).toBe(false);
+  });
+});
+
+describe('shouldUseSolidGlass', () => {
+  it('iOS standalone（PWA）→ 降级为无模糊玻璃', () => {
+    expect(shouldUseSolidGlass({ isIOS: true, standalone: true })).toBe(true);
+  });
+
+  it('iOS Safari 浏览器 → 保留毛玻璃', () => {
+    expect(shouldUseSolidGlass({ isIOS: true, standalone: false })).toBe(false);
+  });
+
+  it('Android PWA → 保留毛玻璃', () => {
+    expect(shouldUseSolidGlass({ isIOS: false, standalone: true })).toBe(false);
   });
 });

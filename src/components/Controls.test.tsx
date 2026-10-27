@@ -58,9 +58,9 @@ describe('Controls', () => {
     // 滑块与胶囊同组
     expect(fontSlider.parentElement?.contains(screen.getByText('64'))).toBe(true);
     expect(speedSlider.parentElement?.contains(screen.getByText('160'))).toBe(true);
-    // 两组分开且无分隔竖线
+    // 两组分开且无分隔竖线（lucide 装饰图标自带 aria-hidden，只查 div 分隔元素）
     expect(fontSlider.parentElement).not.toBe(speedSlider.parentElement);
     const bar = document.querySelector('.glass-bar') as HTMLElement;
-    expect(bar.querySelector('[aria-hidden="true"]')).toBeNull();
+    expect(bar.querySelector('div[aria-hidden="true"]')).toBeNull();
   });
 });

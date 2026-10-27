@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Undo2 } from 'lucide-react';
 import { useTransientFlag } from './hooks/useTransientFlag';
 import { ScriptList } from './components/ScriptList';
 import { ScriptEditor } from './components/ScriptEditor';
@@ -7,12 +8,21 @@ import { AddToHomeScreenPrompt } from './components/AddToHomeScreenPrompt';
 import { useScripts } from './store/useScripts';
 import { useSettings } from './store/useSettings';
 import { useFilmed } from './store/useFilmed';
+import { Script } from './types';
 import { resolveIndexAfterEdit } from './lib/editResolve';
 import { splitByParagraphs, splitByKeyword } from './lib/split';
 
 type View = 'list' | 'prompter' | 'editor';
 
 const POS_KEY = 'prompter_pos_';
+
+/** 撤销删除的快照与展示时长 */
+const UNDO_WINDOW_MS = 2000;
+interface UndoableDelete {
+  script: Script;
+  index: number;
+  wasFilmed: boolean;
+}
 
 function loadPosition(id: string): number {
   try {
@@ -26,7 +36,7 @@ function savePosition(id: string, index: number) {
 }
 
 export default function App() {
-  const { scripts, addScript, updateScript, deleteScript, clearAll, importScript } = useScripts();
+  const { scripts, addScript, updateScript, deleteScript, restoreScript, toggleStar, moveToFolder, clearAll, importScript } = useScripts();
   const { settings, updateSettings } = useSettings();
   const { filmedIds, markFilmed, toggleFilmed, clearStale } = useFilmed();
 
@@ -37,8 +47,41 @@ export default function App() {
   // 从提词器进入编辑时的快照
   const [editSnapshot, setEditSnapshot] = useState<{ content: string; index: number } | null>(null);
   const [resetNotice, showResetNotice] = useTransientFlag(3000);
+  // 删除撤销：快照 + 2 秒展示窗口
+  const [undoable, setUndoable] = useState<UndoableDelete | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const active = scripts.find((s) => s.id === activeId) ?? null;
+
+  // 全部文件夹（由稿件派生，供编辑页分组选择）
+  const folders = useMemo(
+    () => [...new Set(scripts.map((s) => s.folder).filter((f): f is string => !!f))].sort((a, b) => a.localeCompare(b, 'zh')),
+    [scripts]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    };
+  }, []);
+
+  const handleDeleteScript = (id: string) => {
+    const index = scripts.findIndex((s) => s.id === id);
+    if (index === -1) return;
+    const snapshot: UndoableDelete = { script: scripts[index], index, wasFilmed: filmedIds.has(id) };
+    deleteScript(id);
+    setUndoable(snapshot);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => setUndoable(null), UNDO_WINDOW_MS);
+  };
+
+  const handleUndoDelete = () => {
+    if (!undoable) return;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    restoreScript(undoable.script, undoable.index);
+    if (undoable.wasFilmed) markFilmed(undoable.script.id); // clearStale 会清掉已删稿的标记，撤销时补回
+    setUndoable(null);
+  };
 
   // 清理已删除稿件的 filmed 残留 id
   useEffect(() => {
@@ -87,7 +130,7 @@ export default function App() {
     for (const seg of segments) {
       const lines = seg.split('\n');
       const title = lines[0].trim();
-      importScript(title, seg);
+      importScript(title, seg, active.folder); // 拆分产物继承父稿件分组
     }
     deleteScript(active.id);
     setView('list');
@@ -105,9 +148,11 @@ export default function App() {
           onBack={() => setView('list')}
           onEdit={openEditorFromPrompter}
           onCompleted={() => markFilmed(active.id)}
+          isFilmed={filmedIds.has(active.id)}
+          onToggleFilmed={() => toggleFilmed(active.id)}
         />
         {resetNotice && (
-          <div className="fixed left-1/2 top-20 z-[120] -translate-x-1/2 rounded-full border border-[#D4A432]/20 bg-white/10 backdrop-blur-xl px-4 py-2.5 text-xs text-[#D4A432] backdrop-blur-xl shadow-2xl">
+          <div className="fixed left-1/2 top-20 z-[120] -translate-x-1/2 rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-[#D4A432] shadow-2xl">
             文案改动已跨越当前位置，已重置到开头
           </div>
         )}
@@ -119,6 +164,9 @@ export default function App() {
     return (
       <ScriptEditor
         script={active}
+        folder={active.folder}
+        folders={folders}
+        onFolderChange={(f) => moveToFolder(active.id, f)}
         pauseKeyword={settings.pauseKeyword}
         onPauseKeywordChange={(kw) => updateSettings({ pauseKeyword: kw })}
         pauseOnParagraph={settings.pauseOnParagraph}
@@ -150,13 +198,27 @@ export default function App() {
       <ScriptList
         scripts={scripts}
         filmedIds={filmedIds}
+        speed={settings.scrollSpeed}
         onOpen={openPrompter}
         onEdit={(id) => { setActiveId(id); setEditSnapshot(null); setView('editor'); }}
-        onDelete={deleteScript}
+        onDelete={handleDeleteScript}
         onCreate={handleCreate}
         onToggleFilmed={toggleFilmed}
+        onToggleStar={toggleStar}
+        onMoveToFolder={moveToFolder}
         onDeleteAll={clearAll}
       />
+      {/* 撤销删除（2 秒窗口，置顶显示） */}
+      {undoable && (
+        <button
+          onClick={handleUndoDelete}
+          aria-label="撤销删除"
+          className="toast-in fixed left-1/2 top-[calc(4.5rem+env(safe-area-inset-top))] z-[95] flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[#D4A432]/30 glass-surface px-5 py-2.5 text-sm font-bold text-[#D4A432] shadow-2xl transition-colors hover:bg-white/10 active:scale-95"
+        >
+          <Undo2 size={14} />
+          撤销删除
+        </button>
+      )}
       <AddToHomeScreenPrompt />
     </>
   );
