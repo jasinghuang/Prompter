@@ -232,7 +232,7 @@ export default function App() {
           居中用 inset-x-0 mx-auto w-fit，不用 translate —— Tailwind v4 的
           translate 工具类是独立 translate 属性，会和 keyframe 里的 transform 叠加导致跳动 */}
       {undoable && (
-        <div className="toast-in pointer-events-none fixed inset-x-0 top-[calc(4.5rem+env(safe-area-inset-top))] z-[95] mx-auto w-fit">
+        <div className="toast-in fixed inset-x-0 top-[calc(4.5rem+env(safe-area-inset-top))] z-[95] mx-auto w-fit">
           <button
             onClick={handleUndoDelete}
             aria-label="撤销删除"

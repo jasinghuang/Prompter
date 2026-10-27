@@ -172,6 +172,8 @@ describe('App', () => {
     await waitFor(() => expect(screen.queryByText('甲')).toBeNull());
     // 撤销提示出现（仅「撤销删除」四个字，位于顶部）
     expect(screen.getByText('撤销删除')).toBeInTheDocument();
+    // 容器不得阻断点击（回归：曾误加 pointer-events-none 导致按钮点不动）
+    expect(screen.getByText('撤销删除').closest('div')!.className).not.toContain('pointer-events-none');
     fireEvent.click(screen.getByText('撤销删除'));
     // 卡片与已拍摄标记均恢复
     await waitFor(() => expect(screen.getByText('甲')).toBeInTheDocument());
