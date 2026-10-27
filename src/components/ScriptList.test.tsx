@@ -288,6 +288,21 @@ describe('ScriptList', () => {
     expect(onToggleStar).toHaveBeenCalledWith('1');
   });
 
+  it('已拍摄沉底、星标（未拍）置顶，层内保持日期排序；星标+已拍摄同样沉底', () => {
+    const data: Script[] = [
+      { id: '1', title: '普通新', content: '', createdAt: 3, updatedAt: 3 },
+      { id: '2', title: '已拍新', content: '', createdAt: 4, updatedAt: 4 },
+      { id: '3', title: '星标旧', content: '', createdAt: 1, updatedAt: 1, starred: true },
+      { id: '4', title: '星标已拍', content: '', createdAt: 2, updatedAt: 2, starred: true },
+    ];
+    render(
+      <ScriptList scripts={data} filmedIds={new Set(['2', '4'])} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+    );
+    const order = [...document.querySelectorAll('[data-testid^="content-"]')].map((el) => el.getAttribute('data-testid'));
+    // 星标未拍(3) → 普通未拍(1) → 已拍星标(4) → 已拍(2)（已拍整体沉底，层内星标优先）
+    expect(order).toEqual(['content-3', 'content-1', 'content-4', 'content-2']);
+  });
+
   it('文件夹 chips 从稿件派生，点选后只显示该文件夹的稿件', () => {
     const foldered: Script[] = [
       { ...scripts[0], folder: '口播' },

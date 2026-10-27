@@ -113,9 +113,12 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
     if (sort === 'title') list.sort((a, b) => dir * a.title.localeCompare(b.title, 'zh'));
     else if (sort === 'chars') list.sort((a, b) => dir * ((charCounts.get(a.id) ?? 0) - (charCounts.get(b.id) ?? 0)));
     else list.sort((a, b) => dir * (b.createdAt - a.createdAt));
-    // 星标稳定置顶（组内保持当前排序）
-    return [...list.filter((s) => s.starred), ...list.filter((s) => !s.starred)];
-  }, [scripts, sort, asc, charCounts]);
+    // 分层：星标（未拍）置顶 → 普通未拍 → 已拍摄沉底（星标+已拍摄同样沉底：拍完优先）。
+    // 层内保持上方排序结果（稳定 partition）。
+    const tier = (starred: boolean, filmed: boolean) =>
+      list.filter((s) => !!s.starred === starred && filmedIds.has(s.id) === filmed);
+    return [...tier(true, false), ...tier(false, false), ...tier(true, true), ...tier(false, true)];
+  }, [scripts, sort, asc, charCounts, filmedIds]);
 
   const filtered = useMemo(() => {
     let list = sorted;
