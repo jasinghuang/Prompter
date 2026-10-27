@@ -14,6 +14,7 @@ import { computePinchFontSize } from '../lib/pinch';
 import { ScriptText } from './ScriptText';
 import { Controls } from './Controls';
 import { SettingsPanel } from './SettingsPanel';
+import { Capsule, CapsuleButton, CapsuleDivider } from './CapsuleButton';
 
 interface Props {
   script: Script;
@@ -439,8 +440,7 @@ export function Teleprompter({
         </div>
       )}
 
-      {/* ── Top Bar — 双胶囊（左：导航/状态，右：操作）────────────
-          胶囊 44px 触控行（内格 34px/图标 18px/分颊 1px），无 backdrop-filter 规避残影 */}
+      {/* ── Top Bar — 双胶囊（左：导航/状态，右：操作），构造见 CapsuleButton ── */}
       <div
         className="absolute inset-x-0 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 flex items-center gap-2.5 px-4"
         style={{
@@ -449,15 +449,11 @@ export function Teleprompter({
         }}
       >
         {/* 左胶囊：返回 + 录制状态/计时 */}
-        <div className="flex h-11 shrink-0 items-center rounded-full border border-white/[0.07] bg-[rgba(19,19,22,0.72)] px-[5px]">
-          <button
-            onClick={handleBack}
-            aria-label="返回"
-            className="flex h-[34px] min-w-[34px] items-center justify-center rounded-full px-[11px] text-white/55 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
-          >
+        <Capsule>
+          <CapsuleButton label="返回" onClick={handleBack}>
             <ChevronLeft size={18} />
-          </button>
-          <span aria-hidden="true" className="mx-[5px] h-4 w-px bg-white/10" />
+          </CapsuleButton>
+          <CapsuleDivider />
           <div
             className="flex h-[34px] items-center gap-[7px] rounded-full px-[11px]"
             aria-label={isPlaying ? '播放中' : '已暂停'}
@@ -472,42 +468,31 @@ export function Teleprompter({
               {formatTime(elapsedSeconds)}
             </span>
           </div>
-        </div>
+        </Capsule>
 
         <div className="min-w-0 flex-1" />
 
         {/* 右胶囊：标记已拍摄 / 编辑 / 设置 */}
-        <div className="flex h-11 shrink-0 items-center rounded-full border border-white/[0.07] bg-[rgba(19,19,22,0.72)] px-[5px]">
-          <button
+        <Capsule>
+          <CapsuleButton
+            label={isFilmed ? '取消已拍摄标记' : '标记为已拍摄'}
+            active={isFilmed}
             onClick={() => {
               onToggleFilmed();
               showPauseToast(isFilmed ? '已取消已拍摄标记' : '已标记拍摄 ✓');
             }}
-            aria-label={isFilmed ? '取消已拍摄标记' : '标记为已拍摄'}
-            title={isFilmed ? '取消已拍摄标记' : '标记为已拍摄'}
-            className={`flex h-[34px] min-w-[34px] items-center justify-center rounded-full px-[11px] transition-colors active:scale-95 ${
-              isFilmed ? 'bg-green-500/[0.16] text-green-400' : 'text-white/65 hover:bg-white/10 hover:text-white'
-            }`}
           >
             <CircleCheck size={18} strokeWidth={2.4} />
-          </button>
-          <span aria-hidden="true" className="mx-[5px] h-4 w-px bg-white/10" />
-          <button
-            onClick={handleEdit}
-            aria-label="编辑"
-            className="flex h-[34px] min-w-[34px] items-center justify-center rounded-full px-[11px] text-white/55 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
-          >
+          </CapsuleButton>
+          <CapsuleDivider />
+          <CapsuleButton label="编辑" onClick={handleEdit}>
             <PenLine size={18} />
-          </button>
-          <span aria-hidden="true" className="mx-[5px] h-4 w-px bg-white/10" />
-          <button
-            onClick={() => setShowSettings(true)}
-            aria-label="设置"
-            className="flex h-[34px] min-w-[34px] items-center justify-center rounded-full px-[11px] text-white/65 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
-          >
+          </CapsuleButton>
+          <CapsuleDivider />
+          <CapsuleButton label="设置" onClick={() => setShowSettings(true)}>
             <SlidersHorizontal size={18} strokeWidth={2.4} />
-          </button>
-        </div>
+          </CapsuleButton>
+        </Capsule>
       </div>
 
       {/* ── Center Play Hint（暂停时提示可点击播放）──

@@ -106,9 +106,8 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
           </h2>
           <button
             onClick={onClose}
-            className="rounded-full p-2 text-white/30 hover:bg-white/10 hover:text-white"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-white/30 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
             aria-label="关闭设置"
-            style={{ minHeight: '44px', minWidth: '44px' }}
           >
             <Minimize2 size={20} />
           </button>

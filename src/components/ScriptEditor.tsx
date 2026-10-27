@@ -5,6 +5,7 @@ import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
 import { AutoPauseControl } from './AutoPauseControl';
 import { SegmentedPill } from './SegmentedPill';
 import { FilterChip } from './ScriptList';
+import { Capsule, CapsuleButton } from './CapsuleButton';
 
 const SPLIT_OPTIONS: { value: SplitMode; label: string }[] = [
   { value: 'paragraph', label: '空行' },
@@ -86,17 +87,15 @@ export function ScriptEditor({
   return (
     <div className="flex min-h-screen flex-col bg-[#0A0A0B]">
       <main className="mx-auto flex w-full max-w-[45rem] flex-1 flex-col px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        {/* Title Row: Back + Title Input */}
+        {/* Title Row: Back + Title Input —— 与播放页同款胶囊返回 */}
         <div className="flex items-center gap-1">
-          <button
-            title="返回"
-            onClick={handleBack}
-            aria-label="返回"
-            className="-ml-3 flex shrink-0 items-center justify-center rounded-full p-2 glass-button text-white/50 hover:text-white active:scale-95"
-            style={{ minHeight: '44px', minWidth: '44px' }}
-          >
-            <ChevronLeft size={20} />
-          </button>
+          <div className="-ml-3 shrink-0">
+            <Capsule>
+              <CapsuleButton label="返回" onClick={handleBack}>
+                <ChevronLeft size={18} />
+              </CapsuleButton>
+            </Capsule>
+          </div>
           <input
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}

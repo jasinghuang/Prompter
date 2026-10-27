@@ -52,16 +52,14 @@ export function AddToHomeScreenPrompt() {
       </div>
       <button
         onClick={isIOS ? dismiss : install}
-        className="shrink-0 rounded-full bg-[#D4A432] px-4 py-2 text-xs font-bold text-[#0A0A0B] active:scale-[0.97]"
-        style={{ minHeight: '44px' }}
+        className="flex h-11 shrink-0 items-center justify-center rounded-full bg-[#D4A432] px-4 text-xs font-bold text-[#0A0A0B] active:scale-[0.97]"
       >
         {isIOS ? '知道' : '安装'}
       </button>
       <button
         onClick={dismiss}
         aria-label="关闭"
-        className="shrink-0 rounded-full p-2 text-white/30 hover:bg-white/10 hover:text-white"
-        style={{ minHeight: '44px', minWidth: '44px' }}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white/30 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
       >
         <X size={16} />
       </button>

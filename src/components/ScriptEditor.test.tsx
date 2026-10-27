@@ -88,19 +88,24 @@ describe('ScriptEditor', () => {
     expect(el.className).not.toContain('#71717A');
   });
 
-  it('返回按钮与标题输入框同一行（左侧）', () => {
+  it('返回按钮与标题输入框同一行（左侧，胶囊壳包裹）', () => {
     render(<ScriptEditor {...makeProps()} />);
     const back = screen.getByTitle('返回');
     const title = screen.getByPlaceholderText('稿件标题');
-    expect(back.parentElement).toBe(title.parentElement);
-    expect(back.parentElement?.className).toContain('flex');
+    // 胶囊壳与标题同处标题行，按钮在壳内居中
+    const capsule = back.parentElement!;
+    expect(capsule.className).toContain('rounded-full');
+    const wrapper = capsule.parentElement!;
+    expect(wrapper.parentElement).toBe(title.parentElement);
+    expect(wrapper.parentElement!.className).toContain('flex');
     expect(back.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // 返回按钮在标题左侧
   });
 
-  it('返回按钮图标与页面内容左缘对齐（按钮左扩入页边距、图标居中）', () => {
+  it('返回按钮胶囊左扩入页边距，图标在格内居中（与播放页同款）', () => {
     render(<ScriptEditor {...makeProps()} />);
     const back = screen.getByTitle('返回');
-    expect(back.className).toContain('-ml-3'); // 44px 盒左移 12px → 20px 图标起点恰好 16px
+    // -ml-3 在胶囊壳的包裹层上，按钮本体负责图标居中
+    expect(back.parentElement!.parentElement!.className).toContain('-ml-3');
     expect(back.className).toContain('justify-center');
     expect(back.className).not.toContain('justify-start');
   });
