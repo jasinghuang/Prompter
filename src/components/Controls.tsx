@@ -58,7 +58,7 @@ export function Controls({ fontSize, speed, visible, onFontSizeChange, onSpeedCh
   return (
     <div
       className={`absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 flex items-center gap-3 rounded-2xl border border-white/10 glass-bar px-4 py-3 transition-all duration-300 ${
-        visible ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0 pointer-events-none'
+        visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'
       }`}
     >
       <ParamGroup

@@ -458,14 +458,14 @@ export function Teleprompter({
             className="flex h-[34px] items-center gap-[7px] rounded-full px-[11px]"
             aria-label={isPlaying ? '播放中' : '已暂停'}
           >
-            {/* 播放/暂停状态位：两态同占 10px 盒，切换时数字不横移 */}
+            {/* 播放/暂停状态位：两态同占 12px 盒，切换时数字不横移 */}
             {isPlaying ? (
               <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                className="h-3 w-3 shrink-0 rounded-full"
                 style={{ background: 'var(--color-danger)', boxShadow: 'var(--shadow-record)' }}
               />
             ) : (
-              <CirclePause size={10} className="shrink-0 text-white/35" />
+              <CirclePause size={12} className="shrink-0 text-white/35" />
             )}
             <span className="font-mono text-[13px] tracking-wide tabular-nums text-white/60">
               {formatTime(elapsedSeconds)}
