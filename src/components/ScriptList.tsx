@@ -9,6 +9,8 @@ interface Props {
   filmedIds: Set<string>;
   /** 滚动速度（字/分），卡片据此显示预计口播时长 */
   speed?: number;
+  /** 最近打开的稿件 id：其卡片保持金边微光，返回列表时一眼定位 */
+  highlightId?: string | null;
   onOpen: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
@@ -54,7 +56,7 @@ function loadSort(): { sort: SortKey; asc: boolean } {
   return { sort: 'date', asc: false };
 }
 
-export function ScriptList({ scripts, filmedIds, speed, onOpen, onEdit, onDelete, onCreate, onToggleFilmed, onToggleStar, onMoveToFolder, onDeleteAll }: Props) {
+export function ScriptList({ scripts, filmedIds, speed, highlightId, onOpen, onEdit, onDelete, onCreate, onToggleFilmed, onToggleStar, onMoveToFolder, onDeleteAll }: Props) {
   const [query, setQuery] = useState('');
   const initPrefs = useMemo(() => loadSort(), []);
   const [sort, setSort] = useState<SortKey>(initPrefs.sort);
@@ -355,6 +357,7 @@ export function ScriptList({ scripts, filmedIds, speed, onOpen, onEdit, onDelete
                   charCount={charCounts.get(s.id) ?? 0}
                   speed={speed}
                   starred={!!s.starred}
+                  highlighted={s.id === highlightId}
                   onToggleStar={onToggleStar ? () => onToggleStar(s.id) : undefined}
                   onOpenFolderPicker={onMoveToFolder ? () => setMovingId(s.id) : undefined}
                   onOpen={handleOpen}

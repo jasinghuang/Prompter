@@ -42,6 +42,8 @@ export default function App() {
 
   const [view, setView] = useState<View>('list');
   const [activeId, setActiveId] = useState<string | null>(null);
+  // 最近打开的稿件：返回列表时其卡片保持高亮，一眼找回位置（会话级）
+  const [lastOpenedId, setLastOpenedId] = useState<string | null>(null);
   // 提词器当前阅读位置（受控，供编辑返回定位使用）
   const [prompterIndex, setPrompterIndex] = useState(0);
   // 从提词器进入编辑时的快照
@@ -102,6 +104,7 @@ export default function App() {
 
   const openPrompter = (id: string) => {
     setActiveId(id);
+    setLastOpenedId(id);
     setPrompterIndex(loadPosition(id));
     setEditSnapshot(null);
     setView('prompter');
@@ -199,6 +202,7 @@ export default function App() {
         scripts={scripts}
         filmedIds={filmedIds}
         speed={settings.scrollSpeed}
+        highlightId={lastOpenedId}
         onOpen={openPrompter}
         onEdit={(id) => { setActiveId(id); setEditSnapshot(null); setView('editor'); }}
         onDelete={handleDeleteScript}

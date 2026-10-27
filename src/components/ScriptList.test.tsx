@@ -17,6 +17,17 @@ describe('ScriptList', () => {
     expect(screen.getByText('会议发言')).toBeInTheDocument();
   });
 
+  it('highlightId 指定的卡片带「最近打开」高亮（金边 + 呼吸动画）', () => {
+    render(
+      <ScriptList scripts={scripts} filmedIds={new Set()} highlightId="2" onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+    );
+    const card2 = screen.getByTestId('content-2').parentElement!;
+    expect(card2.className).toContain('card-hello');
+    expect(card2.className).toContain('border-[#D4A432]/45');
+    const card1 = screen.getByTestId('content-1').parentElement!;
+    expect(card1.className).not.toContain('card-hello');
+  });
+
   it('卡片显示字数与预计口播时长（按传入速度估算）', () => {
     render(
       <ScriptList scripts={scripts} filmedIds={new Set()} speed={160} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />

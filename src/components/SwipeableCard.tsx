@@ -18,6 +18,8 @@ interface Props {
   /** 滚动速度（字/分），用于估算口播时长 */
   speed?: number;
   starred?: boolean;
+  /** 最近打开（返回列表时金边微光定位） */
+  highlighted?: boolean;
   onToggleStar?: () => void;
   /** 打开「移动到文件夹」弹层 */
   onOpenFolderPicker?: () => void;
@@ -27,7 +29,7 @@ interface Props {
   onToggleFilmed: (id: string) => void;
 }
 
-export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SETTINGS.scrollSpeed, starred, onToggleStar, onOpenFolderPicker, onOpen, onEdit, onDelete, onToggleFilmed }: Props) {
+export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SETTINGS.scrollSpeed, starred, highlighted, onToggleStar, onOpenFolderPicker, onOpen, onEdit, onDelete, onToggleFilmed }: Props) {
   // 删除退场：先播放收起动画，动画结束才真正 onDelete（配合上层撤销机制）
   const [exiting, setExiting] = useState(false);
   const beginExit = useCallback(() => setExiting(true), []);
@@ -45,11 +47,16 @@ export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SET
     clearShaking();
   };
 
+  const baseStyle = isFilmed
+    ? 'border-green-500/30 bg-green-500/[0.06]'
+    : highlighted
+      ? 'glass-card border-[#D4A432]/45 shadow-[0_0_22px_rgba(212,164,50,0.14)]'
+      : 'border-[#D4A432]/15 glass-card hover:border-[#D4A432]/50 hover:bg-white/[0.07]';
+
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border transition-colors duration-200 ${isFilmed
-        ? 'border-green-500/30 bg-green-500/[0.06]'
-        : 'border-[#D4A432]/15 glass-card hover:border-[#D4A432]/50 hover:bg-white/[0.07]'
+      className={`group relative overflow-hidden rounded-2xl border transition-colors duration-200 ${baseStyle}${
+        highlighted ? ' card-hello' : ''
       }${shaking ? ' swipe-shake' : ''}${exiting ? ' card-exit' : ''}`}
       onAnimationEnd={handleAnimationEnd}
       {...bind}

@@ -93,6 +93,20 @@ describe('App', () => {
     expect(JSON.parse(localStorage.getItem('prompter_scripts')!)[0].folder).toBe('带货');
   });
 
+  it('从播放页返回列表后，刚打开的卡片保持高亮', () => {
+    localStorage.setItem('prompter_scripts', JSON.stringify([
+      { id: '1', title: '甲', content: '内容一', createdAt: 2, updatedAt: 2 },
+      { id: '2', title: '乙', content: '内容二', createdAt: 1, updatedAt: 1 },
+    ]));
+    render(<App />);
+    fireEvent.click(screen.getByText('乙')); // 打开乙
+    fireEvent.click(screen.getByLabelText('返回')); // 返回列表
+    const card2 = screen.getByTestId('content-2').parentElement!;
+    expect(card2.className).toContain('card-hello');
+    const card1 = screen.getByTestId('content-1').parentElement!;
+    expect(card1.className).not.toContain('card-hello');
+  });
+
   it('清理已删除稿件的 filmed 残留', () => {
     localStorage.setItem('prompter_filmed', JSON.stringify(['gone']));
     localStorage.setItem('prompter_scripts', JSON.stringify([
