@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { Search, Plus, FileText, ArrowUpDown, Trash2, Clock, Star, Folder, FolderPlus, Check } from 'lucide-react';
+import { Search, Plus, FileText, ArrowUpDown, Trash2, Clock, Star, Folder, FolderPlus, Check, X, FolderInput } from 'lucide-react';
 import { Script } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SwipeableCard } from './SwipeableCard';
@@ -21,6 +21,8 @@ interface Props {
   onToggleFilmed: (id: string) => void;
   onToggleStar?: (id: string) => void;
   onMoveToFolder?: (id: string, folder: string | null) => void;
+  /** 批量删除（App 层做快照供整批撤销） */
+  onBatchDelete?: (ids: string[]) => void;
   onDeleteAll?: () => void;
 }
 
@@ -59,7 +61,7 @@ function loadSort(): { sort: SortKey; asc: boolean } {
   return { sort: 'date', asc: false };
 }
 
-export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: filterProp, onFilterChange, onOpen, onEdit, onDelete, onCreate, onToggleFilmed, onToggleStar, onMoveToFolder, onDeleteAll }: Props) {
+export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: filterProp, onFilterChange, onOpen, onEdit, onDelete, onCreate, onToggleFilmed, onToggleStar, onMoveToFolder, onBatchDelete, onDeleteAll }: Props) {
   const [query, setQuery] = useState('');
   const initPrefs = useMemo(() => loadSort(), []);
   const [sort, setSort] = useState<SortKey>(initPrefs.sort);
@@ -77,6 +79,11 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
   // 新建文件夹弹层（从「移动到文件夹」弹层进入，创建后把目标稿件移入）
   const [creatingFolder, setCreatingFolder] = useState<{ assignTo: string } | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
+  // 长按多选：movingId 为 '__batch__' 时弹层作用于全部选中项
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+  const BATCH_MOVE = '__batch__';
 
   // FLIP：卡片 DOM 引用 + 上一帧页面坐标（页面坐标不受滚动影响）
   const cardEls = useRef(new Map<string, HTMLDivElement>());
@@ -121,6 +128,10 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
     return list;
   }, [sorted, filter, query]);
 
+  const selectAllVisible = useCallback(() => {
+    setSelected(new Set(filtered.map((s) => s.id)));
+  }, [filtered]);
+
   // FLIP 动画：任何导致卡片位移的渲染（删除/撤销/排序/筛选）后，
   // 从旧位置反 transform 起步再过渡到 0，产生「卡片滑入新位置」的丝滑效果。
   // 依赖留空 → 每次渲染后运行；坐标未变的卡片自动跳过。
@@ -161,19 +172,52 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
   const handleCreateFolder = () => {
     const name = newFolderName.trim();
     if (!name || !creatingFolder) return;
-    onMoveToFolder?.(creatingFolder.assignTo, name);
+    if (creatingFolder.assignTo === BATCH_MOVE) {
+      selected.forEach((id) => onMoveToFolder?.(id, name));
+      exitSelectMode();
+    } else {
+      onMoveToFolder?.(creatingFolder.assignTo, name);
+    }
     setCreatingFolder(null);
   };
 
-  // Escape closes modals
+  // ── 长按多选 ──
+  const enterSelectMode = useCallback((id: string) => {
+    setSelectMode(true);
+    setSelected(new Set([id]));
+  }, []);
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelected(new Set());
+  }, []);
+  const handleBatchMove = useCallback((folder: string | null) => {
+    selected.forEach((id) => onMoveToFolder?.(id, folder));
+    setMovingId(null);
+    exitSelectMode();
+  }, [selected, onMoveToFolder, exitSelectMode]);
+
+  // Escape closes modals / exits select mode
   useEffect(() => {
-    if (!confirmClear && !movingId && !creatingFolder) return;
+    if (!confirmClear && !movingId && !creatingFolder && !selectMode && !confirmBatchDelete) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setConfirmClear(false); setMovingId(null); setCreatingFolder(null); }
+      if (e.key !== 'Escape') return;
+      setConfirmClear(false);
+      setMovingId(null);
+      setCreatingFolder(null);
+      setConfirmBatchDelete(false);
+      if (selectMode) exitSelectMode();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [confirmClear, movingId, creatingFolder]);
+  }, [confirmClear, movingId, creatingFolder, selectMode, confirmBatchDelete, exitSelectMode]);
 
   // 记忆排序偏好（skip mount to avoid writing back the just-loaded defaults）
   const sortMounted = useRef(false);
@@ -269,9 +313,45 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
           paddingRight: 'calc(1rem + env(safe-area-inset-right))',
         }}
       >
+        {/* 多选栏：长按卡片进入；替代筛选 chips + 排序工具行 */}
+        {selectMode && (
+          <div className="mb-5 flex items-center gap-2">
+            <button
+              onClick={exitSelectMode}
+              aria-label="退出多选"
+              className="flex h-[var(--ctl-3-h)] w-[var(--ctl-3-h)] shrink-0 items-center justify-center rounded-full chip-glass text-white/60 transition-colors hover:text-white active:scale-95"
+            >
+              <X size={15} />
+            </button>
+            <span className="shrink-0 text-[13px] text-white/50">已选 {selected.size} 篇</span>
+            <button
+              onClick={selectAllVisible}
+              className="flex h-[var(--ctl-3-h)] shrink-0 items-center rounded-full chip-glass px-3 text-[13px] font-medium text-white/60 transition-colors hover:text-white active:scale-95"
+            >
+              全选
+            </button>
+            <div className="ml-auto flex items-center gap-1.5">
+              <button
+                onClick={() => setMovingId(BATCH_MOVE)}
+                disabled={selected.size === 0}
+                className="flex h-[var(--ctl-3-h)] shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-[#D4A432]/80 transition-colors hover:bg-[#D4A432]/15 hover:text-[#D4A432] active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <FolderInput size={13} /> 移动到文件夹
+              </button>
+              <button
+                onClick={() => setConfirmBatchDelete(true)}
+                disabled={selected.size === 0}
+                className="flex h-[var(--ctl-3-h)] shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-[#D4A432]/80 transition-colors hover:bg-[#D4A432]/15 hover:text-[#D4A432] active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <Trash2 size={13} /> 删除所选 {selected.size}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Filter Chips — 全部 / 星标 / 文件夹（横向滚动）。
             文件夹由稿件派生（无实体管理），新建入口在卡片的「移动到文件夹」弹层里 */}
-        {scripts.length > 0 && (
+        {!selectMode && scripts.length > 0 && (
           <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <FilterChip active={filter === 'all'} onClick={() => setFilter('all')}>
               全部
@@ -295,8 +375,8 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
           </div>
         )}
 
-        {/* Toolbar — T3 工具操作（32px 玻璃胶囊） */}
-        {scripts.length > 0 && onDeleteAll && (
+        {/* Toolbar — T3 工具操作（32px 玻璃胶囊）；多选模式下由多选栏替代 */}
+        {!selectMode && scripts.length > 0 && onDeleteAll && (
           <div className="mb-5 flex items-center gap-1.5">
             <ArrowUpDown size={13} className="mx-1 shrink-0 text-white/25" />
             {SORT_OPTIONS.map((opt) => (
@@ -366,8 +446,12 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
                   speed={speed}
                   starred={!!s.starred}
                   highlighted={s.id === highlightId}
+                  selectMode={selectMode}
+                  isSelected={selected.has(s.id)}
+                  onToggleSelect={toggleSelect}
+                  onLongPress={enterSelectMode}
                   onToggleStar={onToggleStar ? () => onToggleStar(s.id) : undefined}
-                  onOpenFolderPicker={onMoveToFolder ? () => setMovingId(s.id) : undefined}
+                  onOpenFolderPicker={onMoveToFolder && !selectMode ? () => setMovingId(s.id) : undefined}
                   onOpen={handleOpen}
                   onEdit={onEdit}
                   onDelete={onDelete}
@@ -398,6 +482,34 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
         </div>
       )}
 
+      {/* Confirm Batch Delete */}
+      {confirmBatchDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmBatchDelete(false)} />
+          <div className="relative flex w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 glass-surface">
+            <header className="shrink-0 px-8 pt-8">
+              <h3 className="text-xl font-bold text-white">确认删除所选 {selected.size} 篇？</h3>
+            </header>
+            <div className="overflow-y-auto px-8 py-3">
+              <p className="text-sm text-white/40">删除后 2 秒内可通过「撤销删除」整批恢复。</p>
+            </div>
+            <footer className="shrink-0 flex gap-3 px-8 pb-8 pt-2">
+              <button onClick={() => setConfirmBatchDelete(false)} className="flex-1 rounded-xl bg-white/5 py-3 text-sm font-bold text-white transition-colors hover:bg-white/10 active:scale-95">取消</button>
+              <button
+                onClick={() => {
+                  onBatchDelete?.([...selected]);
+                  setConfirmBatchDelete(false);
+                  exitSelectMode();
+                }}
+                className="flex-1 rounded-xl bg-red-500 py-3 text-sm font-bold text-white transition-all active:scale-95"
+              >
+                确认删除
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
       {/* Move To Folder Sheet */}
       {movingId && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center p-4 sm:items-center">
@@ -405,22 +517,29 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
           <div data-testid="folder-sheet" className="relative flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 glass-surface">
             <header className="shrink-0 px-6 pt-6 pb-2">
               <h3 className="flex items-center gap-2 text-base font-bold text-white">
-                <Folder size={16} className="text-white/40" />移动到文件夹
+                <Folder size={16} className="text-white/40" />
+                {movingId === BATCH_MOVE ? `移动 ${selected.size} 篇到文件夹` : '移动到文件夹'}
               </h3>
             </header>
             <div className="flex-1 overflow-y-auto p-3">
               <FolderOption
                 label="未分组"
-                active={!scripts.find((s) => s.id === movingId)?.folder}
-                onClick={() => { onMoveToFolder?.(movingId, null); setMovingId(null); }}
+                active={movingId !== BATCH_MOVE && !scripts.find((s) => s.id === movingId)?.folder}
+                onClick={() => {
+                  if (movingId === BATCH_MOVE) handleBatchMove(null);
+                  else { onMoveToFolder?.(movingId, null); setMovingId(null); }
+                }}
               />
               {folders.map((f) => (
                 <FolderOption
                   key={f}
                   label={f}
                   count={scripts.filter((s) => s.folder === f).length}
-                  active={scripts.find((s) => s.id === movingId)?.folder === f}
-                  onClick={() => { onMoveToFolder?.(movingId, f); setMovingId(null); }}
+                  active={movingId !== BATCH_MOVE && scripts.find((s) => s.id === movingId)?.folder === f}
+                  onClick={() => {
+                    if (movingId === BATCH_MOVE) handleBatchMove(f);
+                    else { onMoveToFolder?.(movingId, f); setMovingId(null); }
+                  }}
                 />
               ))}
               <FolderOption

@@ -16,12 +16,15 @@ type View = 'list' | 'prompter' | 'editor';
 
 const POS_KEY = 'prompter_pos_';
 
-/** 撤销删除的快照与展示时长 */
+/** 撤销删除的快照与展示时长（支持单篇与整批） */
 const UNDO_WINDOW_MS = 2000;
-interface UndoableDelete {
+interface DeletedSnapshot {
   script: Script;
   index: number;
   wasFilmed: boolean;
+}
+interface UndoableDelete {
+  items: DeletedSnapshot[];
 }
 
 function loadPosition(id: string): number {
@@ -69,12 +72,16 @@ export default function App() {
     };
   }, []);
 
-  const handleDeleteScript = (id: string) => {
-    const index = scripts.findIndex((s) => s.id === id);
-    if (index === -1) return;
-    const snapshot: UndoableDelete = { script: scripts[index], index, wasFilmed: filmedIds.has(id) };
-    deleteScript(id);
-    setUndoable(snapshot);
+  const handleDeleteScripts = (ids: string[]) => {
+    const items: DeletedSnapshot[] = [];
+    for (const id of ids) {
+      const index = scripts.findIndex((s) => s.id === id);
+      if (index === -1) continue;
+      items.push({ script: scripts[index], index, wasFilmed: filmedIds.has(id) });
+    }
+    if (!items.length) return;
+    ids.forEach((id) => deleteScript(id));
+    setUndoable({ items });
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     undoTimerRef.current = setTimeout(() => setUndoable(null), UNDO_WINDOW_MS);
   };
@@ -82,8 +89,12 @@ export default function App() {
   const handleUndoDelete = () => {
     if (!undoable) return;
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    restoreScript(undoable.script, undoable.index);
-    if (undoable.wasFilmed) markFilmed(undoable.script.id); // clearStale 会清掉已删稿的标记，撤销时补回
+    // 按原索引升序回插，逐一还原到删除前的位置
+    const ordered = [...undoable.items].sort((a, b) => a.index - b.index);
+    for (const item of ordered) {
+      restoreScript(item.script, item.index);
+      if (item.wasFilmed) markFilmed(item.script.id); // clearStale 会清掉已删稿的标记，撤销时补回
+    }
     setUndoable(null);
   };
 
@@ -209,11 +220,12 @@ export default function App() {
         onFilterChange={setListFilter}
         onOpen={openPrompter}
         onEdit={(id) => { setActiveId(id); setEditSnapshot(null); setView('editor'); }}
-        onDelete={handleDeleteScript}
+        onDelete={(id) => handleDeleteScripts([id])}
         onCreate={handleCreate}
         onToggleFilmed={toggleFilmed}
         onToggleStar={toggleStar}
         onMoveToFolder={moveToFolder}
+        onBatchDelete={handleDeleteScripts}
         onDeleteAll={clearAll}
       />
       {/* 撤销删除（2 秒窗口，置顶显示）。

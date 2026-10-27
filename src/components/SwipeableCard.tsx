@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Edit3, Folder, Star, Trash2, X } from 'lucide-react';
 import { Script, DEFAULT_SETTINGS } from '../types';
 import { estimateDurationSeconds } from '../lib/speed';
@@ -11,6 +11,11 @@ import {
   COMMIT_DELETE_PX,
 } from '../hooks/useSwipeAction';
 
+/** 长按进入多选的触发时长 */
+export const LONG_PRESS_MS = 500;
+/** 长按容忍位移（超过视为拖动/滑动，取消长按） */
+const LONG_PRESS_SLOP = 10;
+
 interface Props {
   script: Script;
   isFilmed: boolean;
@@ -20,6 +25,12 @@ interface Props {
   starred?: boolean;
   /** 最近打开（返回列表时金边微光定位） */
   highlighted?: boolean;
+  /** 多选模式：点击=切换选中，禁用滑动与内部按钮 */
+  selectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
+  /** 长按触发（进入多选并选中本卡） */
+  onLongPress?: (id: string) => void;
   onToggleStar?: () => void;
   /** 打开「移动到文件夹」弹层 */
   onOpenFolderPicker?: () => void;
@@ -29,7 +40,7 @@ interface Props {
   onToggleFilmed: (id: string) => void;
 }
 
-export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SETTINGS.scrollSpeed, starred, highlighted, onToggleStar, onOpenFolderPicker, onOpen, onEdit, onDelete, onToggleFilmed }: Props) {
+export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SETTINGS.scrollSpeed, starred, highlighted, selectMode, isSelected, onToggleSelect, onLongPress, onToggleStar, onOpenFolderPicker, onOpen, onEdit, onDelete, onToggleFilmed }: Props) {
   // 删除退场：先播放收起动画，动画结束才真正 onDelete（配合上层撤销机制）
   const [exiting, setExiting] = useState(false);
   const beginExit = useCallback(() => setExiting(true), []);
@@ -39,6 +50,50 @@ export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SET
     onCommitLeft: beginExit,
   });
 
+  // 长按进入多选：按下起计时，位移超限/松手/系统取消即掐掉；触发后抑制随后的 click
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    pressStartRef.current = null;
+  }, []);
+
+  useEffect(() => cancelLongPress, [cancelLongPress]);
+
+  const handleRootPointerDown = useCallback((e: React.PointerEvent) => {
+    if (selectMode || exiting) return;
+    pressStartRef.current = { x: e.clientX, y: e.clientY };
+    longPressFiredRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true;
+      onLongPress?.(script.id);
+    }, LONG_PRESS_MS);
+  }, [selectMode, exiting, onLongPress, script.id]);
+
+  const handleRootPointerMove = useCallback((e: React.PointerEvent) => {
+    const start = pressStartRef.current;
+    if (!start) return;
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > LONG_PRESS_SLOP) cancelLongPress();
+  }, [cancelLongPress]);
+
+  const handleCardClick = () => {
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false; // 长按刚触发，吞掉这次 click
+      return;
+    }
+    if (selectMode) {
+      onToggleSelect?.(script.id);
+      return;
+    }
+    if (swipingRef.current) return;
+    onOpen(script.id);
+  };
+
   const handleAnimationEnd = () => {
     if (exiting) {
       onDelete(script.id);
@@ -47,20 +102,39 @@ export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SET
     clearShaking();
   };
 
-  const baseStyle = isFilmed
-    ? 'border-green-500/30 bg-green-500/[0.06]'
-    : highlighted
-      ? 'glass-card border-[#D4A432]/45 shadow-[0_0_22px_rgba(212,164,50,0.14)]'
-      : 'border-[#D4A432]/15 glass-card hover:border-[#D4A432]/50 hover:bg-white/[0.07]';
+  const baseStyle = selectMode && isSelected
+    ? 'glass-card border-[#D4A432]/60'
+    : isFilmed
+      ? 'border-green-500/30 bg-green-500/[0.06]'
+      : highlighted
+        ? 'glass-card border-[#D4A432]/45 shadow-[0_0_22px_rgba(212,164,50,0.14)]'
+        : 'border-[#D4A432]/15 glass-card hover:border-[#D4A432]/50 hover:bg-white/[0.07]';
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border transition-[border-color,background-color,scale] duration-200 active:scale-[0.98] ${baseStyle}${
-        highlighted ? ' card-hello' : ''
+      className={`swipe-card group relative overflow-hidden rounded-2xl border transition-[border-color,background-color,scale] duration-200 active:scale-[0.98] ${baseStyle}${
+        highlighted && !(selectMode && isSelected) ? ' card-hello' : ''
       }${shaking ? ' swipe-shake' : ''}${exiting ? ' card-exit' : ''}`}
       onAnimationEnd={handleAnimationEnd}
-      {...bind}
+      onPointerDown={handleRootPointerDown}
+      onPointerMove={handleRootPointerMove}
+      onPointerUp={cancelLongPress}
+      onPointerCancel={cancelLongPress}
+      onContextMenu={(e) => e.preventDefault()} // Android 长按会弹系统菜单
+      {...(selectMode || exiting ? {} : bind)}
     >
+      {/* 多选圈（右上角） */}
+      {selectMode && (
+        <div
+          className={`absolute right-3 top-3 z-20 flex h-[22px] w-[22px] items-center justify-center rounded-full border transition-colors ${
+            isSelected ? 'border-[#D4A432] bg-[#D4A432] text-[#0A0A0B]' : 'border-white/30 bg-black/40 text-transparent'
+          }`}
+          aria-hidden="true"
+        >
+          <Check size={13} strokeWidth={3} />
+        </div>
+      )}
+
       {/* Filmed indicators — fixed, do not slide with content */}
       {isFilmed && (
         <div className="absolute inset-y-0 left-0 z-10 w-[3px] rounded-l-2xl bg-green-500" />
@@ -123,10 +197,7 @@ export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SET
           background: swipeX !== 0 ? '#131316' : undefined,
           transition: swipingRef.current ? 'none' : 'transform 0.25s ease-out',
         }}
-        onClick={() => {
-          if (swipingRef.current) return;
-          onOpen(script.id);
-        }}
+        onClick={handleCardClick}
       >
         {/* Title Row */}
         <div className="mb-1.5 flex items-start justify-between">
@@ -136,8 +207,8 @@ export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SET
             )}
             <h3 className={`truncate text-base font-semibold ${isFilmed ? 'text-white/50 line-through' : 'text-white'}`}>{script.title}</h3>
           </div>
-          {/* Action buttons — ghost 样式：默认无底色，悬停才现淡底 */}
-          <div className="flex shrink-0 gap-1 ml-2">
+          {/* Action buttons — ghost 样式：默认无底色，悬停才现淡底（多选中禁用） */}
+          <div className={`flex shrink-0 gap-1 ml-2${selectMode ? ' pointer-events-none opacity-30' : ''}`}>
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(script.id); }}
               className="flex h-[var(--ctl-3-h)] items-center justify-center rounded-lg px-2.5 text-xs text-white/40 transition-colors hover:bg-white/15 hover:text-white active:scale-95"
@@ -169,7 +240,7 @@ export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SET
             <span className="text-white/15">|</span>
             <span>约{formatTime(estimateDurationSeconds(charCount, speed))}</span>
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-0.5">
+          <div className={`ml-auto flex shrink-0 items-center gap-0.5${selectMode ? ' pointer-events-none opacity-30' : ''}`}>
             <button
               onClick={(e) => { e.stopPropagation(); onOpenFolderPicker?.(); }}
               aria-label="移动到文件夹"

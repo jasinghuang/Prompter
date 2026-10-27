@@ -93,6 +93,31 @@ describe('App', () => {
     expect(JSON.parse(localStorage.getItem('prompter_scripts')!)[0].folder).toBe('带货');
   });
 
+  it('批量删除后撤销可整批恢复', async () => {
+    localStorage.setItem('prompter_scripts', JSON.stringify([
+      { id: '1', title: '甲', content: '内容一', createdAt: 2, updatedAt: 2 },
+      { id: '2', title: '乙', content: '内容二', createdAt: 1, updatedAt: 1 },
+    ]));
+    render(<App />);
+    // 长按进入多选
+    const card = screen.getByTestId('content-1').parentElement!;
+    fireEvent.pointerDown(card, { clientX: 100, clientY: 50 });
+    await act(async () => { await new Promise((r) => setTimeout(r, 550)); });
+    fireEvent.pointerUp(card);
+    fireEvent.click(screen.getByText('全选'));
+    fireEvent.click(screen.getByText(/删除所选 2/));
+    fireEvent.click(screen.getByText('确认删除'));
+    await waitFor(() => expect(screen.queryByText('甲')).toBeNull());
+    expect(screen.queryByText('乙')).toBeNull();
+    // 撤销 → 两篇都回来
+    fireEvent.click(screen.getByText('撤销删除'));
+    await waitFor(() => {
+      expect(screen.getByText('甲')).toBeInTheDocument();
+      expect(screen.getByText('乙')).toBeInTheDocument();
+    });
+    expect(JSON.parse(localStorage.getItem('prompter_scripts')!).map((s: { id: string }) => s.id).sort()).toEqual(['1', '2']);
+  });
+
   it('文件夹视图打开稿件返回后，仍停留在该文件夹', () => {
     localStorage.setItem('prompter_scripts', JSON.stringify([
       { id: '1', title: '甲', content: '内容一', createdAt: 2, updatedAt: 2 },

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, fireEvent, screen, within } from '@testing-library/react';
+import { render, fireEvent, screen, within, act } from '@testing-library/react';
 import { ScriptList } from './ScriptList';
 import { Script } from '../types';
 
@@ -15,6 +15,73 @@ describe('ScriptList', () => {
     );
     expect(screen.getByText('视频脚本')).toBeInTheDocument();
     expect(screen.getByText('会议发言')).toBeInTheDocument();
+  });
+
+  it('长按卡片 500ms 进入多选并选中该卡；多选中点击切换选中而非打开', () => {
+    vi.useFakeTimers();
+    try {
+      const onOpen = vi.fn();
+      render(
+        <ScriptList scripts={scripts} filmedIds={new Set()} onOpen={onOpen} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onToggleFilmed={() => {}} />
+      );
+      const card = screen.getByTestId('content-1').parentElement!;
+      fireEvent.pointerDown(card, { clientX: 100, clientY: 50 });
+      act(() => { vi.advanceTimersByTime(520); });
+      fireEvent.pointerUp(card);
+      // 多选栏出现，首卡已选中
+      expect(screen.getByText('已选 1 篇')).toBeInTheDocument();
+      // 长按后的 click 被抑制
+      fireEvent.click(screen.getByText('视频脚本'));
+      expect(onOpen).not.toHaveBeenCalled();
+      // 点击另一张卡 = 切换选中
+      fireEvent.click(screen.getByText('会议发言'));
+      expect(screen.getByText('已选 2 篇')).toBeInTheDocument();
+      expect(onOpen).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('多选：全选 → 确认批量删除 → onBatchDelete 收到全部 id 并退出多选', () => {
+    const onBatchDelete = vi.fn();
+    render(
+      <ScriptList scripts={scripts} filmedIds={new Set()} onBatchDelete={onBatchDelete} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onToggleFilmed={() => {}} />
+    );
+    // 直接渲染进多选态不可行（内部状态），用长按路径进入
+    vi.useFakeTimers();
+    const card = screen.getByTestId('content-1').parentElement!;
+    fireEvent.pointerDown(card, { clientX: 100, clientY: 50 });
+    act(() => { vi.advanceTimersByTime(520); });
+    fireEvent.pointerUp(card);
+    vi.useRealTimers();
+    fireEvent.click(screen.getByText('全选'));
+    expect(screen.getByText('已选 2 篇')).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/删除所选 2/));
+    fireEvent.click(screen.getByText('确认删除'));
+    expect(onBatchDelete).toHaveBeenCalledWith(['1', '2']);
+    // 退出多选：多选栏消失
+    expect(screen.queryByText('全选')).toBeNull();
+  });
+
+  it('多选：批量移动弹层应用到全部选中项', () => {
+    const onMoveToFolder = vi.fn();
+    render(
+      <ScriptList scripts={[{ ...scripts[0], folder: '甲' }, { ...scripts[1] }]} filmedIds={new Set()} onMoveToFolder={onMoveToFolder} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onToggleFilmed={() => {}} />
+    );
+    vi.useFakeTimers();
+    const card = screen.getByTestId('content-2').parentElement!;
+    fireEvent.pointerDown(card, { clientX: 100, clientY: 50 });
+    act(() => { vi.advanceTimersByTime(520); });
+    fireEvent.pointerUp(card);
+    vi.useRealTimers();
+    fireEvent.click(screen.getByText('视频脚本')); // 选中另一张（scripts[0]）
+    fireEvent.click(screen.getByText('移动到文件夹'));
+    const sheet = screen.getByTestId('folder-sheet');
+    expect(screen.getByText('移动 2 篇到文件夹')).toBeInTheDocument();
+    fireEvent.click(within(sheet).getByText('甲'));
+    expect(onMoveToFolder).toHaveBeenCalledWith('1', '甲');
+    expect(onMoveToFolder).toHaveBeenCalledWith('2', '甲');
+    expect(screen.queryByTestId('folder-sheet')).toBeNull(); // 完成后退出
   });
 
   it('卡片有点按反馈（active 轻缩放）', () => {

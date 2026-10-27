@@ -155,6 +155,13 @@ html.glass-solid .glass-button {
 }
 .toast-in { animation: toast-in 0.18s ease-out; }
 
+/* 卡片：长按多选需要禁用系统文本选择/长按呼出菜单（iOS callout / Android contextmenu） */
+.swipe-card {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* 最近打开卡片高亮：返回列表时轻呼吸两次把视线引过去，之后保持常亮金边微光 */
 @keyframes card-hello {
   0%, 100% { box-shadow: 0 0 22px 2px rgba(212, 164, 50, 0.14); }

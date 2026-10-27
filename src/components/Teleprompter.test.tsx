@@ -324,6 +324,8 @@ describe('Teleprompter 双指捏合调字号', () => {
           onBack={vi.fn()}
           onEdit={vi.fn()}
           onCompleted={vi.fn()}
+          isFilmed={false}
+          onToggleFilmed={vi.fn()}
         />
       );
     }
@@ -354,6 +356,8 @@ describe('Teleprompter 双指捏合调字号', () => {
           onBack={vi.fn()}
           onEdit={vi.fn()}
           onCompleted={vi.fn()}
+          isFilmed={false}
+          onToggleFilmed={vi.fn()}
         />
       );
     }
