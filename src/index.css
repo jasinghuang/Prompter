@@ -148,10 +148,10 @@ html.glass-solid .glass-button {
   pointer-events: none;
 }
 
-/* 撤销删除提示入场：顶部轻微下浮淡入（keyframe 内含 -50% 水平居中） */
+/* 撤销删除提示入场：顶部轻微下浮淡入（只动透明度与 Y，不碰水平居中） */
 @keyframes toast-in {
-  from { opacity: 0; transform: translate(-50%, -10px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .toast-in { animation: toast-in 0.18s ease-out; }
 

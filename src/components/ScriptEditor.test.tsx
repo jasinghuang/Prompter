@@ -101,13 +101,15 @@ describe('ScriptEditor', () => {
     expect(back.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // 返回按钮在标题左侧
   });
 
-  it('返回按钮胶囊左扩入页边距，图标在格内居中（与播放页同款）', () => {
+  it('返回按钮胶囊与播放页同位（顶 12px、左 16px+safe-area，无负 margin）', () => {
     render(<ScriptEditor {...makeProps()} />);
     const back = screen.getByTitle('返回');
-    // -ml-3 在胶囊壳的包裹层上，按钮本体负责图标居中
-    expect(back.parentElement!.parentElement!.className).toContain('-ml-3');
+    const capsule = back.parentElement!;
+    const wrapper = capsule.parentElement!;
+    expect(wrapper.className).not.toMatch(/-m[ltrb]-/); // 无负外距
+    const main = wrapper.closest('main')!;
+    expect(main.className).toContain('pt-[calc(0.75rem+env(safe-area-inset-top))]');
     expect(back.className).toContain('justify-center');
-    expect(back.className).not.toContain('justify-start');
   });
 
   // ── 智能拆分工具栏 ──

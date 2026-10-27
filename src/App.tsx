@@ -208,16 +208,20 @@ export default function App() {
         onMoveToFolder={moveToFolder}
         onDeleteAll={clearAll}
       />
-      {/* 撤销删除（2 秒窗口，置顶显示） */}
+      {/* 撤销删除（2 秒窗口，置顶显示）。
+          居中用 inset-x-0 mx-auto w-fit，不用 translate —— Tailwind v4 的
+          translate 工具类是独立 translate 属性，会和 keyframe 里的 transform 叠加导致跳动 */}
       {undoable && (
-        <button
-          onClick={handleUndoDelete}
-          aria-label="撤销删除"
-          className="toast-in fixed left-1/2 top-[calc(4.5rem+env(safe-area-inset-top))] z-[95] flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[#D4A432]/30 glass-surface px-5 py-2.5 text-sm font-bold text-[#D4A432] shadow-2xl transition-colors hover:bg-white/10 active:scale-95"
-        >
-          <Undo2 size={14} />
-          撤销删除
-        </button>
+        <div className="toast-in pointer-events-none fixed inset-x-0 top-[calc(4.5rem+env(safe-area-inset-top))] z-[95] mx-auto w-fit">
+          <button
+            onClick={handleUndoDelete}
+            aria-label="撤销删除"
+            className="flex items-center gap-1.5 rounded-full border border-[#D4A432]/30 glass-surface px-5 py-2.5 text-sm font-bold text-[#D4A432] shadow-2xl transition-colors hover:bg-white/10 active:scale-95"
+          >
+            <Undo2 size={14} />
+            撤销删除
+          </button>
+        </div>
       )}
       <AddToHomeScreenPrompt />
     </>

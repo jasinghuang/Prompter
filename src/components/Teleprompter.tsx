@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, ChevronLeft, CircleCheck, PenLine, Play, SlidersHorizontal } from 'lucide-react';
+import { ArrowUp, ChevronLeft, CircleCheck, CirclePause, PenLine, Play, SlidersHorizontal } from 'lucide-react';
 import { Script, TeleprompterSettings } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
@@ -448,7 +448,7 @@ export function Teleprompter({
           paddingRight: 'calc(1rem + env(safe-area-inset-right))',
         }}
       >
-        {/* 左胶囊：返回 + 录制状态/计时 */}
+        {/* 左胶囊：返回 + 录制状态/计时（暂停时双竖线，播放中红点） */}
         <Capsule>
           <CapsuleButton label="返回" onClick={handleBack}>
             <ChevronLeft size={18} />
@@ -458,12 +458,14 @@ export function Teleprompter({
             className="flex h-[34px] items-center gap-[7px] rounded-full px-[11px]"
             aria-label={isPlaying ? '播放中' : '已暂停'}
           >
-            <span
-              className="h-2 w-2 rounded-full"
-              style={isPlaying
-                ? { background: 'var(--color-danger)', boxShadow: 'var(--shadow-record)' }
-                : { background: 'rgba(255,255,255,0.25)' }}
-            />
+            {isPlaying ? (
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ background: 'var(--color-danger)', boxShadow: 'var(--shadow-record)' }}
+              />
+            ) : (
+              <CirclePause size={10} className="text-white/35" />
+            )}
             <span className="font-mono text-[13px] tracking-wide tabular-nums text-white/60">
               {formatTime(elapsedSeconds)}
             </span>
@@ -472,27 +474,33 @@ export function Teleprompter({
 
         <div className="min-w-0 flex-1" />
 
-        {/* 右胶囊：标记已拍摄 / 编辑 / 设置 */}
-        <Capsule>
-          <CapsuleButton
-            label={isFilmed ? '取消已拍摄标记' : '标记为已拍摄'}
-            active={isFilmed}
-            onClick={() => {
-              onToggleFilmed();
-              showPauseToast(isFilmed ? '已取消已拍摄标记' : '已标记拍摄 ✓');
-            }}
-          >
-            <CircleCheck size={18} strokeWidth={2.4} />
-          </CapsuleButton>
-          <CapsuleDivider />
-          <CapsuleButton label="编辑" onClick={handleEdit}>
-            <PenLine size={18} />
-          </CapsuleButton>
-          <CapsuleDivider />
-          <CapsuleButton label="设置" onClick={() => setShowSettings(true)}>
-            <SlidersHorizontal size={18} strokeWidth={2.4} />
-          </CapsuleButton>
-        </Capsule>
+        {/* 右胶囊：标记已拍摄 / 编辑 / 设置 —— 播放中自动隐藏（防误触/不抢正文视线） */}
+        <div
+          className={`transition-all duration-300 ${
+            isPlaying ? 'pointer-events-none -translate-y-2 opacity-0' : 'translate-y-0 opacity-100'
+          }`}
+        >
+          <Capsule>
+            <CapsuleButton
+              label={isFilmed ? '取消已拍摄标记' : '标记为已拍摄'}
+              active={isFilmed}
+              onClick={() => {
+                onToggleFilmed();
+                showPauseToast(isFilmed ? '已取消已拍摄标记' : '已标记拍摄 ✓');
+              }}
+            >
+              <CircleCheck size={18} strokeWidth={2.4} />
+            </CapsuleButton>
+            <CapsuleDivider />
+            <CapsuleButton label="编辑" onClick={handleEdit}>
+              <PenLine size={18} />
+            </CapsuleButton>
+            <CapsuleDivider />
+            <CapsuleButton label="设置" onClick={() => setShowSettings(true)}>
+              <SlidersHorizontal size={18} strokeWidth={2.4} />
+            </CapsuleButton>
+          </Capsule>
+        </div>
       </div>
 
       {/* ── Center Play Hint（暂停时提示可点击播放）──

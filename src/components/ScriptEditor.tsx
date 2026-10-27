@@ -86,10 +86,16 @@ export function ScriptEditor({
 
   return (
     <div className="flex min-h-screen flex-col bg-[#0A0A0B]">
-      <main className="mx-auto flex w-full max-w-[45rem] flex-1 flex-col px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        {/* Title Row: Back + Title Input —— 与播放页同款胶囊返回 */}
+      <main
+        className="mx-auto flex w-full max-w-[45rem] flex-1 flex-col pt-[calc(0.75rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        style={{
+          paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
+          paddingRight: 'calc(1rem + env(safe-area-inset-right))',
+        }}
+      >
+        {/* Title Row: Back + Title Input —— 返回胶囊与播放页同位（顶 12px/左 16px+safe-area） */}
         <div className="flex items-center gap-1">
-          <div className="-ml-3 shrink-0">
+          <div className="shrink-0">
             <Capsule>
               <CapsuleButton label="返回" onClick={handleBack}>
                 <ChevronLeft size={18} />

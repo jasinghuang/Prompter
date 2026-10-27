@@ -134,6 +134,26 @@ describe('Teleprompter 读完动作', () => {
     expect(hint.closest('div')!.className).toContain('pointer-events-none');
   });
 
+  it('暂停时计时旁为双竖线暂停图标，播放中右上角操作胶囊自动隐藏', () => {
+    renderTel();
+    // 暂停态：状态格内是 CirclePause 图标
+    const statusCell = screen.getByLabelText('已暂停');
+    expect(statusCell.querySelector('svg')).not.toBeNull();
+    // 轻点屏幕开始播放（viewport 的 pointer 切换）
+    const vp = document.querySelector('.teleprompter-touch')!;
+    fireEvent.pointerDown(vp, { clientY: 100 });
+    fireEvent.pointerUp(vp, { clientY: 100 });
+    // 播放中：红点态 + 右上角操作胶囊淡出且不可点
+    expect(screen.getByLabelText('播放中')).toBeInTheDocument();
+    const settingsWrap = screen.getByLabelText('设置').parentElement!.parentElement!;
+    expect(settingsWrap.className).toContain('opacity-0');
+    expect(settingsWrap.className).toContain('pointer-events-none');
+    // 再轻点暂停 → 胶囊恢复
+    fireEvent.pointerDown(vp, { clientY: 100 });
+    fireEvent.pointerUp(vp, { clientY: 100 });
+    expect(screen.getByLabelText('设置').parentElement!.parentElement!.className).not.toContain('opacity-0');
+  });
+
   it('手动返回不触发 onCompleted', () => {
     const h = renderTel(LIST_MODE);
     act(() => {
