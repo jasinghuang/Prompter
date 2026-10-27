@@ -55,7 +55,7 @@ export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SET
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border transition-colors duration-200 ${baseStyle}${
+      className={`group relative overflow-hidden rounded-2xl border transition-[border-color,background-color,scale] duration-200 active:scale-[0.98] ${baseStyle}${
         highlighted ? ' card-hello' : ''
       }${shaking ? ' swipe-shake' : ''}${exiting ? ' card-exit' : ''}`}
       onAnimationEnd={handleAnimationEnd}

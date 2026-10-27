@@ -17,6 +17,13 @@ describe('ScriptList', () => {
     expect(screen.getByText('会议发言')).toBeInTheDocument();
   });
 
+  it('卡片有点按反馈（active 轻缩放）', () => {
+    render(
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+    );
+    expect(screen.getByTestId('content-1').parentElement!.className).toContain('active:scale-[0.98]');
+  });
+
   it('highlightId 指定的卡片带「最近打开」高亮（金边 + 呼吸动画）', () => {
     render(
       <ScriptList scripts={scripts} filmedIds={new Set()} highlightId="2" onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
