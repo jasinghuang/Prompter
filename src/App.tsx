@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Undo2 } from 'lucide-react';
 import { useTransientFlag } from './hooks/useTransientFlag';
-import { ScriptList } from './components/ScriptList';
+import { ScriptList, type Filter } from './components/ScriptList';
 import { ScriptEditor } from './components/ScriptEditor';
 import { Teleprompter } from './components/Teleprompter';
 import { AddToHomeScreenPrompt } from './components/AddToHomeScreenPrompt';
@@ -44,6 +44,8 @@ export default function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
   // 最近打开的稿件：返回列表时其卡片保持高亮，一眼找回位置（会话级）
   const [lastOpenedId, setLastOpenedId] = useState<string | null>(null);
+  // 列表过滤器提升到 App：进播放页返回后仍停留在原文件夹（会话级）
+  const [listFilter, setListFilter] = useState<Filter>('all');
   // 提词器当前阅读位置（受控，供编辑返回定位使用）
   const [prompterIndex, setPrompterIndex] = useState(0);
   // 从提词器进入编辑时的快照
@@ -203,6 +205,8 @@ export default function App() {
         filmedIds={filmedIds}
         speed={settings.scrollSpeed}
         highlightId={lastOpenedId}
+        filter={listFilter}
+        onFilterChange={setListFilter}
         onOpen={openPrompter}
         onEdit={(id) => { setActiveId(id); setEditSnapshot(null); setView('editor'); }}
         onDelete={handleDeleteScript}

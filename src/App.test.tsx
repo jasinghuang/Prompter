@@ -93,6 +93,23 @@ describe('App', () => {
     expect(JSON.parse(localStorage.getItem('prompter_scripts')!)[0].folder).toBe('带货');
   });
 
+  it('文件夹视图打开稿件返回后，仍停留在该文件夹', () => {
+    localStorage.setItem('prompter_scripts', JSON.stringify([
+      { id: '1', title: '甲', content: '内容一', createdAt: 2, updatedAt: 2 },
+      { id: '2', title: '乙', content: '内容二', createdAt: 1, updatedAt: 1, folder: '口播' },
+    ]));
+    render(<App />);
+    // 进入「口播」文件夹（chips 行在前的同名元素）
+    fireEvent.click(screen.getAllByText('口播')[0]);
+    expect(screen.queryByText('甲')).toBeNull(); // 只剩乙
+    // 打开乙再返回
+    fireEvent.click(screen.getByText('乙'));
+    fireEvent.click(screen.getByLabelText('返回'));
+    // 仍在文件夹视图：甲仍隐藏、乙在
+    expect(screen.queryByText('甲')).toBeNull();
+    expect(screen.getByText('乙')).toBeInTheDocument();
+  });
+
   it('从播放页返回列表后，刚打开的卡片保持高亮', () => {
     localStorage.setItem('prompter_scripts', JSON.stringify([
       { id: '1', title: '甲', content: '内容一', createdAt: 2, updatedAt: 2 },

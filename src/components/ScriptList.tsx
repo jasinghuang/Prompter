@@ -11,6 +11,9 @@ interface Props {
   speed?: number;
   /** 最近打开的稿件 id：其卡片保持金边微光，返回列表时一眼定位 */
   highlightId?: string | null;
+  /** 受控过滤器（App 持有，进入播放页返回后仍停留在原文件夹）；不传则组件内部管理 */
+  filter?: Filter;
+  onFilterChange?: (f: Filter) => void;
   onOpen: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
@@ -23,7 +26,7 @@ interface Props {
 
 type SortKey = 'date' | 'title' | 'chars';
 /** 列表过滤器：all = 全部 / starred = 星标 / 其余值 = 文件夹名 */
-type Filter = 'all' | 'starred' | string;
+export type Filter = 'all' | 'starred' | string;
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'date', label: '日期' },
@@ -56,15 +59,20 @@ function loadSort(): { sort: SortKey; asc: boolean } {
   return { sort: 'date', asc: false };
 }
 
-export function ScriptList({ scripts, filmedIds, speed, highlightId, onOpen, onEdit, onDelete, onCreate, onToggleFilmed, onToggleStar, onMoveToFolder, onDeleteAll }: Props) {
+export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: filterProp, onFilterChange, onOpen, onEdit, onDelete, onCreate, onToggleFilmed, onToggleStar, onMoveToFolder, onDeleteAll }: Props) {
   const [query, setQuery] = useState('');
   const initPrefs = useMemo(() => loadSort(), []);
   const [sort, setSort] = useState<SortKey>(initPrefs.sort);
   const [asc, setAsc] = useState<boolean>(initPrefs.asc);
   const [confirmClear, setConfirmClear] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  // 文件夹/星标过滤与移动弹层
-  const [filter, setFilter] = useState<Filter>('all');
+  // 文件夹/星标过滤与移动弹层（受控：App 传入时跨视图保持，否则内部管理）
+  const [innerFilter, setInnerFilter] = useState<Filter>('all');
+  const filter = filterProp ?? innerFilter;
+  const setFilter = useCallback((f: Filter) => {
+    setInnerFilter(f);
+    onFilterChange?.(f);
+  }, [onFilterChange]);
   const [movingId, setMovingId] = useState<string | null>(null);
   // 新建文件夹弹层（从「移动到文件夹」弹层进入，创建后把目标稿件移入）
   const [creatingFolder, setCreatingFolder] = useState<{ assignTo: string } | null>(null);
