@@ -13,10 +13,10 @@ interface Options {
 }
 
 /**
- * 生成极轻的 WAV（0.5s / 8kHz / 16bit / 幅值 1 LSB）。
- * 浏览器只把耳机按键派发给「正在播放媒体」的页面：循环播放这轨
- * 不可闻的真实音频流即可持有媒体会话（幅值非零是关键——纯静音
- * 会被部分系统判定为无播放）。
+ * 生成保活 WAV（0.5s / 8kHz / 16bit）。
+ * 采样为恒定值 500（约 -36dBFS 的直流）：对操作系统是"非零的真实音频流"，
+ * 对扬声器是无法发声的直流信号——人耳完全听不见。
+ * （幅值过低的交流/纯零采样会被 iOS 判定为无播放，媒体会话拿不到。）
  */
 function createSilentAudioUrl(): string {
   const sampleRate = 8000;
@@ -39,7 +39,7 @@ function createSilentAudioUrl(): string {
   view.setUint16(34, 16, true); // bits
   writeStr(36, 'data');
   view.setUint32(40, numSamples * 2, true);
-  for (let i = 0; i < numSamples; i++) view.setInt16(44 + i * 2, 1, true);
+  for (let i = 0; i < numSamples; i++) view.setInt16(44 + i * 2, 500, true);
   return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
 }
 
@@ -71,6 +71,14 @@ export function useMediaSession({ title, isPlaying, onTogglePlay, onSpeedUp, onS
       const audio = new Audio(url);
       audio.loop = true;
       audio.setAttribute('playsinline', 'true');
+      audio.style.display = 'none';
+      document.body.appendChild(audio); // iOS PWA 对游离 audio 元素的播放不稳定，挂进 DOM
+      // 看门狗：iOS 在音频路由变化（戴上/摘下耳机）、来电打断等情况会自动暂停
+      // 保活音频导致会话丢失。元素已在手势内解锁过，这里免手势直接复活。
+      audio.addEventListener('pause', () => {
+        if (!activatedRef.current) return;
+        Promise.resolve(audio.play()).catch(() => { /* 复活失败等下次手势重试 */ });
+      });
       Promise.resolve(audio.play()).catch(() => {
         // 手势外被浏览器拦截 → 允许下次手势重试
         activatedRef.current = false;
@@ -126,11 +134,12 @@ export function useMediaSession({ title, isPlaying, onTogglePlay, onSpeedUp, onS
   // 卸载：停掉保活音频并释放资源
   useEffect(() => {
     return () => {
+      activatedRef.current = false; // 先置否决，避免看门狗在清理过程中复活音频
       audioRef.current?.pause();
+      audioRef.current?.remove();
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
       audioRef.current = null;
       audioUrlRef.current = null;
-      activatedRef.current = false;
     };
   }, []);
 
