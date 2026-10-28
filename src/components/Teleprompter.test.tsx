@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useState } from 'react';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { Teleprompter } from './Teleprompter';
 import { Script, DEFAULT_SETTINGS, TeleprompterSettings } from '../types';
 
@@ -126,6 +126,15 @@ describe('Teleprompter 读完动作', () => {
     fireEvent.click(screen.getByLabelText('标记为已拍摄'));
     expect(h.onToggleFilmed).toHaveBeenCalledTimes(1);
     expect(screen.getByText('已标记拍摄 ✓')).toBeInTheDocument();
+  });
+
+  it('左胶囊含「前置镜子」按钮，点击弹出镜子弹窗', async () => {
+    renderTel();
+    fireEvent.click(screen.getByLabelText('前置镜子'));
+    // jsdom 无 mediaDevices → 弹窗显示对应的错误态（真实链路见 CameraMirror.test 的 mock 用例）
+    await waitFor(() => expect(screen.getByText('未检测到可用的摄像头')).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText('关闭镜子'));
+    expect(screen.queryByLabelText('关闭镜子')).toBeNull();
   });
 
   it('暂停时中央显示播放提示，容器穿透不拦截点击', () => {

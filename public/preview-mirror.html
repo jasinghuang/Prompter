@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>前置化妆镜 · 方案预览</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --canvas: #0A0A0B; --border: #26262B; --t1: #F5F5F5; --t2: #A1A1AA; --t3: #71717A;
+    --accent: #D4A432;
+  }
+  body { background: var(--canvas); color: var(--t1); font-family: -apple-system, "PingFang SC", sans-serif; padding: 36px 20px 120px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 21px; margin-bottom: 6px; }
+  .sub { color: var(--t3); font-size: 13px; margin-bottom: 8px; line-height: 1.7; }
+  .hint { font-size: 12px; color: var(--accent); background: rgba(212,164,50,.1); border: 1px solid rgba(212,164,50,.25); border-radius: 10px; padding: 8px 12px; margin-bottom: 24px; display: inline-block; }
+
+  /* 舞台：横屏播放页 mock */
+  .stage { position: relative; height: 380px; border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
+    background: radial-gradient(130% 170% at 50% 0%, #101014 0%, var(--canvas) 65%); }
+  .script { position: absolute; inset: 0; padding: 84px 84px; font-size: 20px; line-height: 1.85; color: rgba(255,255,255,.85); }
+  .guide { position: absolute; top: 50%; width: 4px; height: 84px; border-radius: 99px; background: #D4A432; box-shadow: 0 0 12px 1px rgba(212,164,50,.55); transform: translateY(-50%); }
+  .guide.l { left: 20px; } .guide.r { right: 20px; }
+  .topbar { position: absolute; top: 12px; left: 0; right: 0; display: flex; align-items: center; padding: 0 16px; gap: 10px; z-index: 10; }
+  .dock { display: flex; align-items: center; height: 44px; background: rgba(19,19,22,.72); border: 1px solid rgba(255,255,255,.07); border-radius: 99px; padding: 0 5px; }
+  .cell { height: 34px; min-width: 34px; padding: 0 11px; border-radius: 99px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: rgba(255,255,255,.55); cursor: pointer; }
+  .cell:active { background: rgba(255,255,255,.1); }
+  .cell.time { gap: 7px; font-size: 13px; font-family: ui-monospace, monospace; cursor: default; }
+  .cell .dot { width: 10px; height: 10px; border-radius: 99px; border-left: 3px solid currentColor; border-right: 3px solid currentColor; color: rgba(255,255,255,.4); }
+  .div { width: 1px; height: 16px; background: rgba(255,255,255,.1); margin: 0 5px; }
+  .sp { flex: 1; }
+  .cell.mirror-btn { color: #D4A432; background: rgba(212,164,50,.14); }
+  .center-hint { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 5; }
+  .center-hint .circle { width: 64px; height: 64px; border-radius: 99px; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; font-size: 22px; color: rgba(255,255,255,.8); padding-left: 4px; }
+  .center-hint span { font-size: 12px; color: rgba(255,255,255,.45); }
+
+  /* 相机按钮上的指引箭头标注 */
+  .anno { position: absolute; font-size: 11px; color: #4ADE80; background: rgba(74,222,128,.1); border: 1px solid rgba(74,222,128,.35); border-radius: 6px; padding: 3px 8px; z-index: 20; white-space: nowrap; }
+  .anno::before { content: '→ '; }
+
+  /* 镜子弹窗 */
+  .mirror-overlay { position: absolute; inset: 0; z-index: 30; background: rgba(0,0,0,.55); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center; }
+  .mirror-overlay.open { display: flex; animation: fadein .18s ease-out; }
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+  .mirror-card { position: relative; height: 82%; aspect-ratio: 3/4; border-radius: 22px; overflow: hidden;
+    background: #131316; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 24px 70px rgba(0,0,0,.6); animation: pop .22s cubic-bezier(.22,1,.36,1); }
+  @keyframes pop { from { transform: scale(.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .mirror-card video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); /* 自拍镜像 */ }
+  .mirror-close { position: absolute; top: 10px; right: 10px; z-index: 2; width: 34px; height: 34px; border-radius: 99px;
+    background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.15); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer; }
+  .mirror-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--t2); font-size: 13px; padding: 24px; text-align: center; }
+  .spinner { width: 26px; height: 26px; border-radius: 99px; border: 3px solid rgba(255,255,255,.15); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  table.spec { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 22px; }
+  table.spec th, table.spec td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.06); color: var(--t2); }
+  table.spec th { color: var(--t1); font-weight: 600; }
+  table.spec td:first-child { color: var(--t3); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>前置化妆镜 · 方案预览</h1>
+  <p class="sub">这是真实交互预览：点播放页右胶囊里的 <b style="color:#D4A432">相机按钮</b> 会请求摄像头并显示你的镜像画面；点画面可定格/恢复；点 ✕ 或遮罩关闭并立即释放摄像头。</p>
+  <span class="hint">⚠️ 预览使用你真实的摄像头（画面不离开本机、不录制、关闭即释放）</span>
+
+  <div class="stage" id="stage">
+    <div class="guide l"></div><div class="guide r"></div>
+    <div class="script">广发证券新客开户福利来了！从现在起，新客来开户，可立享专属 VIP 优惠佣金、沪深 Level-2 十档行情、超 30 款智能投资工具等多重新客福利……<br>你还在等什么？点击下方链接有专人接待您。</div>
+
+    <div class="topbar">
+      <div class="dock">
+        <div class="cell">‹</div>
+        <div class="div"></div>
+        <div class="cell time"><span class="dot"></span>03:24</div>
+        <div class="div"></div>
+        <div class="cell mirror-btn" id="openMirror" title="前置镜子">📷</div>
+      </div>
+      <div class="sp"></div>
+      <div class="dock">
+        <div class="cell" title="标记已拍摄">✓</div>
+        <div class="div"></div>
+        <div class="cell" title="编辑">✎</div>
+        <div class="div"></div>
+        <div class="cell" title="设置">☰</div>
+      </div>
+    </div>
+    <div class="anno" style="top:64px; left:16px;">相机按钮放在左胶囊（时间右边）</div>
+
+    <div class="center-hint">
+      <div class="circle">▶</div>
+      <span>点击屏幕任意位置播放</span>
+    </div>
+
+    <!-- 镜子弹窗 -->
+    <div class="mirror-overlay" id="overlay">
+      <div class="mirror-card" id="mirrorCard">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="mirror-state" id="state">
+          <div class="spinner"></div>
+          <span>正在开启前置摄像头…</span>
+        </div>
+        <button class="mirror-close" id="closeBtn" aria-label="关闭">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <table class="spec">
+    <tr><th>行为</th><th>说明</th></tr>
+    <tr><td>临时取流</td><td>打开弹窗才请求摄像头；关闭立即 stop 全部轨道（系统摄像头指示灯熄灭）</td></tr>
+    <tr><td>镜像预览</td><td>水平翻转（与系统相机自拍一致），竖向 3:4 卡片适配横屏</td></tr>
+    <tr><td>入口位置</td><td>左胶囊（返回+计时）的第 3 格，计时右边；播放中随胶囊常驻可见</td></tr>
+    <tr><td>错误兜底</td><td>权限被拒 / 无摄像头 / 被占用 分别提示；iOS 首次使用弹系统授权</td></tr>
+    <tr><td>隐私</td><td>纯本地预览，不录制、不上传，与应用零后端立场一致</td></tr>
+  </table>
+</div>
+
+<script>
+  const overlay = document.getElementById('overlay');
+  const video = document.getElementById('video');
+  const state = document.getElementById('state');
+  let stream = null;
+
+  async function openMirror() {
+    overlay.classList.add('open');
+    state.style.display = 'flex';
+    state.innerHTML = '<div class="spinner"></div><span>正在开启前置摄像头…</span>';
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 720 } },
+        audio: false,
+      });
+      video.srcObject = stream;
+      await video.play().catch(() => {});
+      state.style.display = 'none';
+    } catch (err) {
+      const msg = err && err.name === 'NotAllowedError'
+        ? '摄像头权限被拒绝<br>可在系统设置中允许后重试'
+        : (err && err.name === 'NotFoundError' ? '未检测到摄像头' : '摄像头暂时不可用（可能被其他应用占用）');
+      state.innerHTML = '<span style="font-size:22px">📷</span><span>' + msg + '</span>';
+      state.style.display = 'flex';
+    }
+  }
+
+  function closeMirror() {
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    video.srcObject = null;
+    overlay.classList.remove('open');
+  }
+
+  document.getElementById('openMirror').addEventListener('click', openMirror);
+  document.getElementById('closeBtn').addEventListener('click', (e) => { e.stopPropagation(); closeMirror(); });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeMirror(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMirror(); });
+</script>
+</body>
+</html>

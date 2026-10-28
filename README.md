@@ -14,6 +14,7 @@
 
 - **双胶囊顶栏**：左「返回 + 录制计时」、右「✓ 标记已拍摄 / 编辑 / 设置」；**播放中右侧操作胶囊自动隐藏**，不与文案抢视线
 - **双指捏合**：直接缩放提词字号，捏合中实时显示当前字号
+- **前置化妆镜**：播放页左胶囊的相机按钮临时开启前置摄像头（横屏竖向镜像预览），关闭即释放；纯本地预览不录制不上传
 - **回到顶部**：滚动停在最底部时出现按钮，一键回到开头
 - **底部工具栏**：暂停时淡入，单行滑块（44px 命中区）调字号和速度，退场与顶栏同款轻动画
 
@@ -67,7 +68,7 @@
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 223 个单元测试
+npm test         # 229 个单元测试
 npm run build    # 输出 dist/（单文件 HTML）
 ```
 
@@ -81,7 +82,7 @@ Push 到 `main` 自动通过 GitHub Actions 部署到 GitHub Pages。
 
 - **零运行时依赖**（仅 React 与图标库）：无路由库、无状态管理库、无动画库——三视图状态机手写、FLIP 动画手写、撤销系统手写
 - **PWA**：自写 Service Worker（导航 network-first 带 3s 超时兜底、静态资源 cache-first）+ manifest 横屏全屏；`vite-plugin-singlefile` 把整个应用打进一个 HTML
-- **平台 API**：Wake Lock（屏幕常亮，含卸载竞态处理）、`beforeinstallprompt`、ResizeObserver、Pointer Events（长按多选/捏合字号）
+- **平台 API**：getUserMedia（前置化妆镜）、Wake Lock（屏幕常亮，含卸载竞态处理）、`beforeinstallprompt`、ResizeObserver、Pointer Events（长按多选/捏合字号）
 - **设计系统**：CSS 变量统一管理颜色/圆角/阴影与**控件层级阶梯**（T1 主操作 44px → T2 内容导航 40px → T3 工具 32px → T4 元信息 12px 文字），列表/播放/编辑三页共用同一套 token
 - **组件复用**：`CapsuleButton`（胶囊控件体系）、`SegmentedPill`、`FilterChip` 等跨页共享，保证设计语言一致
 

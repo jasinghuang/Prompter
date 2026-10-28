@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, ChevronLeft, CircleCheck, CirclePause, PenLine, Play, SlidersHorizontal } from 'lucide-react';
+import { ArrowUp, Camera, ChevronLeft, CircleCheck, CirclePause, PenLine, Play, SlidersHorizontal } from 'lucide-react';
 import { Script, TeleprompterSettings } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
@@ -15,6 +15,7 @@ import { ScriptText } from './ScriptText';
 import { Controls } from './Controls';
 import { SettingsPanel } from './SettingsPanel';
 import { Capsule, CapsuleButton, CapsuleDivider } from './CapsuleButton';
+import { CameraMirror } from './CameraMirror';
 
 interface Props {
   script: Script;
@@ -63,6 +64,7 @@ export function Teleprompter({
 }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showMirror, setShowMirror] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !hasOnboarded());
   // 手指/指针按住屏幕（拖拽浏览）时隐藏中央播放提示，松手恢复
   const [pointerDown, setPointerDown] = useState(false);
@@ -454,7 +456,7 @@ export function Teleprompter({
           paddingRight: 'calc(1rem + env(safe-area-inset-right))',
         }}
       >
-        {/* 左胶囊：返回 + 录制状态/计时（暂停时双竖线，播放中红点） */}
+        {/* 左胶囊：返回 + 录制状态/计时（暂停时双竖线，播放中红点）+ 前置镜子 */}
         <Capsule>
           <CapsuleButton label="返回" onClick={handleBack}>
             <ChevronLeft size={18} />
@@ -477,6 +479,10 @@ export function Teleprompter({
               {formatTime(elapsedSeconds)}
             </span>
           </div>
+          <CapsuleDivider />
+          <CapsuleButton label="前置镜子" onClick={() => setShowMirror(true)}>
+            <Camera size={18} strokeWidth={2.4} />
+          </CapsuleButton>
         </Capsule>
 
         <div className="min-w-0 flex-1" />
@@ -612,6 +618,9 @@ export function Teleprompter({
         onChange={onChangeSettings}
         onClose={() => setShowSettings(false)}
       />
+
+      {/* ── Front Camera Mirror（临时化妆镜，关闭即释放摄像头） ── */}
+      <CameraMirror open={showMirror} onClose={() => setShowMirror(false)} />
     </div>
   );
 }

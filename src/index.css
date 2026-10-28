@@ -176,6 +176,12 @@ html.glass-solid .glass-button {
 }
 .play-hint { animation: hint-pulse 2.4s ease-in-out infinite; }
 
+/* 化妆镜卡片入场 */
+@keyframes mirror-pop {
+  from { transform: scale(0.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
 /* ================================================================
    Reduced Motion
    ================================================================ */
