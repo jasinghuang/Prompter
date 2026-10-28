@@ -10,7 +10,6 @@ import { usePauseOnKeyword } from '../hooks/usePauseOnKeyword';
 import { usePauseOnParagraph } from '../hooks/usePauseOnParagraph';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useTransientFlag } from '../hooks/useTransientFlag';
-import { useMediaSession } from '../hooks/useMediaSession';
 import { computePinchFontSize } from '../lib/pinch';
 import { ScriptText } from './ScriptText';
 import { Controls } from './Controls';
@@ -250,22 +249,12 @@ export function Teleprompter({
     showPauseToast(msg);
   }, [showPauseToast]);
 
-  // 调速（键盘 ↑↓ 与耳机双击/三击共用）：夹紧范围 + toast 反馈
+  // 调速（键盘 ↑↓）：夹紧范围 + toast 反馈
   const changeSpeed = useCallback((delta: number) => {
     const next = Math.min(SPEED_MAX, Math.max(SPEED_MIN, settings.scrollSpeed + delta));
     onChangeSettings({ scrollSpeed: next });
     showPauseToast(`速度 ${next} 字/分`);
   }, [settings.scrollSpeed, onChangeSettings, showPauseToast]);
-
-  // 耳机媒体键：单击 播放/暂停，双击 加速，三击 减速（音频会话须在用户手势内激活）
-  const { activate: activateMediaSession } = useMediaSession({
-    title: script.title,
-    isPlaying,
-    onTogglePlay: () => setIsPlaying((p) => !p),
-    onSpeedUp: () => changeSpeed(20),
-    onSpeedDown: () => changeSpeed(-20),
-    onActivated: () => showPauseToast('耳机遥控已就绪'),
-  });
 
   const resetKeywordPause = usePauseOnKeyword({
     isPlaying,
@@ -330,7 +319,6 @@ export function Teleprompter({
         if (showSettings) return;
         if (e.repeat) return;
         e.preventDefault();
-        activateMediaSession(); // 键盘事件同样算用户手势，顺手激活耳机会话
         setIsPlaying((p) => !p);
         return;
       }
@@ -363,8 +351,6 @@ export function Teleprompter({
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     setPointerDown(true);
     touchStartRef.current = { y: e.clientY };
-    activateMediaSession(); // 按下即激活（比松手更早拿到用户手势，iOS 上更稳）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
@@ -374,9 +360,7 @@ export function Teleprompter({
     if (!start) return;
     if (Date.now() < suppressTapUntilRef.current) return;
     if (Math.abs(e.clientY - start.y) > 8) return;
-    activateMediaSession(); // 用户手势内激活媒体会话（耳机按键从此可达）
     setIsPlaying((p) => !p);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 双指捏合调字号：原生 touch 事件（React 合成 touchmove 是 passive 无法 preventDefault）。
