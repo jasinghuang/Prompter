@@ -74,7 +74,7 @@ export function CameraMirror({ open, onClose }: Props) {
   return (
     <div className="absolute inset-0 z-[75] flex items-center justify-center bg-black/55 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="relative aspect-[3/4] h-[82%] overflow-hidden rounded-[22px] border border-white/10 bg-[#131316] shadow-2xl"
+        className="relative aspect-square h-[88%] max-w-[80%] overflow-hidden rounded-[22px] border border-white/10 bg-[#131316] shadow-2xl"
         style={{ animation: 'mirror-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1)' }}
         onClick={(e) => e.stopPropagation()}
       >
