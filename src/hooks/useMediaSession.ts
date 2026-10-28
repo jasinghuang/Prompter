@@ -16,13 +16,16 @@ interface Options {
 
 /**
  * 生成保活 WAV（0.5s / 8kHz / 16bit）。
- * 采样为恒定值 500（约 -36dBFS 的直流）：对操作系统是"非零的真实音频流"，
- * 对扬声器是无法发声的直流信号——人耳完全听不见。
- * （幅值过低的交流/纯零采样会被 iOS 判定为无播放，媒体会话拿不到。）
+ * 采样为 20Hz 正弦、幅值 1200（约 -28dB）：
+ * - 对操作系统是标准的振荡音频流——恒定直流会被 iOS 音频管线当底噪
+ *   滤除（等效静音），拿不到 Now Playing 槽位；
+ * - 20Hz 低于手机扬声器/耳机单元的发声下限，人耳与硬件都听不见。
  */
 function createSilentAudioUrl(): string {
   const sampleRate = 8000;
   const numSamples = sampleRate / 2;
+  const freq = 20;
+  const amplitude = 1200;
   const buffer = new ArrayBuffer(44 + numSamples * 2);
   const view = new DataView(buffer);
   const writeStr = (offset: number, s: string) => {
@@ -41,7 +44,9 @@ function createSilentAudioUrl(): string {
   view.setUint16(34, 16, true); // bits
   writeStr(36, 'data');
   view.setUint32(40, numSamples * 2, true);
-  for (let i = 0; i < numSamples; i++) view.setInt16(44 + i * 2, 500, true);
+  for (let i = 0; i < numSamples; i++) {
+    view.setInt16(44 + i * 2, Math.round(amplitude * Math.sin((2 * Math.PI * freq * i) / sampleRate)), true);
+  }
   return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
 }
 

@@ -363,6 +363,8 @@ export function Teleprompter({
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     setPointerDown(true);
     touchStartRef.current = { y: e.clientY };
+    activateMediaSession(); // 按下即激活（比松手更早拿到用户手势，iOS 上更稳）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
