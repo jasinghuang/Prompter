@@ -264,6 +264,7 @@ export function Teleprompter({
     onTogglePlay: () => setIsPlaying((p) => !p),
     onSpeedUp: () => changeSpeed(20),
     onSpeedDown: () => changeSpeed(-20),
+    onActivated: () => showPauseToast('耳机遥控已就绪'),
   });
 
   const resetKeywordPause = usePauseOnKeyword({

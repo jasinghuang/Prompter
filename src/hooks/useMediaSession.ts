@@ -10,6 +10,8 @@ interface Options {
   onSpeedUp: () => void;
   /** 耳机三击（previoustrack） */
   onSpeedDown: () => void;
+  /** 会话激活成功回调（用于给出「耳机遥控已就绪」类反馈） */
+  onActivated?: () => void;
 }
 
 /**
@@ -53,13 +55,13 @@ function createSilentAudioUrl(): string {
  * 轻点/空格回调里同步调用 activate()；之后音频持续循环保活会话，
  * 只切换 mediaSession.playbackState 供系统 UI 显示。
  */
-export function useMediaSession({ title, isPlaying, onTogglePlay, onSpeedUp, onSpeedDown }: Options) {
+export function useMediaSession({ title, isPlaying, onTogglePlay, onSpeedUp, onSpeedDown, onActivated }: Options) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const activatedRef = useRef(false);
   // 回调走 ref，避免每次渲染重挂 action handler
-  const cbs = useRef({ onTogglePlay, onSpeedUp, onSpeedDown });
-  cbs.current = { onTogglePlay, onSpeedUp, onSpeedDown };
+  const cbs = useRef({ onTogglePlay, onSpeedUp, onSpeedDown, onActivated });
+  cbs.current = { onTogglePlay, onSpeedUp, onSpeedDown, onActivated };
 
   /** 必须在用户手势回调内同步调用 */
   const activate = useCallback(() => {
@@ -79,7 +81,9 @@ export function useMediaSession({ title, isPlaying, onTogglePlay, onSpeedUp, onS
         if (!activatedRef.current) return;
         Promise.resolve(audio.play()).catch(() => { /* 复活失败等下次手势重试 */ });
       });
-      Promise.resolve(audio.play()).catch(() => {
+      Promise.resolve(audio.play()).then(() => {
+        cbs.current.onActivated?.();
+      }).catch(() => {
         // 手势外被浏览器拦截 → 允许下次手势重试
         activatedRef.current = false;
       });
