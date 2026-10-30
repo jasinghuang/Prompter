@@ -15,6 +15,7 @@ struct ScriptListView: View {
     @State private var editingScript: Script?
     @State private var creatingNew = false
     @State private var playingScript: Script?
+    @State private var showBlur = false // 独立跟踪弹窗可见性，消失即刻关模糊
 
     @State private var confirmClearAll = false
     // 删除撤销（单篇；批量在 M4 泛化）
@@ -91,9 +92,7 @@ struct ScriptListView: View {
                 .padding(.horizontal, 16)
             }
             .background(Color.canvas)
-            .blur(radius: editingScript != nil || creatingNew ? 8 : 0)
-            .animation(.easeOut(duration: 0.2), value: editingScript)
-            .animation(.easeOut(duration: 0.2), value: creatingNew)
+            .blur(radius: showBlur ? 8 : 0)
             .navigationBarHidden(true)
             .overlay(alignment: .top) { undoPill }
         }
@@ -103,12 +102,16 @@ struct ScriptListView: View {
                 .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Color.surface)
+                .onAppear { showBlur = true }
+                .onDisappear { showBlur = false }
         }
         .sheet(isPresented: $creatingNew) {
             EditorView(script: nil)
                 .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Color.surface)
+                .onAppear { showBlur = true }
+                .onDisappear { showBlur = false }
         }
         .fullScreenCover(item: $playingScript) { script in
             PlayerView(script: script)
