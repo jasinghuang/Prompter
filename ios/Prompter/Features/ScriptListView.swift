@@ -456,7 +456,10 @@ struct FilterChip<Label: View>: View {
             .frame(height: height)
             .background(Color.canvas, in: Capsule())
             .overlay(
-                Capsule().strokeBorder(active ? Color.accentGold.opacity(0.5) : .clear, lineWidth: 1)
+                Capsule().strokeBorder(
+                    active ? Color.accentGold.opacity(0.5) : Color.white.opacity(0.45),
+                    lineWidth: 1
+                )
             )
         }
         .buttonStyle(.plain)
