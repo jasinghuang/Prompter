@@ -150,34 +150,25 @@ struct EditorView: View {
         folder = name // 新分组随本稿件落地，folders 计算属性会立即包含它
     }
 
-    // MARK: 工具区（拆分 + 暂停，紧凑单行 + 条件关键词行）
+    // MARK: 工具区（拆分行 + 暂停行，各自独立行，参照 Web 版布局）
 
     private var toolArea: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                // 拆分模式（绑定本地 state，picker 动画不被重渲染打断）
-                HStack(spacing: 6) {
-                    Text("拆分")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Picker("", selection: $splitMode) {
-                        ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .tint(.accentGold)
-                    .frame(width: 100)
+            // ── 拆分行 ──
+            HStack(spacing: 10) {
+                Label("拆分", systemImage: "scissors")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.leading, 16)
+                Picker("", selection: $splitMode) {
+                    ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
-                // 暂停模式
-                HStack(spacing: 6) {
-                    Text("暂停")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Picker("", selection: $pauseMode) {
-                        ForEach(PauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .tint(.accentGold)
-                    .frame(width: 130)
+                .pickerStyle(.segmented)
+                .tint(.accentGold)
+                .frame(maxWidth: 120)
+                if splitMode == .keyword {
+                    keywordField("关键词", text: $settings.data.splitKeyword)
+                        .frame(maxWidth: 110)
                 }
                 Spacer(minLength: 8)
                 Button(action: performSplit) {
@@ -190,26 +181,31 @@ struct EditorView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(splitDisabled)
+                .padding(.trailing, 16)
             }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 44)
+            .frame(minHeight: 48)
+            .overlay(alignment: .bottom) { hairline }
 
-            // 条件关键词行（独立的出入场动画，不影响上方 picker）
-            if splitMode == .keyword || pauseMode == .keyword {
-                HStack(spacing: 12) {
-                    if splitMode == .keyword {
-                        keywordField("拆分关键词", text: $settings.data.splitKeyword)
-                    }
-                    if pauseMode == .keyword {
-                        keywordField("暂停关键词", text: $settings.data.pauseKeyword)
-                    }
+            // ── 暂停行 ──
+            HStack(spacing: 10) {
+                Label("暂停", systemImage: "pause.circle")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.leading, 16)
+                Picker("", selection: $pauseMode) {
+                    ForEach(PauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 6)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .pickerStyle(.segmented)
+                .tint(.accentGold)
+                .frame(maxWidth: 160)
+                if pauseMode == .keyword {
+                    keywordField("关键词", text: $settings.data.pauseKeyword)
+                }
+                Spacer(minLength: 0)
             }
+            .frame(minHeight: 48)
+            .overlay(alignment: .bottom) { hairline }
         }
-        .overlay(alignment: .bottom) { hairline }
     }
 
     private func keywordField(_ placeholder: String, text: Binding<String>) -> some View {
