@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// 文件夹选择弹窗（复刻 Web 版底部弹窗）：未分组 + 文件夹列表 + 新建
+/// 文件夹选择弹窗 —— 复刻 Web 版 FolderPickerSheet 样式
+/// Web 版样式：glass-surface 底、rounded-3xl、选项 rounded-xl px-3 py-3 text-sm
 struct FolderPickerSheet: View {
     let script: Script
     let folders: [String]
@@ -17,7 +18,7 @@ struct FolderPickerSheet: View {
                 .padding(.top, 10)
                 .padding(.bottom, 4)
 
-            // 标题
+            // 标题（Web: px-6 pt-6 pb-2, folder icon 16pt white/40 + 16pt bold white）
             HStack(spacing: 8) {
                 Image(systemName: "folder")
                     .font(.system(size: 16))
@@ -27,80 +28,83 @@ struct FolderPickerSheet: View {
                     .foregroundStyle(.white)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 24)     // Web: px-6 = 24pt
+            .padding(.top, 12)
+            .padding(.bottom, 4)          // Web: pb-2 = 8pt（减去指示条已占的）
 
-            // 选项列表
+            // 选项列表（Web: p-3 = 12pt padding）
             ScrollView {
                 VStack(spacing: 2) {
-                    optionRow(
-                        label: "未分组",
-                        count: nil,
-                        active: script.folder == nil
-                    ) {
+                    optionRow(label: "未分组", active: script.folder == nil) {
                         onSelect(nil)
                     }
 
                     ForEach(folders, id: \.self) { folder in
                         let count = allScripts.filter { $0.folder == folder }.count
-                        optionRow(
-                            label: folder,
-                            count: count,
-                            active: script.folder == folder
-                        ) {
+                        optionRow(label: folder, count: count, active: script.folder == folder) {
                             onSelect(folder)
                         }
                     }
 
-                    // 新建文件夹
-                    Button {
-                        onNewFolder()
-                    } label: {
-                        HStack {
-                            Text("＋ 新建文件夹…")
-                                .font(.system(size: 15))
-                                .foregroundStyle(.accentGold)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .frame(minHeight: 48)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+                    // 新建（Web: isNew=true → 金色）
+                    newFolderRow
                 }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 16)
+                .padding(12)              // Web: p-3 = 12pt
             }
         }
-        .background(Color.surface)
+        .background(Color.surface)        // Web: glass-surface ≈ surface 色
     }
 
-    private func optionRow(label: String, count: Int?, active: Bool, action: @escaping () -> Void) -> some View {
+    // MARK: 选项行（Web: FolderOption —— rounded-xl px-3 py-3 text-sm）
+
+    private func optionRow(label: String, count: Int? = nil, active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack {
                 Text(label)
-                    .font(.system(size: 15))
-                    .foregroundStyle(active ? .white : .white.opacity(0.65))
+                    .font(.system(size: 14))               // Web: text-sm = 14pt
+                    .foregroundStyle(active ? .white : .white.opacity(0.7))
                     .lineLimit(1)
                 Spacer()
-                if let count {
-                    Text("\(count)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.25))
-                        .monospacedDigit()
-                }
-                if active {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.accentGold)
+                HStack(spacing: 8) {
+                    if let count {
+                        Text("\(count)")
+                            .font(.system(size: 12))        // Web: text-xs
+                            .foregroundStyle(.white.opacity(0.25))
+                            .monospacedDigit()
+                    }
+                    if active {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.accentGold)
+                    }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)   // Web: px-3 = 12pt
+            .padding(.vertical, 12)     // Web: py-3 = 12pt
+            .frame(minHeight: 48)
+            .background(
+                active ? Color.white.opacity(0.06) : .clear,
+                in: RoundedRectangle(cornerRadius: 12)      // Web: rounded-xl
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var newFolderRow: some View {
+        Button {
+            onNewFolder()
+        } label: {
+            HStack {
+                Text("＋ 新建文件夹…")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.accentGold)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
             .padding(.vertical, 12)
             .frame(minHeight: 48)
-            .background(active ? Color.white.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: 10))
-            .contentShape(Rectangle())
+            .contentShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
     }

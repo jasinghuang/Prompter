@@ -42,8 +42,21 @@ struct ScriptCardView: View {
         .padding(.top, 12)          // Web: pt-3 = 12pt
         .padding(.bottom, 10)       // Web: pb-2.5 = 10pt
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackground)
-        .overlay(cardBorder)
+        .background(
+            script.isFilmed
+                ? AnyShapeStyle(Color.successGreen.opacity(0.06))
+                : AnyShapeStyle(Color.surface.opacity(0.7)),
+            in: RoundedRectangle(cornerRadius: 16)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(
+                    script.isFilmed
+                        ? Color.successGreen.opacity(0.3)
+                        : Color.accentGold.opacity(0.15),
+                    lineWidth: 1
+                )
+        )
     }
 
     // MARK: 卡片底色与边框
