@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { Search, Plus, FileText, ArrowUpDown, Trash2, Clock, Star, Folder, FolderPlus, Check, X, FolderInput } from 'lucide-react';
+import { Search, Plus, FileText, ArrowUpDown, Trash2, Clock, Star, Folder, FolderPlus, Check, X, FolderInput, Share } from 'lucide-react';
 import { Script } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SwipeableCard } from './SwipeableCard';
@@ -171,6 +171,24 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
     try { localStorage.setItem(SCROLL_KEY, String(window.scrollY)); } catch { /* noop */ }
     onOpen(id);
   }, [onOpen]);
+
+  // 导出全部数据到剪贴板（供原生 App 剪贴板智能导入 / 备份）
+  const handleExport = () => {
+    const payload = {
+      type: 'prompter-export',
+      v: 1,
+      scripts,
+      filmedIds: [...filmedIds],
+      settings: JSON.parse(localStorage.getItem('prompter_settings') ?? '{}'),
+    };
+    const text = JSON.stringify(payload);
+    const done = () => window.alert(`已复制 ${scripts.length} 篇稿件数据到剪贴板，打开 App 即可导入`);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => window.prompt('复制以下数据：', text));
+    } else {
+      window.prompt('复制以下数据：', text);
+    }
+  };
 
   const handleCreateFolder = () => {
     const name = newFolderName.trim();
@@ -399,6 +417,13 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
               </button>
             ))}
 
+            <button
+              onClick={handleExport}
+              aria-label="导出数据"
+              className="flex h-[var(--ctl-3-h)] shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-white/45 transition-colors hover:bg-white/10 hover:text-white/80 active:scale-95"
+            >
+              <Share size={13} /> 导出
+            </button>
             <button
               onClick={() => setConfirmClear(true)}
               className="ml-auto flex h-[var(--ctl-3-h)] shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-[#D4A432]/80 transition-colors hover:bg-[#D4A432]/15 hover:text-[#D4A432] active:scale-95"
