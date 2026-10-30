@@ -67,23 +67,21 @@ struct PlayerView: View {
             paragraphStarts = PrompterCore.paragraphStarts(script.content)
             #if DEBUG
             // 自动化截图验证用：-skipOnboard 跳过引导 / -autoPlay 直接播放 / -openSettings 打开设置抽屉
+            // -pauseParagraph=段落暂停+高速（验证自动暂停）；-fastEnd=仅高速（快速滚到底验证回顶按钮）
             let args = ProcessInfo.processInfo.arguments
-            if args.contains("-skipOnboard") || args.contains("-autoPlay") || args.contains("-openSettings") {
-                showOnboarding = false
-            }
-            if args.contains("-autoPlay") { isPlaying = true }
+            let testRun = args.contains("-pauseParagraph") || args.contains("-fastEnd")
+            if args.contains("-skipOnboard") || testRun { showOnboarding = false }
+            if args.contains("-autoPlay") || testRun { isPlaying = true }
             if args.contains("-openSettings") { showSettings = true }
-            if args.contains("-pauseParagraph") {
-                // 高速播放验证段落自动暂停端到端链路（TextKit 2 行定位）
-                settings.data.pauseOnParagraph = true
+            if testRun {
+                UserDefaults.standard.set(true, forKey: "debug_player_test_ran")
                 settings.data.scrollSpeed = 700
-                isPlaying = true
-                UserDefaults.standard.set(true, forKey: "debug_pauseParagraph_ran")
-            } else if UserDefaults.standard.bool(forKey: "debug_pauseParagraph_ran") {
+                if args.contains("-pauseParagraph") { settings.data.pauseOnParagraph = true }
+            } else if UserDefaults.standard.bool(forKey: "debug_player_test_ran") {
                 // 上次是验证运行，还原设置
                 settings.data.pauseOnParagraph = false
                 settings.data.scrollSpeed = SettingsData.defaults.scrollSpeed
-                UserDefaults.standard.set(false, forKey: "debug_pauseParagraph_ran")
+                UserDefaults.standard.set(false, forKey: "debug_player_test_ran")
             }
             #endif
         }
@@ -137,6 +135,9 @@ struct PlayerView: View {
         )
         .scaleEffect(x: settings.data.mirror ? -1 : 1, y: 1)
         .ignoresSafeArea()
+        // 设置抽屉打开时正文做模糊处理，避免抽屉文字与脚本文案叠在一起看不清
+        .blur(radius: showSettings ? 8 : 0)
+        .animation(.easeOut(duration: 0.25), value: showSettings)
     }
 
     // MARK: 顶栏——双胶囊（左：导航/状态，右：操作，播放中自动隐藏）
@@ -207,24 +208,36 @@ struct PlayerView: View {
 
     @ViewBuilder
     private var centerHint: some View {
-        if !isPlaying && !pointerDown && !showOnboarding {
-            VStack(spacing: 12) {
+        if !isPlaying && !pointerDown && !showOnboarding && !showSettings {
+            VStack(spacing: 14) {
                 ZStack {
-                    Circle().fill(Color.black.opacity(0.35))
-                    Circle().strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+                    Circle()
+                        .fill(Color.black.opacity(0.55))
+                        .frame(width: 88, height: 88)
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                        .frame(width: 88, height: 88)
                     Image(systemName: "play.fill")
-                        .font(.system(size: 30))
-                        .foregroundStyle(.white.opacity(0.8))
+                        .font(.system(size: 34))
+                        .foregroundStyle(Color.accentGold)
                         .offset(x: 2)
                 }
-                .frame(width: 72, height: 72)
+                .shadow(color: .black.opacity(0.45), radius: 22, y: 8) // 托底，把提示从正文上“抬”出来
+                .shadow(color: Color.accentGold.opacity(0.35), radius: 16) // 金色微光，与引导线同族
                 Text("点击屏幕任意位置播放")
                     .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.45))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Color.black.opacity(0.45), in: Capsule()) // 垫底，避免被大字正文穿透
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
             }
             .opacity(hintPulse ? 1 : 0.72)
+            .scaleEffect(hintPulse ? 1.03 : 1)
             .onAppear {
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) { hintPulse = true }
+                withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                    hintPulse = true
+                }
             }
             .onDisappear { hintPulse = false }
             .allowsHitTesting(false)
@@ -276,7 +289,7 @@ struct PlayerView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 
-    // MARK: 回到顶部（停在最底部且暂停时出现）
+    // MARK: 回到顶部（停在最底部且暂停时出现）——胶囊体系，与底部控制条对齐呼吸
 
     @ViewBuilder
     private var backToTop: some View {
@@ -286,19 +299,22 @@ struct PlayerView: View {
                 engine.scrollToIndex(0)
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "arrow.up").font(.system(size: 14, weight: .semibold))
-                    Text("回到顶部").font(.system(size: 12))
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("回到顶部")
+                        .font(.system(size: 13, weight: .medium))
                 }
-                .foregroundStyle(.white.opacity(0.8))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.surface.opacity(0.94), in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                .foregroundStyle(.white.opacity(0.65))
+                .padding(.horizontal, 14)
+                .frame(height: 34)
+                .background(Color.surface.opacity(0.72), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.07), lineWidth: 1))
+                .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
             }
             .buttonStyle(PressableStyle())
-            .padding(.bottom, 88)
+            .padding(.bottom, 100) // 底部控制条（约 84pt）上方留 16pt 呼吸空间
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .transition(.opacity)
+            .transition(.opacity.combined(with: .offset(y: 8)))
         }
     }
 
@@ -408,7 +424,7 @@ struct PlayerView: View {
     private func toggleFilmed() {
         script.isFilmed.toggle()
         script.updatedAt = Date()
-        showToast(script.isFilmed ? "已标记拍摄 ✓" : "已取消已拍摄标记")
+        // 不再弹提示：按钮自身的绿色高亮即状态反馈
     }
 
     /// duration 为 nil 时常驻（捏合过程中），由后续调用接管关闭

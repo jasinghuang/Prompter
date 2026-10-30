@@ -11,7 +11,7 @@ struct PlayerSettingsDrawer: View {
         GeometryReader { geo in
             ZStack(alignment: .trailing) {
                 if open {
-                    Color.black.opacity(0.3)
+                    Color.black.opacity(0.35)
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .onTapGesture { open = false }
@@ -69,7 +69,7 @@ struct PlayerSettingsDrawer: View {
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
-        .background(Color.surface.opacity(0.94).ignoresSafeArea())
+        .background(Color.surface.opacity(0.96).ignoresSafeArea()) // 近实底：正文已模糊，不再透字
         .overlay(alignment: .leading) {
             Rectangle().fill(Color.white.opacity(0.05)).frame(width: 1).ignoresSafeArea()
         }

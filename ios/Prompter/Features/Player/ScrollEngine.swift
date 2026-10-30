@@ -94,11 +94,17 @@ struct PrompterScrollView: UIViewRepresentable {
                 DispatchQueue.main.async { self?.handleLayoutChange() }
             }
 
+            // 轻点播放/暂停：系统 UITapGestureRecognizer 自带标准位移容差与手指滚动判定，
+            // 拦停惯性滚动的触摸会被 UIScrollView 的 pan 抢占而使 tap 失败——误触天然被排除
+            let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+            tap.cancelsTouchesInView = false
+            tap.delegate = self
+            tv.addGestureRecognizer(tap)
+
+            // 只观察按住/抬起（拖拽浏览时隐藏中央提示），不参与点击判定
             let touch = TouchObserverRecognizer()
-            touch.scrollView = tv
-            touch.delegate = self
             touch.onDown = { [weak self] in self?.parent.onPointerDown(true) }
-            touch.onUp = { [weak self] isTap in self?.handleUp(isTap) }
+            touch.onUp = { [weak self] in self?.parent.onPointerDown(false) }
             tv.addGestureRecognizer(touch)
 
             let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
@@ -343,9 +349,8 @@ struct PrompterScrollView: UIViewRepresentable {
 
         // MARK: 手势
 
-        private func handleUp(_ isTap: Bool) {
-            parent.onPointerDown(false)
-            guard isTap, CACurrentMediaTime() >= suppressTapUntil else { return }
+        @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+            guard CACurrentMediaTime() >= suppressTapUntil else { return } // 捏合后短暂抑制
             parent.onTap()
         }
 
@@ -404,15 +409,12 @@ final class PrompterTextView: UITextView {
     }
 }
 
-/// 只观察不独占的触摸识别器：按下/抬起回调 + 轻点判定（位移 ≤ 8pt、非双指、非拦停惯性滚动）
+/// 只观察不独占的触摸识别器：仅报告按下/抬起（用于拖拽浏览时隐藏中央提示）
 private final class TouchObserverRecognizer: UIGestureRecognizer {
-    weak var scrollView: UIScrollView?
     var onDown: (() -> Void)?
-    var onUp: ((Bool) -> Void)?
+    var onUp: (() -> Void)?
 
-    private var startPoint: CGPoint?
-    private var multiTouch = false
-    private var stoppedDeceleration = false
+    private var tracking = false
 
     override init(target: Any?, action: Selector?) {
         super.init(target: target, action: action)
@@ -429,42 +431,31 @@ private final class TouchObserverRecognizer: UIGestureRecognizer {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         super.touchesBegan(touches, with: event)
-        if activeTouchCount(event) >= 2 { multiTouch = true }
-        guard startPoint == nil, let touch = touches.first else { return }
-        startPoint = touch.location(in: view)
-        stoppedDeceleration = scrollView?.isDecelerating ?? false
+        guard !tracking else { return }
+        tracking = true
         onDown?()
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
         super.touchesEnded(touches, with: event)
-        guard activeTouchCount(event) == 0 else { return }
-        var isTap = false
-        if let start = startPoint, let touch = touches.first, !multiTouch, !stoppedDeceleration {
-            let point = touch.location(in: view)
-            isTap = hypot(point.x - start.x, point.y - start.y) <= 8
-        }
-        finish(isTap: isTap)
+        guard tracking, activeTouchCount(event) == 0 else { return }
+        finish()
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
         super.touchesCancelled(touches, with: event)
-        guard activeTouchCount(event) == 0 else { return }
-        finish(isTap: false)
+        guard tracking, activeTouchCount(event) == 0 else { return }
+        finish()
     }
 
-    private func finish(isTap: Bool) {
-        startPoint = nil
-        multiTouch = false
-        stoppedDeceleration = false
-        onUp?(isTap)
+    private func finish() {
+        tracking = false
+        onUp?()
         state = .failed
     }
 
     override func reset() {
         super.reset()
-        startPoint = nil
-        multiTouch = false
-        stoppedDeceleration = false
+        tracking = false
     }
 }

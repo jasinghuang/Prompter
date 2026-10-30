@@ -38,3 +38,24 @@ struct PressableStyle: ButtonStyle {
             .animation(.spring(response: 0.25, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }
+
+/// 卡片删除退场（复刻 Web 版 card-exit：左移 32pt + 缩至 0.96 + 淡出「浮走」，
+/// 其余卡片的补位由容器动画承担，对应 Web 的 FLIP）
+private struct CardExitModifier: ViewModifier {
+    let exiting: Bool
+    func body(content: Content) -> some View {
+        content
+            .opacity(exiting ? 0 : 1)
+            .scaleEffect(exiting ? 0.96 : 1)
+            .offset(x: exiting ? -32 : 0)
+    }
+}
+
+extension AnyTransition {
+    static var cardExit: AnyTransition {
+        .modifier(
+            active: CardExitModifier(exiting: true),
+            identity: CardExitModifier(exiting: false)
+        )
+    }
+}

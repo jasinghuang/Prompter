@@ -18,6 +18,7 @@ struct ScriptCardView: View {
             cardContent
         }
         .buttonStyle(PressableCardStyle())
+        .accessibilityIdentifier("card")
     }
 
     private var cardContent: some View {
@@ -102,9 +103,11 @@ struct ScriptCardView: View {
                 ghostButton(icon: "pencil", tint: .white.opacity(0.40)) {
                     onAction(.edit)
                 }
+                .accessibilityIdentifier("card.edit")
                 ghostButton(icon: "trash", tint: .accentGold.opacity(0.70)) {
                     onAction(.delete)
                 }
+                .accessibilityIdentifier("card.delete")
             }
         }
     }

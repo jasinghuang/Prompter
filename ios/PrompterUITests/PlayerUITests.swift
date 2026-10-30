@@ -57,6 +57,34 @@ final class PlayerUITests: XCTestCase {
         snapshot("05-landscape-settings")
     }
 
+    /// 高速滚到底自动停止 → 出现「回到顶部」胶囊
+    func testReachBottomBackToTop() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-fastEnd"]
+        app.launch()
+        let backToTop = app.buttons["回到顶部"]
+        XCTAssertTrue(backToTop.waitForExistence(timeout: 40), "读完自动停止后应出现回到顶部按钮")
+        sleep(1)
+        snapshot("08-landscape-atbottom-backtotop")
+    }
+
+    /// 列表删除动画：点删除 → 卡片数 -1（退场动画由 cardsGrid 的 animation 驱动）
+    func testListDeleteAnimation() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["-seedDemo", "-skipOnboard"]
+        app.launch()
+        let deletes = app.buttons.matching(identifier: "card.delete")
+        XCTAssertTrue(deletes.firstMatch.waitForExistence(timeout: 10))
+        let before = deletes.count
+        XCTAssertGreaterThanOrEqual(before, 2)
+        deletes.firstMatch.tap()
+        usleep(120_000) // 抓退场动画中的一帧
+        snapshot("09-list-delete-mid")
+        sleep(1)
+        XCTAssertEqual(deletes.count, before - 1, "删除后卡片数应减一")
+        snapshot("10-list-delete-after")
+    }
+
     func testPlayerPortrait() throws {
         XCUIDevice.shared.orientation = .portrait
         app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard"]

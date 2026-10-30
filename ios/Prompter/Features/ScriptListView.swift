@@ -336,8 +336,14 @@ struct ScriptListView: View {
                 ) { action in
                     handleCardAction(action, script)
                 }
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.97)),
+                    removal: .cardExit
+                ))
             }
         }
+        // id 集合变化（删除/新建/筛选）时驱动补位动画——对应 Web 的 FLIP
+        .animation(.easeInOut(duration: 0.3), value: visible.map(\.id))
         .padding(.bottom, 24)
     }
 
@@ -379,10 +385,8 @@ struct ScriptListView: View {
     private func deleteScripts(_ targets: [Script]) {
         guard !targets.isEmpty else { return }
         undoItems = targets.map { UndoSnapshot(script: $0, starred: $0.starred, isFilmed: $0.isFilmed) }
-        withAnimation(.easeOut(duration: 0.22)) {
-            targets.forEach(context.delete)
-        }
-        showUndo = true
+        targets.forEach(context.delete) // 卡片退场+补位动画由 cardsGrid 的 animation(value:) 驱动
+        withAnimation(.easeOut(duration: 0.18)) { showUndo = true }
         Task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             if showUndo { // 2 秒窗口结束，真正落下
