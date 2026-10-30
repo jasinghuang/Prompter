@@ -455,7 +455,7 @@ struct FilterChip<Label: View>: View {
             .foregroundStyle(active ? .white : .white.opacity(0.45))
             .padding(.horizontal, 16)
             .frame(height: height)
-            .background(active ? Color.canvas : Color.white.opacity(0.08), in: Capsule())
+            .background(Color.canvas, in: Capsule())
             .overlay(
                 Capsule().strokeBorder(active ? Color.accentGold.opacity(0.5) : .clear, lineWidth: 1)
             )
