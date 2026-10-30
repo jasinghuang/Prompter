@@ -93,6 +93,12 @@ struct ScriptListView: View {
             }
             .background(Color.canvas)
             .blur(radius: showBlur ? 8 : 0)
+            .onChange(of: editingScript?.id) { _, _ in
+                if editingScript == nil { showBlur = false } // 绑定变 nil 即刻关模糊（早于 onDisappear）
+            }
+            .onChange(of: creatingNew) { _, _ in
+                if !creatingNew { showBlur = false }
+            }
             .navigationBarHidden(true)
             .overlay(alignment: .top) { undoPill }
         }
