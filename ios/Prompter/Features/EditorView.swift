@@ -39,23 +39,12 @@ struct EditorView: View {
             textEditor
         }
         .background(.clear)
-        .overlay(alignment: .top) {
-            // 金色细描边——顶部边缘的视觉分界线
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .accentGold.opacity(0.0), location: 0.0),
-                            .init(color: .accentGold.opacity(0.6), location: 0.5),
-                            .init(color: .accentGold.opacity(0.0), location: 1.0),
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(height: 1)
+        .overlay(
+            // 整圈金色细描边
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.accentGold.opacity(0.3), lineWidth: 1)
                 .allowsHitTesting(false)
-        }
+        )
         .onAppear {
             guard !loaded else { return }
             loaded = true
