@@ -94,6 +94,7 @@ struct ScriptListView: View {
                 }
                 .background(Color.canvas)
                 .blur(radius: showBlur ? 8 : 0)
+                .animation(.easeOut(duration: 0.25), value: showBlur)
 
                 // 弹窗打开时：透明遮罩拦截所有背景交互，点击即刻关弹窗+模糊
                 if showBlur {
@@ -190,8 +191,8 @@ struct ScriptListView: View {
             .buttonStyle(.plain)
             .layoutPriority(1)
         }
-        .padding(.top, 10)
-        .padding(.bottom, 8)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
     }
 
     // MARK: 筛选 chips（T2 40px）
@@ -221,7 +222,7 @@ struct ScriptListView: View {
                     }
                 }
             }
-            .padding(.bottom, 8)
+            .padding(.bottom, 10)
         }
     }
 
@@ -265,7 +266,7 @@ struct ScriptListView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, 20) // 排序行与卡片之间留足呼吸空间
     }
 
     // MARK: 卡片网格
@@ -282,7 +283,7 @@ struct ScriptListView: View {
                 }
             }
         }
-        .padding(.bottom, 16)
+        .padding(.bottom, 24)
     }
 
     private func handleCardAction(_ action: ScriptCardView.Action, _ script: Script) {
