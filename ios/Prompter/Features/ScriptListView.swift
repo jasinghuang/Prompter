@@ -93,8 +93,11 @@ struct ScriptListView: View {
             }
             .background(Color.canvas)
             .blur(radius: showBlur ? 8 : 0)
+            // 三层触发，谁先到谁关模糊：
+            // ① 点击空白区（onTapGesture 接管，零延迟）
+            // ② 绑定变 nil（onChange，覆盖下拉关闭和其他 dismiss 路径）
+            // ③ 视图移除（onDisappear 兜底）
             .onTapGesture {
-                // 接管点击空白区的 dismiss：弹窗和模糊同时消失，零延迟
                 if editingScript != nil {
                     editingScript = nil
                     showBlur = false
@@ -104,7 +107,12 @@ struct ScriptListView: View {
                     showBlur = false
                 }
             }
-            .allowsHitTesting(!showBlur ? true : true) // 弹窗打开时列表仍可接收点击（关闭弹窗用）
+            .onChange(of: editingScript?.id) { _, _ in
+                if editingScript == nil { showBlur = false }
+            }
+            .onChange(of: creatingNew) { _, _ in
+                if !creatingNew { showBlur = false }
+            }
             .navigationBarHidden(true)
             .overlay(alignment: .top) { undoPill }
         }
