@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 稿件卡片：三级视觉层级 + 44pt 命中区操作钮 + 文件夹菜单 + 星标
+/// 稿件卡片 —— 逐项对齐 Web 版 SwipeableCard 的间距/字号/颜色/布局
 struct ScriptCardView: View {
     enum Action {
         case open, edit, delete, toggleStar, showFolderPicker
@@ -15,131 +15,174 @@ struct ScriptCardView: View {
 
     var body: some View {
         Button { onAction(.open) } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                titleRow
-                if !script.content.isEmpty {
-                    Text(script.content)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(script.isFilmed ? 0.15 : 0.25))
-                        .lineLimit(2)
-                        .lineSpacing(3)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                metaRow
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                script.isFilmed
-                    ? Color.successGreen.opacity(0.06)
-                    : Color.surface.opacity(0.7),
-                in: RoundedRectangle(cornerRadius: 14)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(
-                        script.isFilmed ? Color.successGreen.opacity(0.3) : Color.accentGold.opacity(0.15),
-                        lineWidth: 1
-                    )
-            )
+            cardContent
         }
         .buttonStyle(PressableCardStyle())
     }
 
-    // 标题行：标题与编辑/删除按钮同一行，垂直居中对齐
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: 6) {  // Web: mb-1.5 = 6pt
+            // ── 标题行 ──
+            titleRow
+
+            // ── 正文摘要（Web: text-sm text-white/25 line-clamp-2） ──
+            if !script.content.isEmpty {
+                Text(script.content)
+                    .font(.system(size: 14))                       // Web: text-sm = 14pt
+                    .foregroundStyle(.white.opacity(script.isFilmed ? 0.15 : 0.25))
+                    .lineLimit(2)
+                    .lineSpacing(4)                                 // Web: leading-relaxed ≈ 1.6
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            // ── 元信息行（Web: text-xs text-white/50） ──
+            metaRow
+        }
+        .padding(.horizontal, 16)   // Web: px-4 = 16pt
+        .padding(.top, 12)          // Web: pt-3 = 12pt
+        .padding(.bottom, 10)       // Web: pb-2.5 = 10pt
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardBackground)
+        .overlay(cardBorder)
+    }
+
+    // MARK: 卡片底色与边框
+
+    private var cardBackground: some ShapeStyle {
+        script.isFilmed
+            ? AnyShapeStyle(Color.successGreen.opacity(0.06))
+            : AnyShapeStyle(Color.surface.opacity(0.7))
+    }
+
+    private var cardBorder: some View {
+        RoundedRectangle(cornerRadius: 16)   // Web: rounded-2xl = 16pt
+            .strokeBorder(
+                script.isFilmed
+                    ? Color.successGreen.opacity(0.3)
+                    : Color.accentGold.opacity(0.15),
+                lineWidth: 1
+            )
+    }
+
+    // MARK: 标题行（Web: items-start justify-between，标题截断，按钮在右侧）
+
     private var titleRow: some View {
-        HStack(alignment: .center, spacing: 8) {
-            if script.isFilmed {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.successGreen)
+        HStack(alignment: .top, spacing: 8) {
+            // 左侧：已拍勾 + 标题（Web: items-center gap-2 min-w-0）
+            HStack(spacing: 6) {
+                if script.isFilmed {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.successGreen)
+                }
+                Text(script.title)
+                    .font(.system(size: 16, weight: .semibold))    // Web: text-base font-semibold
+                    .foregroundStyle(script.isFilmed ? .white.opacity(0.5) : .white)
+                    .strikethrough(script.isFilmed)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
-            Text(script.title)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(script.isFilmed ? .white.opacity(0.5) : .white)
-                .strikethrough(script.isFilmed)
-                .lineLimit(1)
-                .layoutPriority(0)
-            Spacer(minLength: 4)
-            // 操作钮（44pt 命中区）
-            actionButton(icon: "pencil", label: "编辑", tint: .white.opacity(0.45)) {
-                onAction(.edit)
-            }
-            actionButton(icon: "trash", label: "删除", tint: .accentGold.opacity(0.7)) {
-                onAction(.delete)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 右侧：操作按钮（Web: ghost 样式 32pt 高、rounded-lg、无底色）
+            HStack(spacing: 4) {                                   // Web: gap-1 = 4pt
+                ghostButton(icon: "pencil", tint: .white.opacity(0.40)) {
+                    onAction(.edit)
+                }
+                ghostButton(icon: "trash", tint: .accentGold.opacity(0.70)) {
+                    onAction(.delete)
+                }
             }
         }
     }
 
-    private func actionButton(icon: String, label: String, tint: Color, action: @escaping () -> Void) -> some View {
+    /// 幽灵按钮（Web: 无底色，hover 才现淡底；h-[ctl-3] 32pt 高，rounded-lg，px-2.5）
+    private func ghostButton(icon: String, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 18))
+                .font(.system(size: 13))                            // Web: size={13}
                 .foregroundStyle(tint)
-                .frame(width: 44, height: 44)
+                .frame(width: 32, height: 32)                      // Web: h-[var(--ctl-3-h)] = 32pt
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(label)
     }
 
-    // 元信息行：日期 | 字数 | 时长 ······ 文件夹菜单 + 星标
+    // MARK: 元信息行
+
     private var metaRow: some View {
-        HStack(spacing: 10) {
-            Text(script.updatedAt, format: mdyFormat)
-            Text("|").foregroundStyle(.white.opacity(0.15))
-            Text("\(charCount)字")
-            Text("|").foregroundStyle(.white.opacity(0.15))
-            Text("约\(durationText)")
-            Spacer(minLength: 8)
-            folderButton
-            starButton
+        HStack(spacing: 10) {                                       // Web: gap-2.5 = 10pt
+            // 左侧：日期 | 字数 | 时长
+            HStack(spacing: 10) {
+                Text(script.updatedAt, format: mdyFormat)
+                separator
+                Text("\(charCount)字")
+                separator
+                Text("约\(durationText)")
+            }
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 右侧：文件夹 + 星标（Web: ml-auto gap-1.5）
+            HStack(spacing: 6) {
+                folderButton
+                starButton
+            }
         }
-        .font(.system(size: 12))
-        .foregroundStyle(.white.opacity(script.isFilmed ? 0.35 : 0.5))
+        .font(.system(size: 12))                                    // Web: text-xs = 12pt
+        .foregroundStyle(.white.opacity(script.isFilmed ? 0.35 : 0.50))
     }
 
-    private var durationText: String {
-        PrompterCore.formatTime(
-            PrompterCore.estimateDurationSeconds(charCount: charCount, wordsPerMinute: wordsPerMinute)
-        )
+    private var separator: some View {
+        Text("|").foregroundStyle(.white.opacity(0.15))
     }
 
-    // 文件夹：点击弹出底部选择弹窗（同 Web 版）
+    // MARK: 文件夹按钮
+
     private var folderButton: some View {
         Button {
             onAction(.showFolderPicker)
         } label: {
-            HStack(spacing: 3) {
+            HStack(spacing: 4) {
                 Image(systemName: script.folder != nil ? "folder.fill" : "folder")
-                    .font(.system(size: 18))
+                    .font(.system(size: 14))                        // Web: size={14}
                 if let folder = script.folder {
                     Text(folder)
                         .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.50))      // Web: text-white/50
                         .lineLimit(1)
+                        .frame(maxWidth: 120, alignment: .leading)  // Web: max-w-[16vw]
                 }
             }
             .foregroundStyle(script.folder != nil ? .accentGold : .white.opacity(0.35))
-            .frame(height: 44)
+            .frame(height: 32)
+            .padding(.horizontal, 8)                                // Web: px-2
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("移动到文件夹")
     }
+
+    // MARK: 星标按钮
 
     private var starButton: some View {
         Button {
             onAction(.toggleStar)
         } label: {
             Image(systemName: script.starred ? "star.fill" : "star")
-                .font(.system(size: 18))
+                .font(.system(size: 15))                            // Web: size={15}
                 .foregroundStyle(script.starred ? .accentGold : .white.opacity(0.35))
-                .frame(width: 44, height: 44)
+                .frame(width: 32, height: 32)                       // Web: p-1.5 + 15pt icon
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(script.starred ? "取消星标" : "星标")
+    }
+
+    // MARK: 工具
+
+    private var durationText: String {
+        PrompterCore.formatTime(
+            PrompterCore.estimateDurationSeconds(charCount: charCount, wordsPerMinute: wordsPerMinute)
+        )
     }
 
     private var mdyFormat: Date.FormatStyle {
