@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// 编辑页（M2 完整版）：标题/正文 + 分组行 + 智能拆分 + 自动暂停设置
+/// 编辑页（M2 完整版）：标题/正文 + 分组行 + 工具区（拆分/暂停）+ 正文编辑
 struct EditorView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -20,12 +20,14 @@ struct EditorView: View {
     @State private var newFolderName = ""
     @FocusState private var newFolderFocused: Bool
 
+    // 暂停模式：本地 state，picker 即时切换；退出时同步到设置
+    @State private var pauseMode: EditorView.PauseMode = .off
+
     var body: some View {
         VStack(spacing: 0) {
             titleRow
             folderRow
-            splitRow
-            pauseRow
+            toolArea
             textEditor
         }
         .background(Color.canvas)
@@ -35,6 +37,7 @@ struct EditorView: View {
             title = script?.title ?? ""
             content = script?.content ?? ""
             folder = script?.folder
+            pauseMode = Self.derivePauseMode(settings.data)
         }
     }
 
@@ -67,8 +70,11 @@ struct EditorView: View {
 
     // MARK: 分组行
 
+    /// 已有文件夹 + 当前选中（还没保存到任何稿件的新文件夹也立即显示）
     private var folders: [String] {
-        Array(Set(allScripts.compactMap(\.folder))).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        var set = Set(allScripts.compactMap(\.folder))
+        if let f = folder { set.insert(f) }
+        return set.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
     private var folderRow: some View {
@@ -101,7 +107,6 @@ struct EditorView: View {
                         Button {
                             newFolderName = ""
                             newFolderOpen = true
-                            // 延迟设置 focus，确保 TextField 已渲染后再弹键盘
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                 newFolderFocused = true
                             }
@@ -139,22 +144,45 @@ struct EditorView: View {
         let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
         newFolderOpen = false
         guard !name.isEmpty else { return }
-        folder = name
+        folder = name // 新分组随本稿件落地，folders 计算属性会立即包含它
     }
 
-    // MARK: 智能拆分行
+    // MARK: 工具区（拆分 + 暂停，紧凑单行 + 条件关键词行）
 
-    private var splitRow: some View {
+    private var toolArea: some View {
         VStack(spacing: 0) {
-            // 第一行：标签 + 智能拆分按钮
-            HStack(spacing: 10) {
-                Label("拆分", systemImage: "scissors")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.leading, 16)
+            HStack(spacing: 12) {
+                // 拆分模式
+                HStack(spacing: 6) {
+                    Text("拆分")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Picker("", selection: Binding(
+                        get: { SplitMode(rawValue: settings.data.splitMode) ?? .paragraph },
+                        set: { settings.data.splitMode = $0.rawValue }
+                    )) {
+                        ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .tint(.accentGold)
+                    .frame(width: 100)
+                }
+                // 暂停模式
+                HStack(spacing: 6) {
+                    Text("暂停")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Picker("", selection: $pauseMode) {
+                        ForEach(PauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .tint(.accentGold)
+                    .frame(width: 130)
+                }
                 Spacer(minLength: 8)
+                // 智能拆分按钮
                 Button(action: performSplit) {
-                    Label("智能拆分", systemImage: "scissors")
+                    Text("智能拆分")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Color.canvas)
                         .padding(.horizontal, 12)
@@ -163,38 +191,42 @@ struct EditorView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(splitDisabled)
-                .padding(.trailing, 16)
             }
+            .padding(.horizontal, 16)
             .frame(minHeight: 44)
-            // 第二行：模式选择 + 关键词
-            HStack(spacing: 10) {
-                Picker("拆分方式", selection: Binding(
-                    get: { SplitMode(rawValue: settings.data.splitMode) ?? .paragraph },
-                    set: { settings.data.splitMode = $0.rawValue }
-                )) {
-                    ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
+
+            // 条件关键词行（谁激活显示谁，两个都激活则并排）
+            if settings.data.splitMode == SplitMode.keyword.rawValue || pauseMode == .keyword {
+                HStack(spacing: 12) {
+                    if settings.data.splitMode == SplitMode.keyword.rawValue {
+                        keywordField("拆分关键词", text: $settings.data.splitKeyword)
+                    }
+                    if pauseMode == .keyword {
+                        keywordField("暂停关键词", text: $settings.data.pauseKeyword)
+                    }
                 }
-                .pickerStyle(.segmented)
-                .tint(.accentGold)
-                .frame(width: 130)
-                if settings.data.splitMode == SplitMode.keyword.rawValue {
-                    TextField("拆分关键词", text: $settings.data.splitKeyword)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .frame(height: 32)
-                        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.05)))
-                        .autocorrectionDisabled()
-                }
-                Spacer(minLength: 0)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 6)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            .padding(.leading, 42) // 与「拆分」标签文字对齐
-            .padding(.trailing, 16)
-            .padding(.bottom, 8)
         }
+        .animation(.easeInOut(duration: 0.15), value: settings.data.splitMode)
+        .animation(.easeInOut(duration: 0.15), value: pauseMode)
         .overlay(alignment: .bottom) { hairline }
     }
+
+    private func keywordField(_ placeholder: String, text: Binding<String>) -> some View {
+        TextField(placeholder, text: text)
+            .font(.system(size: 13))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.05)))
+            .autocorrectionDisabled()
+    }
+
+    // MARK: 拆分
 
     private var splitDisabled: Bool {
         if settings.data.splitMode == SplitMode.keyword.rawValue {
@@ -217,9 +249,9 @@ struct EditorView: View {
         dismiss()
     }
 
-    // MARK: 自动暂停设置行
+    // MARK: 暂停模式
 
-    private enum PauseMode: String, CaseIterable {
+    enum PauseMode: String, CaseIterable {
         case off, paragraph, keyword
         var label: String {
             switch self {
@@ -230,42 +262,9 @@ struct EditorView: View {
         }
     }
 
-    private var pauseMode: PauseMode {
-        if !settings.data.pauseKeyword.isEmpty { return .keyword }
-        return settings.data.pauseOnParagraph ? .paragraph : .off
-    }
-
-    private func setPauseMode(_ mode: PauseMode) {
-        settings.data.pauseOnParagraph = mode == .paragraph
-        if mode != .keyword { settings.data.pauseKeyword = "" }
-    }
-
-    private var pauseRow: some View {
-        HStack(spacing: 10) {
-            Label("暂停", systemImage: "pause.circle")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.leading, 16)
-            Picker("自动暂停", selection: Binding(get: { pauseMode }, set: { setPauseMode($0) })) {
-                ForEach(PauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .tint(.accentGold)
-            .frame(width: 160)
-            if pauseMode == .keyword {
-                TextField("暂停关键词", text: $settings.data.pauseKeyword)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .frame(height: 32)
-                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.05)))
-                    .autocorrectionDisabled()
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(minHeight: 48)
-        .overlay(alignment: .bottom) { hairline }
+    static func derivePauseMode(_ data: SettingsData) -> PauseMode {
+        if !data.pauseKeyword.isEmpty { return .keyword }
+        return data.pauseOnParagraph ? .paragraph : .off
     }
 
     // MARK: 正文
@@ -287,6 +286,10 @@ struct EditorView: View {
     // MARK: 保存
 
     private func saveAndClose() {
+        // 退出前同步暂停模式到设置
+        settings.data.pauseOnParagraph = pauseMode == .paragraph
+        if pauseMode != .keyword { settings.data.pauseKeyword = "" }
+
         let finalTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         if let script {
             script.title = finalTitle.isEmpty ? "未命名稿件" : finalTitle
