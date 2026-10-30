@@ -160,12 +160,11 @@ struct EditorView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.leading, 16)
-                Picker("", selection: $splitMode) {
-                    ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .tint(.accentGold)
-                .frame(maxWidth: 120)
+                SegmentedPill(
+                    options: SplitMode.allCases.map { ($0, $0.label) },
+                    selection: $splitMode
+                )
+                .frame(width: splitMode == .keyword ? 100 : 110, height: 32)
                 if splitMode == .keyword {
                     keywordField("关键词", text: $settings.data.splitKeyword)
                         .frame(maxWidth: 110)
@@ -192,12 +191,11 @@ struct EditorView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.leading, 16)
-                Picker("", selection: $pauseMode) {
-                    ForEach(PauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .tint(.accentGold)
-                .frame(maxWidth: 160)
+                SegmentedPill(
+                    options: PauseMode.allCases.map { ($0, $0.label) },
+                    selection: $pauseMode
+                )
+                .frame(width: pauseMode == .keyword ? 140 : 160, height: 32)
                 if pauseMode == .keyword {
                     keywordField("关键词", text: $settings.data.pauseKeyword)
                 }
