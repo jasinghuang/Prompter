@@ -27,6 +27,14 @@ final class AppSettings: ObservableObject {
     }
 
     init() {
+        #if DEBUG
+        // UI 测试用：-resetSettings 从默认设置启动（测试改过的滑杆值不跨轮次泄漏）
+        if ProcessInfo.processInfo.arguments.contains("-resetSettings") {
+            data = .defaults
+            persist()
+            return
+        }
+        #endif
         if let raw = UserDefaults.standard.data(forKey: Self.storageKey),
            let decoded = try? JSONDecoder().decode(SettingsData.self, from: raw) {
             data = decoded

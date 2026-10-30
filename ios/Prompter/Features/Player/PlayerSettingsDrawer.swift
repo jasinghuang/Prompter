@@ -1,14 +1,17 @@
 import SwiftUI
 
-/// 播放页设置抽屉（对应 Web 版 SettingsPanel）：右侧滑入 320pt，
+/// 播放页设置抽屉（对应 Web 版 SettingsPanel）：右侧滑入 320pt，可从左往右拨回收起。
 /// 遮罩透明不模糊——调参数时正文可实时预览。横屏下系统 sheet 会全屏，故用自绘抽屉。
 struct PlayerSettingsDrawer: View {
     @Binding var open: Bool
     @EnvironmentObject private var settings: AppSettings
     @State private var pauseMode: EditorView.PauseMode = .off
+    @State private var dragOffset: CGFloat = 0 // onEnded 接住的位置（动画衔接用）
+    @GestureState private var dragAmount: CGFloat = 0 // 手势期间跟手；取消/结束自动归零，杜绝卡在半路
 
     var body: some View {
         GeometryReader { geo in
+            let panelWidth = min(320, geo.size.width * 0.85)
             ZStack(alignment: .trailing) {
                 if open {
                     Color.black.opacity(0.35)
@@ -16,19 +19,61 @@ struct PlayerSettingsDrawer: View {
                         .contentShape(Rectangle())
                         .onTapGesture { open = false }
                         .transition(.opacity)
-                    panel(width: min(320, geo.size.width * 0.85))
+                    panel(width: panelWidth)
+                        // 拖拽跟手：手势期间 offset 变化不经 animation（open 未变）
+                        .offset(x: max(0, dragOffset + dragAmount))
                         .transition(.move(edge: .trailing))
+                        .gesture(dismissDrag(panelWidth: panelWidth))
+                        .overlay(alignment: .leading) {
+                            // 左缘拖拽把手（指示条所在区）：滑杆/滚动归控件，这里是干净的手势区
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .frame(width: 28)
+                                .gesture(dismissDrag(panelWidth: panelWidth))
+                                .accessibilityHidden(true)
+                        }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .animation(.easeOut(duration: 0.25), value: open)
-        .allowsHitTesting(open)
         .onAppear { pauseMode = EditorView.derivePauseMode(settings.data) }
+        .onChange(of: open) { _, isOpen in
+            if !isOpen {
+                // 收起动画结束后归位，下次打开从 0 开始
+                Task {
+                    try? await Task.sleep(for: .seconds(0.3))
+                    dragOffset = 0
+                }
+            }
+        }
         .onChange(of: pauseMode) { _, mode in
             settings.data.pauseOnParagraph = mode == .paragraph
             if mode != .keyword { settings.data.pauseKeyword = "" }
         }
+    }
+
+    /// 从左往右拨：横向为主的拖动才接管（竖向留给滚动）；
+    /// 手势期间只跟手不写状态，onEnded 一次写入收起/弹回——经典 drawer 手势范式。
+    /// @GestureState 保证手势被系统取消（如拖进屏幕边缘手势区）时自动归零弹回，不会卡在半开。
+    private func dismissDrag(panelWidth: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 12)
+            .updating($dragAmount) { value, state, _ in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                state = max(0, value.translation.width)
+            }
+            .onEnded { value in
+                let horizontal = abs(value.translation.width) > abs(value.translation.height)
+                let final = horizontal ? max(0, value.translation.width) : 0
+                dragOffset = final // 接住手势状态归零前的位置，同帧无缝
+                let dismiss = final > panelWidth * 0.3
+                    || value.predictedEndTranslation.width > panelWidth * 0.6
+                if dismiss {
+                    withAnimation(.easeOut(duration: 0.22)) { open = false }
+                } else {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragOffset = 0 }
+                }
+            }
     }
 
     // MARK: 面板
@@ -256,6 +301,7 @@ struct SettingSlider: View {
                     step: step
                 )
                 .tint(.accentGold)
+                .accessibilityIdentifier("slider.\(label)")
                 stepButton("plus", label: "增大\(label)") { commit(value + step) }
             }
         }

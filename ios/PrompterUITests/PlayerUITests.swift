@@ -57,10 +57,44 @@ final class PlayerUITests: XCTestCase {
         snapshot("05-landscape-settings")
     }
 
+    /// 设置抽屉右拨收起：滑杆上的横向拖动归滑杆（抽屉不关、值变化），左缘把手右拨收起
+    func testSettingsDrawerDragToDismiss() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-openSettings", "-resetSettings"]
+        app.launch()
+        let close = app.buttons["关闭设置"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+
+        // ① 点关闭按钮 → 抽屉收起
+        close.tap()
+        XCTAssertFalse(close.waitForExistence(timeout: 3), "点关闭应收起抽屉")
+
+        // ② 顶栏设置胶囊 → 重新打开
+        app.buttons["设置"].tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 3), "胶囊应重新打开抽屉")
+
+        // ③ 从面板左缘把手区快速右拨（终点离屏幕右缘 130pt，避开 Home 条系统手势区）
+        let window = app.windows.firstMatch
+        let header = app.staticTexts["设置"].firstMatch
+        XCTAssertTrue(header.waitForExistence(timeout: 5))
+        let windowFrame = window.frame
+        let headerFrame = header.frame
+        let stripX = headerFrame.minX - windowFrame.minX - 34 // 标题左移 34pt ≈ 面板左缘内 14pt
+        let y = headerFrame.midY - windowFrame.minY
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+            .withOffset(CGVector(dx: stripX, dy: y))
+            .press(forDuration: 0.05,
+                   thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+                       .withOffset(CGVector(dx: windowFrame.width - windowFrame.minX - 130, dy: y)),
+                   withVelocity: .fast,
+                   thenHoldForDuration: 0.02)
+        XCTAssertFalse(close.waitForExistence(timeout: 3), "右拨应关闭抽屉")
+    }
+
     /// 高速滚到底自动停止 → 出现「回到顶部」胶囊
     func testReachBottomBackToTop() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-fastEnd"]
+        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-fastEnd", "-resetSettings"]
         app.launch()
         let backToTop = app.buttons["回到顶部"]
         XCTAssertTrue(backToTop.waitForExistence(timeout: 40), "读完自动停止后应出现回到顶部按钮")
@@ -123,7 +157,7 @@ final class PlayerUITests: XCTestCase {
     /// 段落自动暂停端到端：高速播放滚到第二段起点行时应自动暂停并出现提示
     func testParagraphAutoPause() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-pauseParagraph"]
+        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-pauseParagraph", "-resetSettings"]
         app.launch()
         let toast = app.staticTexts["已暂停：段落分隔"]
         XCTAssertTrue(toast.waitForExistence(timeout: 20), "滚到段落起点应自动暂停并提示")
