@@ -132,6 +132,7 @@ struct PlayerView: View {
             typography: typography,
             isPlaying: isPlaying,
             wordsPerMinute: settings.data.scrollSpeed,
+            mirror: settings.data.mirror,
             controller: engine,
             onActiveIndex: { activeIndex = $0 },
             onReachEnd: handleReachEnd,
@@ -142,7 +143,8 @@ struct PlayerView: View {
                 settings.data.fontSize = size
                 showToast("字号 \(size)px", duration: nil)
             },
-            onPinchEnd: { size in showToast("字号 \(size)px", duration: 0.6) }
+            onPinchEnd: { size in showToast("字号 \(size)px", duration: 0.6) },
+            onEdgeBack: { dismiss() } // 左缘右滑返回列表，对齐系统返回手势
         )
         .scaleEffect(x: settings.data.mirror ? -1 : 1, y: 1)
         .ignoresSafeArea()

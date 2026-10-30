@@ -91,6 +91,18 @@ final class PlayerUITests: XCTestCase {
         XCTAssertFalse(close.waitForExistence(timeout: 3), "右拨应关闭抽屉")
     }
 
+    /// 播放页左缘右滑 → 返回列表页（对齐系统返回手势习惯）
+    func testEdgeSwipeBackToList() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-resetSettings"]
+        app.launch()
+        XCTAssertTrue(app.buttons["返回"].waitForExistence(timeout: 10), "播放页应已打开")
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+            .press(forDuration: 0.12, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)))
+        XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5), "左缘右滑应返回列表页")
+    }
+
     /// 高速滚到底自动停止 → 出现「回到顶部」胶囊
     func testReachBottomBackToTop() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
