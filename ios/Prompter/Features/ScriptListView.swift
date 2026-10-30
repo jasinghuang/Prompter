@@ -98,15 +98,15 @@ struct ScriptListView: View {
         .preferredColorScheme(.dark)
         .sheet(item: $editingScript) { script in
             EditorView(script: script)
-                .presentationDetents([.fraction(0.67), .large])
+                .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
-                .presentationBackground(Color.surface.opacity(0.95))
+                .presentationBackground(Color.surface)
         }
         .sheet(isPresented: $creatingNew) {
             EditorView(script: nil)
-                .presentationDetents([.fraction(0.67), .large])
+                .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
-                .presentationBackground(Color.surface.opacity(0.95))
+                .presentationBackground(Color.surface)
         }
         .fullScreenCover(item: $playingScript) { script in
             PlayerView(script: script)

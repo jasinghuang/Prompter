@@ -29,7 +29,7 @@ struct EditorView: View {
             // 自定义拖拽指示条
             Capsule()
                 .fill(Color.white.opacity(0.3))
-                .frame(width: 44, height: 5)
+                .frame(width: 60, height: 5)
                 .padding(.top, 10)
                 .padding(.bottom, 4)
             titleRow
