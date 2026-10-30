@@ -26,6 +26,12 @@ struct EditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // 自定义拖拽指示条（替代系统 presentationDragIndicator，间距可控）
+            Capsule()
+                .fill(Color.white.opacity(0.25))
+                .frame(width: 36, height: 4)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
             titleRow
             folderRow
             splitRow
