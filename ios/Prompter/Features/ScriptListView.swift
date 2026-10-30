@@ -141,25 +141,6 @@ struct ScriptListView: View {
             .background(Color.white.opacity(0.05), in: Capsule())
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.1)))
             .layoutPriority(0) // 空间不足时优先收缩搜索框
-            Menu {
-                Button {
-                    if let payload = MigrationService.pasteboardString().flatMap(MigrationService.decode(_:)) {
-                        pendingPayload = payload
-                        showImportPrompt = true
-                    }
-                } label: { Label("从剪贴板导入", systemImage: "doc.on.clipboard") }
-                Button {
-                    MigrationService.copyToPasteboard(
-                        MigrationService.exportJSON(scripts: scripts, settings: settings.data)
-                    )
-                } label: { Label("拷贝导出数据", systemImage: "doc.on.doc") }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .frame(width: CTL.t2, height: CTL.t2)
-            }
-            .layoutPriority(1)
             Button {
                 creatingNew = true
             } label: {
