@@ -162,6 +162,7 @@ struct ScriptListView: View {
             .presentationDetents([.medium])
             .presentationDragIndicator(.hidden)
             .presentationBackground(Color.canvas)
+            .presentationBackgroundInteraction(.enabled(upThrough: .medium))
             .onAppear { showBlur = true }
             .onDisappear { showBlur = false }
         }
