@@ -39,6 +39,21 @@ struct EditorView: View {
             textEditor
         }
         .background(Color.canvas)
+        .overlay(alignment: .top) {
+            // 金色发光边——复刻 PWA 卡片边缘的 gold glow 效果
+            LinearGradient(
+                stops: [
+                    .init(color: .accentGold.opacity(0.0), location: 0),
+                    .init(color: .accentGold.opacity(0.35), location: 0.02),
+                    .init(color: .accentGold.opacity(0.08), location: 0.06),
+                    .init(color: .accentGold.opacity(0.0), location: 0.12),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 24)
+            .allowsHitTesting(false)
+        }
         .onAppear {
             guard !loaded else { return }
             loaded = true
