@@ -47,3 +47,68 @@ enum SortKey: String, CaseIterable {
         }
     }
 }
+
+// MARK: - 智能拆分（与 Web 版 lib/split.ts 对齐）
+
+enum SplitMode: String, CaseIterable {
+    case paragraph
+    case keyword
+
+    var label: String {
+        switch self {
+        case .paragraph: return "空行"
+        case .keyword: return "关键词"
+        }
+    }
+}
+
+enum Splitter {
+    /// 按连续空行（2+ 换行）切分，去首尾空白、滤空段
+    static func byParagraphs(_ content: String) -> [String] {
+        var segments: [String] = []
+        var current = ""
+        var newlineRun = 0
+        for ch in content {
+            if ch == "\n" {
+                newlineRun += 1
+                if newlineRun >= 2 {
+                    if !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        segments.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+                    }
+                    current = ""
+                }
+                continue
+            }
+            if newlineRun == 1 { current += "\n" } // 单个换行保留为段内换行
+            newlineRun = 0
+            current.append(ch)
+        }
+        if !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            segments.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return segments
+    }
+
+    /// 在每个关键词出现处之前切分（字面量匹配），新段以关键词开头；空关键词返回空数组
+    static func byKeyword(_ content: String, keyword: String) -> [String] {
+        guard !keyword.isEmpty else { return [] }
+        var parts: [String] = []
+        var searchStart = content.startIndex
+        var prev = content.startIndex
+        while let range = content.range(of: keyword, range: searchStart..<content.endIndex) {
+            parts.append(String(content[prev..<range.lowerBound]))
+            prev = range.lowerBound
+            searchStart = range.upperBound
+        }
+        parts.append(String(content[prev...]))
+        return parts
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// 拆分出的段落标题 = 首行去空白
+    static func titleOfSegment(_ segment: String) -> String {
+        segment.split(separator: "\n", maxSplits: 1).first.map(String.init)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+}

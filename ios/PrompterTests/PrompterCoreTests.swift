@@ -37,6 +37,29 @@ final class PrompterCoreTests: XCTestCase {
         XCTAssertTrue(PrompterCore.tier(starred: true, filmed: true) < PrompterCore.tier(starred: false, filmed: true))
     }
 
+    // MARK: 智能拆分
+
+    func testSplitByParagraphs() {
+        XCTAssertEqual(Splitter.byParagraphs("标题甲\n内容甲\n\n标题乙\n内容乙"), ["标题甲\n内容甲", "标题乙\n内容乙"])
+        XCTAssertEqual(Splitter.byParagraphs("单段"), ["单段"])
+        XCTAssertEqual(Splitter.byParagraphs("  \n\n  \n\n甲"), ["甲"], "空段应被过滤")
+        XCTAssertEqual(Splitter.byParagraphs("a\n\n\n\nb"), ["a", "b"], "3+ 连续换行视为一个分隔")
+        XCTAssertTrue(Splitter.byParagraphs("   ").isEmpty)
+    }
+
+    func testSplitByKeyword() {
+        XCTAssertEqual(Splitter.byKeyword("开场白\n主持人：大家好", keyword: "主持人："), ["开场白", "主持人：大家好"])
+        XCTAssertEqual(Splitter.byKeyword("甲乙甲乙", keyword: "甲"), ["乙", "乙"])
+        XCTAssertEqual(Splitter.byKeyword("任何", keyword: ""), [])
+        XCTAssertEqual(Splitter.byKeyword("甲", keyword: "不存在"), ["甲"])
+    }
+
+    func testSegmentTitle() {
+        XCTAssertEqual(Splitter.titleOfSegment("标题行\n正文"), "标题行")
+        XCTAssertEqual(Splitter.titleOfSegment("  空格标题  \n正文"), "空格标题")
+        XCTAssertEqual(Splitter.titleOfSegment("单行"), "单行")
+    }
+
     // MARK: 迁移 JSON 解码
 
     func testMigrationDecode() {
