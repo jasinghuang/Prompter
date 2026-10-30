@@ -247,7 +247,7 @@ struct ScriptListView: View {
                     setFilter("all")
                 } label: {
                     Text("全部")
-                    CountBadge(text: "\(scripts.count)")
+                    CountBadge(text: "\(scripts.count)", active: filter == "all")
                 }
                 FilterChip(active: filter == "starred", height: CTL.t2, fontSize: 14) {
                     setFilter("starred")
@@ -261,7 +261,10 @@ struct ScriptListView: View {
                     } label: {
                         Image(systemName: "folder.fill").font(.system(size: 11))
                         Text(folder)
-                        CountBadge(text: "\(scripts.filter { $0.folder == folder }.count)")
+                        CountBadge(
+                            text: "\(scripts.filter { $0.folder == folder }.count)",
+                            active: filter == folder
+                        )
                     }
                 }
             }
@@ -476,14 +479,18 @@ struct FilterChip<Label: View>: View {
 
 struct CountBadge: View {
     let text: String
+    var active: Bool = false
     var body: some View {
         Text(text)
             .font(.system(size: 11, weight: .semibold))
             .monospacedDigit()
-            .foregroundStyle(.accentGold.opacity(0.7))
+            .foregroundStyle(active ? Color.accentGold.opacity(0.7) : Color.white.opacity(0.35))
             .padding(.horizontal, 7)
             .padding(.vertical, 1)
-            .background(Color.accentGold.opacity(0.12), in: Capsule())
+            .background(
+                active ? Color.accentGold.opacity(0.12) : Color.white.opacity(0.06),
+                in: Capsule()
+            )
     }
 }
 
