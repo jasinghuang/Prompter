@@ -48,6 +48,10 @@ struct EditorView: View {
             splitMode = SplitMode(rawValue: settings.data.splitMode) ?? .paragraph
             pauseMode = Self.derivePauseMode(settings.data)
         }
+        .onDisappear {
+            // 弹窗以任何方式关闭（下拉/点外部）都自动保存
+            persistScript()
+        }
     }
 
     // MARK: 标题行
@@ -276,7 +280,9 @@ struct EditorView: View {
 
     // MARK: 保存
 
-    private func saveAndClose() {
+    /// 弹窗关闭时自动保存（下拉/点外部/程序化 dismiss 均触发）
+    private func persistScript() {
+        // 同步拆分/暂停设置
         settings.data.splitMode = splitMode.rawValue
         settings.data.pauseOnParagraph = pauseMode == .paragraph
         if pauseMode != .keyword { settings.data.pauseKeyword = "" }
@@ -287,14 +293,14 @@ struct EditorView: View {
             script.content = content
             script.folder = folder
             script.updatedAt = Date()
-        } else {
+        } else if !finalTitle.isEmpty || !content.isEmpty {
+            // 只有输入了内容才创建，避免弹一下就多一篇空稿件
             context.insert(Script(
                 title: finalTitle.isEmpty ? "未命名稿件" : finalTitle,
                 content: content,
                 folder: folder
             ))
         }
-        dismiss()
     }
 }
 

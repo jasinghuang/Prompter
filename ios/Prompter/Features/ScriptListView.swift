@@ -92,6 +92,8 @@ struct ScriptListView: View {
             }
             .background(Color.canvas)
             .blur(radius: editingScript != nil || creatingNew ? 8 : 0)
+            .animation(.easeOut(duration: 0.2), value: editingScript)
+            .animation(.easeOut(duration: 0.2), value: creatingNew)
             .navigationBarHidden(true)
             .overlay(alignment: .top) { undoPill }
         }
