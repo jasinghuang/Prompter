@@ -39,21 +39,18 @@ struct EditorView: View {
             textEditor
         }
         .background(Color.canvas)
-        .overlay(alignment: .top) {
-            // 金色发光边——复刻 PWA 卡片边缘的 gold glow 效果
-            LinearGradient(
-                stops: [
-                    .init(color: .accentGold.opacity(0.0), location: 0),
-                    .init(color: .accentGold.opacity(0.35), location: 0.02),
-                    .init(color: .accentGold.opacity(0.08), location: 0.06),
-                    .init(color: .accentGold.opacity(0.0), location: 0.12),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 24)
+        .overlay(
+            ZStack {
+                // 辉光层：粗描边 + 模糊 = 发光扩散（等效 CSS box-shadow）
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.accentGold.opacity(0.35), lineWidth: 4)
+                    .blur(radius: 8)
+                // 锐利边线：清晰的金色描边（等效 CSS border）
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.accentGold.opacity(0.4), lineWidth: 1)
+            }
             .allowsHitTesting(false)
-        }
+        )
         .onAppear {
             guard !loaded else { return }
             loaded = true
