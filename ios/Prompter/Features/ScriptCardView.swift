@@ -127,8 +127,9 @@ struct ScriptCardView: View {
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "folder.fill")
-                    .font(.system(size: 14))
+                    .font(.system(size: 18))
                 Text(script.folder ?? "分组")
+                    .font(.system(size: 12))
                     .lineLimit(1)
             }
             .foregroundStyle(.accentGold)
