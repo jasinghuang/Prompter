@@ -159,8 +159,7 @@ struct ScriptListView: View {
                 }
             )
             .presentationDetents([.medium])
-            .presentationDragIndicator(.hidden)
-            .presentationBackground(Color.surface)
+            .presentationDragIndicator(.visible)
         }
         .alert("新建文件夹", isPresented: $newFolderAlert) {
             TextField("文件夹名称", text: $newFolderName)

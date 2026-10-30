@@ -11,14 +11,7 @@ struct FolderPickerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 拖拽指示条
-            Capsule()
-                .fill(Color.white.opacity(0.3))
-                .frame(width: 44, height: 5)
-                .padding(.top, 10)
-                .padding(.bottom, 4)
-
-            // 标题（Web: px-6 pt-6 pb-2, folder icon 16pt white/40 + 16pt bold white）
+            // 标题（系统提供拖拽指示条，无需自绘）
             HStack(spacing: 8) {
                 Image(systemName: "folder")
                     .font(.system(size: 16))
