@@ -49,7 +49,8 @@ final class PrompterCoreTests: XCTestCase {
 
     func testSplitByKeyword() {
         XCTAssertEqual(Splitter.byKeyword("开场白\n主持人：大家好", keyword: "主持人："), ["开场白", "主持人：大家好"])
-        XCTAssertEqual(Splitter.byKeyword("甲乙甲乙", keyword: "甲"), ["乙", "乙"])
+        // 新段以关键词开头（与 Web 版一致），不是去掉关键词
+        XCTAssertEqual(Splitter.byKeyword("甲乙甲乙", keyword: "甲"), ["甲乙", "甲乙"])
         XCTAssertEqual(Splitter.byKeyword("任何", keyword: ""), [])
         XCTAssertEqual(Splitter.byKeyword("甲", keyword: "不存在"), ["甲"])
     }
