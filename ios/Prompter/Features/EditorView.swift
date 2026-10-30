@@ -26,7 +26,7 @@ struct EditorView: View {
             folderRow
             splitRow
             pauseRow
-            editor
+            textEditor
         }
         .background(Color.canvas)
         .onAppear {
@@ -38,7 +38,7 @@ struct EditorView: View {
         }
     }
 
-    // MARK: 标题行（返回胶囊 + 标题，与播放页同位）
+    // MARK: 标题行
 
     private var titleRow: some View {
         HStack(spacing: 8) {
@@ -65,7 +65,7 @@ struct EditorView: View {
         .padding(.top, 12)
     }
 
-    // MARK: 分组行：未分组 / 现有文件夹 / 内联新建（写入即时生效）
+    // MARK: 分组行
 
     private var folders: [String] {
         Array(Set(allScripts.compactMap(\.folder))).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
@@ -95,13 +95,16 @@ struct EditorView: View {
                             .submitLabel(.done)
                             .onSubmit { commitNewFolder() }
                             .onChange(of: newFolderFocused) { _, focused in
-                                if !focused { commitNewFolder() } // 点别处 = 提交非空名称
+                                if !focused { commitNewFolder() }
                             }
                     } else {
                         Button {
                             newFolderName = ""
                             newFolderOpen = true
-                            newFolderFocused = true
+                            // 延迟设置 focus，确保 TextField 已渲染后再弹键盘
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                newFolderFocused = true
+                            }
                         } label: {
                             Label("新建", systemImage: "plus")
                                 .font(.system(size: 13, weight: .medium))
@@ -116,7 +119,7 @@ struct EditorView: View {
                 .padding(.trailing, 16)
             }
         }
-        .frame(height: 52)
+        .frame(minHeight: 48)
         .overlay(alignment: .bottom) { hairline }
     }
 
@@ -125,8 +128,8 @@ struct EditorView: View {
             Text(label)
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(active ? .white : .white.opacity(0.45))
-                .padding(.horizontal, 16)
-                .frame(height: 40)
+                .padding(.horizontal, 14)
+                .frame(height: 36)
                 .background(active ? Color.white.opacity(0.15) : Color.white.opacity(0.08), in: Capsule())
         }
         .buttonStyle(.plain)
@@ -136,49 +139,60 @@ struct EditorView: View {
         let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
         newFolderOpen = false
         guard !name.isEmpty else { return }
-        folder = name // 新分组随本稿件落地
+        folder = name
     }
 
     // MARK: 智能拆分行
 
     private var splitRow: some View {
-        HStack(spacing: 10) {
-            Label("拆分", systemImage: "scissors")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.leading, 16)
-            Picker("拆分方式", selection: Binding(
-                get: { SplitMode(rawValue: settings.data.splitMode) ?? .paragraph },
-                set: { settings.data.splitMode = $0.rawValue }
-            )) {
-                ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 150)
-            if settings.data.splitMode == SplitMode.keyword.rawValue {
-                TextField("拆分关键词", text: $settings.data.splitKeyword)
-                    .font(.system(size: 13))
+        VStack(spacing: 0) {
+            // 第一行：标签 + 智能拆分按钮
+            HStack(spacing: 10) {
+                Label("拆分", systemImage: "scissors")
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .frame(height: 32)
-                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.05)))
-                    .autocorrectionDisabled()
+                    .padding(.leading, 16)
+                Spacer(minLength: 8)
+                Button(action: performSplit) {
+                    Label("智能拆分", systemImage: "scissors")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.canvas)
+                        .padding(.horizontal, 12)
+                        .frame(height: 32)
+                        .background(splitDisabled ? Color.accentGold.opacity(0.3) : Color.accentGold, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(splitDisabled)
+                .padding(.trailing, 16)
             }
-            Spacer(minLength: 8)
-            Button(action: performSplit) {
-                Label("智能拆分", systemImage: "scissors")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Color.canvas)
-                    .padding(.horizontal, 12)
-                    .frame(height: 32)
-                    .background(splitDisabled ? Color.accentGold.opacity(0.3) : Color.accentGold, in: Capsule())
+            .frame(minHeight: 44)
+            // 第二行：模式选择 + 关键词
+            HStack(spacing: 10) {
+                Picker("拆分方式", selection: Binding(
+                    get: { SplitMode(rawValue: settings.data.splitMode) ?? .paragraph },
+                    set: { settings.data.splitMode = $0.rawValue }
+                )) {
+                    ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .tint(.accentGold)
+                .frame(width: 130)
+                if settings.data.splitMode == SplitMode.keyword.rawValue {
+                    TextField("拆分关键词", text: $settings.data.splitKeyword)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .frame(height: 32)
+                        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.05)))
+                        .autocorrectionDisabled()
+                }
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.plain)
-            .disabled(splitDisabled)
+            .padding(.leading, 42) // 与「拆分」标签文字对齐
             .padding(.trailing, 16)
+            .padding(.bottom, 8)
         }
-        .frame(height: 52)
         .overlay(alignment: .bottom) { hairline }
     }
 
@@ -189,7 +203,6 @@ struct EditorView: View {
         return !content.contains("\n\n")
     }
 
-    /// 拆分：产物继承分组，删除原稿，回列表（与 Web 版行为一致）
     private func performSplit() {
         let mode = SplitMode(rawValue: settings.data.splitMode) ?? .paragraph
         let segments = mode == .keyword
@@ -204,7 +217,7 @@ struct EditorView: View {
         dismiss()
     }
 
-    // MARK: 自动暂停设置行（行为在 M3 播放页生效）
+    // MARK: 自动暂停设置行
 
     private enum PauseMode: String, CaseIterable {
         case off, paragraph, keyword
@@ -229,7 +242,7 @@ struct EditorView: View {
 
     private var pauseRow: some View {
         HStack(spacing: 10) {
-            Label("自动暂停", systemImage: "pause.circle")
+            Label("暂停", systemImage: "pause.circle")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.white)
                 .padding(.leading, 16)
@@ -237,7 +250,8 @@ struct EditorView: View {
                 ForEach(PauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
             }
             .pickerStyle(.segmented)
-            .frame(width: 190)
+            .tint(.accentGold)
+            .frame(width: 160)
             if pauseMode == .keyword {
                 TextField("暂停关键词", text: $settings.data.pauseKeyword)
                     .font(.system(size: 13))
@@ -250,20 +264,20 @@ struct EditorView: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(height: 52)
+        .frame(minHeight: 48)
         .overlay(alignment: .bottom) { hairline }
     }
 
     // MARK: 正文
 
-    private var editor: some View {
+    private var textEditor: some View {
         TextEditor(text: $content)
             .font(.system(size: 17))
             .foregroundStyle(.white)
             .scrollContentBackground(.hidden)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.horizontal, 12)
-            .padding(.top, 8)
-            .padding(.bottom, 12)
+            .padding(.vertical, 8)
     }
 
     private var hairline: some View {
