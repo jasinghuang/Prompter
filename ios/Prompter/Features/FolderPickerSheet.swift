@@ -52,7 +52,7 @@ struct FolderPickerSheet: View {
                 .padding(12)              // Web: p-3 = 12pt
             }
         }
-        .background(Color.surface)        // Web: glass-surface ≈ surface 色
+        .background(Color.canvas)         // 纯黑，与编辑弹窗一致
     }
 
     // MARK: 选项行（Web: FolderOption —— rounded-xl px-3 py-3 text-sm）
