@@ -11,7 +11,14 @@ struct FolderPickerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 标题（系统提供拖拽指示条，无需自绘）
+            // 自定义拖拽指示条（与编辑弹窗同款间距：上 10pt / 下 14pt）
+            Capsule()
+                .fill(Color.white.opacity(0.3))
+                .frame(width: 60, height: 5)
+                .padding(.top, 10)
+                .padding(.bottom, 14)
+
+            // 标题
             HStack(spacing: 8) {
                 Image(systemName: "folder")
                     .font(.system(size: 16))

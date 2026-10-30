@@ -106,6 +106,7 @@ struct ScriptListView: View {
                         .onTapGesture {
                             if editingScript != nil { editingScript = nil }
                             if creatingNew { creatingNew = false }
+                            if folderPickerScript != nil { folderPickerScript = nil }
                             showBlur = false
                         }
                         .ignoresSafeArea()
@@ -159,7 +160,13 @@ struct ScriptListView: View {
                 }
             )
             .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(Color.canvas)
+            .onAppear { showBlur = true }
+            .onDisappear { showBlur = false }
+        }
+        .onChange(of: folderPickerScript?.id) { _, _ in
+            if folderPickerScript == nil { showBlur = false }
         }
         .alert("新建文件夹", isPresented: $newFolderAlert) {
             TextField("文件夹名称", text: $newFolderName)
