@@ -60,3 +60,9 @@ struct PlayerView: View {
         .statusBarHidden()
     }
 }
+
+#if DEBUG
+#Preview {
+    PlayerView(script: Script(title: "预览稿件", content: "广发证券新客开户福利来了！从现在起，新客来开户，可立享专属 VIP 优惠佣金、沪深 Level-2 十档行情、超 30 款智能投资工具等多重新客福利。"))
+}
+#endif

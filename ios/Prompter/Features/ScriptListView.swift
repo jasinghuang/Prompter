@@ -414,3 +414,38 @@ struct CountBadge: View {
             .background(Color.white.opacity(0.12), in: Capsule())
     }
 }
+
+// MARK: - Canvas 预览（内存库 + 演示数据，不碰真机数据）
+
+#if DEBUG
+private func makePreviewContainer(seed: Bool) -> ModelContainer {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: Script.self, configurations: config)
+    if seed {
+        let context = ModelContext(container)
+        let demo: [(String, String, String?, Bool, Bool)] = [
+            ("脚本1-广发新客开户", "朋友们，广发证券新客开户福利来了！从现在起，新客来开户，可立享专属 VIP 优惠佣金。", "口播", true, false),
+            ("脚本2-佣金优惠", "总有人问我，为什么我的交易更频繁了，但手续费却更省了？", "口播", false, false),
+            ("脚本3-新客福利包", "新客开户即享价值约 1688 元的新客福利包。", nil, false, false),
+            ("脚本4-已拍示例", "这一条已经拍完了，应当沉底显示。", "口播", false, true),
+        ]
+        for (title, content, folder, starred, filmed) in demo {
+            context.insert(Script(title: title, content: content, folder: folder, starred: starred, isFilmed: filmed))
+        }
+        try? context.save()
+    }
+    return container
+}
+
+#Preview("有数据") {
+    ScriptListView()
+        .modelContainer(makePreviewContainer(seed: true))
+        .environmentObject(AppSettings())
+}
+
+#Preview("空态") {
+    ScriptListView()
+        .modelContainer(makePreviewContainer(seed: false))
+        .environmentObject(AppSettings())
+}
+#endif
