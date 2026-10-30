@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// 编辑页（M2）：标题 / 分组 / 拆分 / 暂停 / 正文——全套系统控件 + 系统底色
+/// 编辑页（M2）：标题 / 分组 / 拆分 / 暂停 / 正文——自定义深色视觉 + 常驻关键词框
 struct EditorView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -20,128 +20,19 @@ struct EditorView: View {
     @State private var newFolderName = ""
     @FocusState private var newFolderFocused: Bool
 
-    // 拆分/暂停：本地 state，退出时同步到设置
+    // 拆分/暂停：本地 state
     @State private var splitMode: SplitMode = .paragraph
     @State private var pauseMode: PauseMode = .off
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── 标题行 ──
-            HStack(spacing: 10) {
-                Button {
-                    saveAndClose()
-                } label: {
-                    Image(systemName: "chevron.backward")
-                        .font(.system(size: 17, weight: .medium))
-                }
-                .buttonStyle(.borderless)
-                TextField("稿件标题", text: $title)
-                    .font(.headline)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-
-            // ── 设置区（系统 Form 外观，但保持紧凑高度） ──
-            VStack(spacing: 0) {
-                // 拆分行
-                HStack(spacing: 12) {
-                    Text("拆分")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                    Picker("", selection: $splitMode) {
-                        ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 110)
-                    // 关键词输入框常驻：未选关键词时灰色不可输入，位置大小不变
-                    TextField("关键词", text: $settings.data.splitKeyword)
-                        .font(.subheadline)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                        .disabled(splitMode != .keyword)
-                    Spacer(minLength: 8)
-                    Button("智能拆分") {
-                        performSplit()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(splitDisabled)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-
-                // 暂停行
-                HStack(spacing: 12) {
-                    Text("暂停")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                    Picker("", selection: $pauseMode) {
-                        ForEach(PauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 140)
-                    TextField("关键词", text: $settings.data.pauseKeyword)
-                        .font(.subheadline)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                        .disabled(pauseMode != .keyword)
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-
-                // 分组行
-                HStack(spacing: 12) {
-                    Text("分组")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            Menu {
-                                Button("未分组") { folder = nil }
-                                ForEach(folders, id: \.self) { name in
-                                    Button(name) { folder = name }
-                                }
-                                Divider()
-                                Button("新建分组…") {
-                                    newFolderOpen = true
-                                }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "folder")
-                                    Text(folder ?? "未分组")
-                                    Image(systemName: "chevron.up.chevron.down")
-                                        .font(.caption2)
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            if newFolderOpen {
-                                TextField("新分组名", text: $newFolderName)
-                                    .font(.subheadline)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 110)
-                                    .focused($newFolderFocused)
-                                    .onSubmit { commitNewFolder() }
-                                Button("确定") {
-                                    commitNewFolder()
-                                }
-                                .buttonStyle(.borderedProminent)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            }
-            .background(.ultraThinMaterial)
-
-            // ── 正文编辑区 ──
-            TextEditor(text: $content)
-                .font(.body)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            titleRow
+            folderRow
+            splitRow
+            pauseRow
+            textEditor
         }
-        .background(Color(uiColor: .systemBackground))
+        .background(Color.canvas)
         .onAppear {
             guard !loaded else { return }
             loaded = true
@@ -153,7 +44,34 @@ struct EditorView: View {
         }
     }
 
-    // MARK: 分组
+    // MARK: 标题行
+
+    private var titleRow: some View {
+        HStack(spacing: 8) {
+            Button {
+                saveAndClose()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .frame(width: 34, height: 34)
+                    .background(Color.surface.opacity(0.7), in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.07)))
+            }
+            .buttonStyle(.plain)
+            TextField("稿件标题", text: $title)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.vertical, 10)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+                }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+    }
+
+    // MARK: 分组行
 
     private var folders: [String] {
         var set = Set(allScripts.compactMap(\.folder))
@@ -161,12 +79,147 @@ struct EditorView: View {
         return set.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
+    private var folderRow: some View {
+        HStack(spacing: 10) {
+            Label("分组", systemImage: "folder")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.leading, 16)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    folderChip("未分组", active: folder == nil) { folder = nil }
+                    ForEach(folders, id: \.self) { name in
+                        folderChip(name, active: folder == name) { folder = name }
+                    }
+                    if newFolderOpen {
+                        TextField("新分组名", text: $newFolderName)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .frame(width: 110, height: 32)
+                            .background(Color.accentGold.opacity(0.1), in: Capsule())
+                            .overlay(Capsule().strokeBorder(Color.accentGold.opacity(0.4)))
+                            .focused($newFolderFocused)
+                            .submitLabel(.done)
+                            .onSubmit { commitNewFolder() }
+                            .onChange(of: newFolderFocused) { _, focused in
+                                if !focused { commitNewFolder() }
+                            }
+                    } else {
+                        Button {
+                            newFolderName = ""
+                            newFolderOpen = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                newFolderFocused = true
+                            }
+                        } label: {
+                            Label("新建", systemImage: "plus")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.45))
+                                .padding(.horizontal, 10)
+                                .frame(height: 32)
+                                .background(Color.white.opacity(0.08), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.trailing, 16)
+            }
+        }
+        .frame(minHeight: 48)
+        .overlay(alignment: .bottom) { hairline }
+    }
+
+    private func folderChip(_ label: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(active ? .white : .white.opacity(0.45))
+                .padding(.horizontal, 14)
+                .frame(height: 36)
+                .background(active ? Color.white.opacity(0.15) : Color.white.opacity(0.08), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
     private func commitNewFolder() {
         let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
         newFolderOpen = false
-        newFolderName = ""
         guard !name.isEmpty else { return }
         folder = name
+    }
+
+    // MARK: 拆分行
+
+    private var splitRow: some View {
+        HStack(spacing: 10) {
+            Label("拆分", systemImage: "scissors")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.leading, 16)
+            SegmentedPill(
+                options: SplitMode.allCases.map { ($0, $0.label) },
+                selection: $splitMode
+            )
+            .frame(width: 100, height: 32)
+            // 关键词框常驻：未选关键词时灰色，位置大小不变
+            keyField("关键词", text: $settings.data.splitKeyword, enabled: splitMode == .keyword)
+                .frame(maxWidth: 110)
+            Spacer(minLength: 8)
+            Button(action: performSplit) {
+                Text("智能拆分")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color.canvas)
+                    .padding(.horizontal, 12)
+                    .frame(height: 32)
+                    .background(splitDisabled ? Color.accentGold.opacity(0.3) : Color.accentGold, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(splitDisabled)
+            .padding(.trailing, 16)
+        }
+        .frame(minHeight: 48)
+        .overlay(alignment: .bottom) { hairline }
+    }
+
+    // MARK: 暂停行
+
+    private var pauseRow: some View {
+        HStack(spacing: 10) {
+            Label("暂停", systemImage: "pause.circle")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.leading, 16)
+            SegmentedPill(
+                options: PauseMode.allCases.map { ($0, $0.label) },
+                selection: $pauseMode
+            )
+            .frame(width: 140, height: 32)
+            // 关键词框常驻：未选关键词时灰色
+            keyField("关键词", text: $settings.data.pauseKeyword, enabled: pauseMode == .keyword)
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: 48)
+        .overlay(alignment: .bottom) { hairline }
+    }
+
+    /// 常驻关键词输入框：enabled 时可输入（白色边框），disabled 时灰色（不可输入但占位不变）
+    private func keyField(_ placeholder: String, text: Binding<String>, enabled: Bool) -> some View {
+        TextField(placeholder, text: text)
+            .font(.system(size: 13))
+            .foregroundStyle(enabled ? .white : .white.opacity(0.3))
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .background(
+                Color.white.opacity(enabled ? 0.05 : 0.03),
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(enabled ? Color.white.opacity(0.08) : Color.white.opacity(0.03))
+            )
+            .autocorrectionDisabled()
+            .disabled(!enabled)
     }
 
     // MARK: 拆分
@@ -207,6 +260,22 @@ struct EditorView: View {
     static func derivePauseMode(_ data: SettingsData) -> PauseMode {
         if !data.pauseKeyword.isEmpty { return .keyword }
         return data.pauseOnParagraph ? .paragraph : .off
+    }
+
+    // MARK: 正文
+
+    private var textEditor: some View {
+        TextEditor(text: $content)
+            .font(.system(size: 17))
+            .foregroundStyle(.white)
+            .scrollContentBackground(.hidden)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+    }
+
+    private var hairline: some View {
+        Rectangle().fill(Color.white.opacity(0.05)).frame(height: 1).padding(.horizontal, 16)
     }
 
     // MARK: 保存
