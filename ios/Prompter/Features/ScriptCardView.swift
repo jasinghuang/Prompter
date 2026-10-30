@@ -155,19 +155,20 @@ struct ScriptCardView: View {
 
     // MARK: 文件夹按钮
 
+    /// Web 版对齐：图标恒为轮廓 Folder（形状不随有无文件夹变化），有文件夹=金色+名字
     private var folderButton: some View {
         Button {
             onAction(.showFolderPicker)
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: script.folder != nil ? "folder.fill" : "folder")
+                Image(systemName: "folder")
                     .font(.system(size: 14))                        // Web: size={14}
                 if let folder = script.folder {
                     Text(folder)
                         .font(.system(size: 12))
                         .foregroundStyle(.white.opacity(0.50))      // Web: text-white/50
                         .lineLimit(1)
-                        .frame(maxWidth: 120, alignment: .leading)  // Web: max-w-[16vw]
+                        .frame(maxWidth: 140, alignment: .leading)   // Web: max-w-[16vw]
                 }
             }
             .foregroundStyle(script.folder != nil ? .accentGold : .white.opacity(0.35))

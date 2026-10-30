@@ -156,6 +156,7 @@ final class PlayerUITests: XCTestCase {
             app.staticTexts["测试分组"].waitForExistence(timeout: 5),
             "创建后卡片/筛选 chips 应出现新文件夹名"
         )
+        snapshot("13-card-with-folder")
     }
 
     func testPlayerPortrait() throws {

@@ -274,7 +274,8 @@ struct ScriptListView: View {
                     FilterChip(active: filter == folder, height: CTL.t2, fontSize: 14) {
                         setFilter(folder)
                     } label: {
-                        Image(systemName: "folder.fill").font(.system(size: 11))
+                        // Web 版 FilterChip 用轮廓 Folder（size 13），不随选中变实心
+                        Image(systemName: "folder").font(.system(size: 11))
                         Text(folder)
                         CountBadge(
                             text: "\(scripts.filter { $0.folder == folder }.count)",
