@@ -459,7 +459,7 @@ struct FilterChip<Label: View>: View {
                 label()
             }
             .font(.system(size: fontSize, weight: .medium))
-            .foregroundStyle(active ? .white : .white.opacity(0.45))
+            .foregroundStyle(active ? Color.accentGold : Color.white.opacity(0.45))
             .padding(.horizontal, 16)
             .frame(height: height)
             .background(Color.canvas, in: Capsule())
@@ -480,10 +480,10 @@ struct CountBadge: View {
         Text(text)
             .font(.system(size: 11, weight: .semibold))
             .monospacedDigit()
-            .foregroundStyle(.white.opacity(0.55))
+            .foregroundStyle(.accentGold.opacity(0.7))
             .padding(.horizontal, 7)
             .padding(.vertical, 1)
-            .background(Color.white.opacity(0.12), in: Capsule())
+            .background(Color.accentGold.opacity(0.12), in: Capsule())
     }
 }
 
