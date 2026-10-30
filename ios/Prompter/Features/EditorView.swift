@@ -38,7 +38,24 @@ struct EditorView: View {
             pauseRow
             textEditor
         }
-        .background(.clear) // 让 sheet 的 thinMaterial 毛玻璃透出
+        .background(.clear)
+        .overlay(alignment: .top) {
+            // 金色细描边——顶部边缘的视觉分界线
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .accentGold.opacity(0.0), location: 0.0),
+                            .init(color: .accentGold.opacity(0.6), location: 0.5),
+                            .init(color: .accentGold.opacity(0.0), location: 1.0),
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: 1)
+                .allowsHitTesting(false)
+        }
         .onAppear {
             guard !loaded else { return }
             loaded = true

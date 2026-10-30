@@ -125,7 +125,7 @@ struct ScriptListView: View {
             EditorView(script: script)
                 .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
-                .presentationBackground(Color.surface)
+                .presentationBackground(Color.canvas)
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.80)))
                 .onAppear { showBlur = true }
                 .onDisappear { showBlur = false }
@@ -134,7 +134,7 @@ struct ScriptListView: View {
             EditorView(script: nil)
                 .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
-                .presentationBackground(Color.surface)
+                .presentationBackground(Color.canvas)
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.80)))
                 .onAppear { showBlur = true }
                 .onDisappear { showBlur = false }
