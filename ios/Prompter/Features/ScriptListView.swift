@@ -97,9 +97,11 @@ struct ScriptListView: View {
         .preferredColorScheme(.dark)
         .sheet(item: $editingScript) { script in
             EditorView(script: script)
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $creatingNew) {
             EditorView(script: nil)
+                .presentationDragIndicator(.visible)
         }
         .fullScreenCover(item: $playingScript) { script in
             PlayerView(script: script)
@@ -241,7 +243,8 @@ struct ScriptListView: View {
             ForEach(visible) { script in
                 ScriptCardView(
                     script: script,
-                    wordsPerMinute: settings.data.scrollSpeed
+                    wordsPerMinute: settings.data.scrollSpeed,
+                    folders: folders
                 ) { action in
                     handleCardAction(action, script)
                 }
@@ -257,6 +260,8 @@ struct ScriptListView: View {
         case .toggleStar:
             withAnimation(.easeInOut(duration: 0.2)) { script.starred.toggle() }
         case .delete: deleteScripts([script])
+        case .moveFolder(let folder):
+            withAnimation(.easeInOut(duration: 0.2)) { script.folder = folder; script.updatedAt = Date() }
         }
     }
 

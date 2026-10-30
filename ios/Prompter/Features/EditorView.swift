@@ -166,14 +166,16 @@ struct EditorView: View {
             keyField("关键词", text: $settings.data.splitKeyword, enabled: splitMode == .keyword)
                 .frame(maxWidth: 110)
             Spacer(minLength: 8)
-            Button(action: performSplit) {
-                Text("智能拆分")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Color.canvas)
-                    .padding(.horizontal, 12)
-                    .frame(height: 32)
-                    .background(splitDisabled ? Color.accentGold.opacity(0.3) : Color.accentGold, in: Capsule())
-            }
+                Button(action: performSplit) {
+                    Text("智能拆分")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.canvas)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 12)
+                        .frame(height: 32)
+                        .background(splitDisabled ? Color.accentGold.opacity(0.3) : Color.accentGold, in: Capsule())
+                }
             .buttonStyle(.plain)
             .disabled(splitDisabled)
             .padding(.trailing, 16)
