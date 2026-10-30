@@ -258,7 +258,7 @@ struct ScriptListView: View {
                     }
                 }
             }
-            .padding(.bottom, 10)
+            .padding(.bottom, 16) // Web: filter chips mb-4 = 16pt
         }
     }
 
