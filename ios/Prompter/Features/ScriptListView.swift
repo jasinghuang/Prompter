@@ -121,11 +121,12 @@ struct ScriptListView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "quote.bubble.fill")
-                .foregroundStyle(.accentGold)
-                .font(.system(size: 22))
+            Image("Logo")
+                .resizable()
+                .frame(width: 28, height: 28)
+                .clipShape(RoundedRectangle(cornerRadius: 7))
             Text("提词器").font(.system(size: 16, weight: .bold))
-            Spacer(minLength: 12)
+            Spacer(minLength: 8)
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.white.opacity(0.4)).font(.system(size: 13))
                 TextField("搜索稿件…", text: $query)
@@ -136,9 +137,10 @@ struct ScriptListView: View {
             }
             .padding(.horizontal, 12)
             .frame(height: CTL.t2)
+            .frame(maxWidth: 220)
             .background(Color.white.opacity(0.05), in: Capsule())
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.1)))
-            .frame(width: query.isEmpty ? 150 : 220)
+            .layoutPriority(0) // 空间不足时优先收缩搜索框
             Menu {
                 Button {
                     if let payload = MigrationService.pasteboardString().flatMap(MigrationService.decode(_:)) {
@@ -157,6 +159,7 @@ struct ScriptListView: View {
                     .foregroundStyle(.white.opacity(0.5))
                     .frame(width: CTL.t2, height: CTL.t2)
             }
+            .layoutPriority(1)
             Button {
                 creatingNew = true
             } label: {
@@ -170,6 +173,7 @@ struct ScriptListView: View {
                 .background(Color.accentGold, in: Capsule())
             }
             .buttonStyle(.plain)
+            .layoutPriority(1)
         }
         .padding(.top, 12)
         .padding(.bottom, 14)
