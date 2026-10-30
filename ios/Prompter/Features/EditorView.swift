@@ -20,7 +20,9 @@ struct EditorView: View {
     @State private var newFolderName = ""
     @FocusState private var newFolderFocused: Bool
 
-    // 暂停模式：本地 state，picker 即时切换；退出时同步到设置
+    // 拆分/暂停模式：本地 state（picker 动画流畅的关键——不直接绑定到
+    // settings 对象，避免每次切换触发整个视图树重渲染打断滑块动画）
+    @State private var splitMode: SplitMode = .paragraph
     @State private var pauseMode: EditorView.PauseMode = .off
 
     var body: some View {
@@ -37,6 +39,7 @@ struct EditorView: View {
             title = script?.title ?? ""
             content = script?.content ?? ""
             folder = script?.folder
+            splitMode = SplitMode(rawValue: settings.data.splitMode) ?? .paragraph
             pauseMode = Self.derivePauseMode(settings.data)
         }
     }
@@ -152,15 +155,12 @@ struct EditorView: View {
     private var toolArea: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                // 拆分模式
+                // 拆分模式（绑定本地 state，picker 动画不被重渲染打断）
                 HStack(spacing: 6) {
                     Text("拆分")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white)
-                    Picker("", selection: Binding(
-                        get: { SplitMode(rawValue: settings.data.splitMode) ?? .paragraph },
-                        set: { settings.data.splitMode = $0.rawValue }
-                    )) {
+                    Picker("", selection: $splitMode) {
                         ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
@@ -180,7 +180,6 @@ struct EditorView: View {
                     .frame(width: 130)
                 }
                 Spacer(minLength: 8)
-                // 智能拆分按钮
                 Button(action: performSplit) {
                     Text("智能拆分")
                         .font(.system(size: 13, weight: .bold))
@@ -195,10 +194,10 @@ struct EditorView: View {
             .padding(.horizontal, 16)
             .frame(minHeight: 44)
 
-            // 条件关键词行（谁激活显示谁，两个都激活则并排）
-            if settings.data.splitMode == SplitMode.keyword.rawValue || pauseMode == .keyword {
+            // 条件关键词行（独立的出入场动画，不影响上方 picker）
+            if splitMode == .keyword || pauseMode == .keyword {
                 HStack(spacing: 12) {
-                    if settings.data.splitMode == SplitMode.keyword.rawValue {
+                    if splitMode == .keyword {
                         keywordField("拆分关键词", text: $settings.data.splitKeyword)
                     }
                     if pauseMode == .keyword {
@@ -210,8 +209,6 @@ struct EditorView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .animation(.easeInOut(duration: 0.15), value: settings.data.splitMode)
-        .animation(.easeInOut(duration: 0.15), value: pauseMode)
         .overlay(alignment: .bottom) { hairline }
     }
 
@@ -229,15 +226,14 @@ struct EditorView: View {
     // MARK: 拆分
 
     private var splitDisabled: Bool {
-        if settings.data.splitMode == SplitMode.keyword.rawValue {
+        if splitMode == .keyword {
             return settings.data.splitKeyword.isEmpty || !content.contains(settings.data.splitKeyword)
         }
         return !content.contains("\n\n")
     }
 
     private func performSplit() {
-        let mode = SplitMode(rawValue: settings.data.splitMode) ?? .paragraph
-        let segments = mode == .keyword
+        let segments = splitMode == .keyword
             ? Splitter.byKeyword(content, keyword: settings.data.splitKeyword)
             : Splitter.byParagraphs(content)
         guard segments.count >= 2 else { return }
@@ -286,7 +282,8 @@ struct EditorView: View {
     // MARK: 保存
 
     private func saveAndClose() {
-        // 退出前同步暂停模式到设置
+        // 退出前同步拆分/暂停模式到设置
+        settings.data.splitMode = splitMode.rawValue
         settings.data.pauseOnParagraph = pauseMode == .paragraph
         if pauseMode != .keyword { settings.data.pauseKeyword = "" }
 
