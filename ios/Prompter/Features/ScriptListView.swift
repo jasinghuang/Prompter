@@ -438,7 +438,7 @@ struct ScriptListView: View {
 
 // MARK: - 子组件
 
-/// T2 筛选胶囊（选中 = 白 15% 底）
+/// T2 筛选胶囊：选中 = 白 15% 底 + 金色描边；未选中 = 白 8% 底
 struct FilterChip<Label: View>: View {
     let active: Bool
     let height: CGFloat
@@ -456,6 +456,9 @@ struct FilterChip<Label: View>: View {
             .padding(.horizontal, 16)
             .frame(height: height)
             .background(active ? Color.white.opacity(0.15) : Color.white.opacity(0.08), in: Capsule())
+            .overlay(
+                Capsule().strokeBorder(active ? Color.accentGold.opacity(0.5) : .clear, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }
