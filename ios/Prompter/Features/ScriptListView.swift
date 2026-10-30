@@ -15,7 +15,10 @@ struct ScriptListView: View {
     @State private var editingScript: Script?
     @State private var creatingNew = false
     @State private var playingScript: Script?
-    @State private var showBlur = false // 独立跟踪弹窗可见性，消失即刻关模糊
+    @State private var showBlur = false
+    @State private var folderPickerScript: Script?
+    @State private var newFolderAlert = false
+    @State private var newFolderName = "" // 独立跟踪弹窗可见性，消失即刻关模糊
 
     @State private var confirmClearAll = false
     // 删除撤销（单篇；批量在 M4 泛化）
@@ -138,6 +141,39 @@ struct ScriptListView: View {
         }
         .fullScreenCover(item: $playingScript) { script in
             PlayerView(script: script)
+        }
+        .sheet(item: $folderPickerScript) { script in
+            FolderPickerSheet(
+                script: script,
+                folders: folders,
+                allScripts: scripts,
+                onSelect: { folder in
+                    script.folder = folder
+                    script.updatedAt = Date()
+                    folderPickerScript = nil
+                },
+                onNewFolder: {
+                    folderPickerScript = nil
+                    newFolderName = ""
+                    newFolderAlert = true
+                }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(Color.surface)
+        }
+        .alert("新建文件夹", isPresented: $newFolderAlert) {
+            TextField("文件夹名称", text: $newFolderName)
+            Button("创建") {
+                let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !name.isEmpty, let script = folderPickerScript ?? editingScript {
+                    script.folder = name
+                } else if !name.isEmpty {
+                    // 没有目标稿件时仅创建文件夹（挂到下一篇稿上）
+                }
+                newFolderName = ""
+            }
+            Button("取消", role: .cancel) { newFolderName = "" }
         }
         .confirmationDialog("确认清空全部稿件？", isPresented: $confirmClearAll, titleVisibility: .visible) {
             Button("删除全部 \(scripts.count) 篇", role: .destructive) { deleteAll() }
@@ -293,8 +329,8 @@ struct ScriptListView: View {
         case .toggleStar:
             withAnimation(.easeInOut(duration: 0.2)) { script.starred.toggle() }
         case .delete: deleteScripts([script])
-        case .moveFolder(let folder):
-            withAnimation(.easeInOut(duration: 0.2)) { script.folder = folder; script.updatedAt = Date() }
+        case .showFolderPicker:
+            folderPickerScript = script
         }
     }
 

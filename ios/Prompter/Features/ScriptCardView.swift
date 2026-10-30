@@ -3,7 +3,7 @@ import SwiftUI
 /// 稿件卡片：三级视觉层级 + 44pt 命中区操作钮 + 文件夹菜单 + 星标
 struct ScriptCardView: View {
     enum Action {
-        case open, edit, delete, toggleStar, moveFolder(String?)
+        case open, edit, delete, toggleStar, showFolderPicker
     }
 
     let script: Script
@@ -93,7 +93,7 @@ struct ScriptCardView: View {
             Text("|").foregroundStyle(.white.opacity(0.15))
             Text("约\(durationText)")
             Spacer(minLength: 8)
-            folderMenu
+            folderButton
             starButton
         }
         .font(.system(size: 12))
@@ -106,24 +106,10 @@ struct ScriptCardView: View {
         )
     }
 
-    // 文件夹：Menu 弹出可选文件夹（含未分组）；无分组时仅暗淡图标
-    private var folderMenu: some View {
-        Menu {
-            ForEach(folders, id: \.self) { name in
-                Button {
-                    onAction(.moveFolder(name))
-                } label: {
-                    if script.folder == name {
-                        Label(name, systemImage: "checkmark")
-                    } else {
-                        Text(name)
-                    }
-                }
-            }
-            Divider()
-            Button("未分组") {
-                onAction(.moveFolder(nil))
-            }
+    // 文件夹：点击弹出底部选择弹窗（同 Web 版）
+    private var folderButton: some View {
+        Button {
+            onAction(.showFolderPicker)
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: script.folder != nil ? "folder.fill" : "folder")
@@ -138,6 +124,8 @@ struct ScriptCardView: View {
             .frame(height: 44)
             .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("移动到文件夹")
     }
 
     private var starButton: some View {
