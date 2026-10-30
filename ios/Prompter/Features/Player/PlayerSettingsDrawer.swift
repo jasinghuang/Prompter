@@ -73,6 +73,14 @@ struct PlayerSettingsDrawer: View {
         .overlay(alignment: .leading) {
             Rectangle().fill(Color.white.opacity(0.05)).frame(width: 1).ignoresSafeArea()
         }
+        // 左缘竖向指示条（规范同编辑/文件夹弹窗：5pt 粗、60pt 长、距边缘 10pt）
+        .overlay(alignment: .leading) {
+            Capsule()
+                .fill(Color.white.opacity(0.3))
+                .frame(width: 5, height: 60)
+                .padding(.leading, 10)
+                .accessibilityHidden(true)
+        }
     }
 
     private var header: some View {

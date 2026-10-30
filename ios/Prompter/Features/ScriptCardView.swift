@@ -176,6 +176,7 @@ struct ScriptCardView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("card.folder")
     }
 
     // MARK: 星标按钮

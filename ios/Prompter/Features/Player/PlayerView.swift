@@ -56,6 +56,16 @@ struct PlayerView: View {
             backToTop
             toastView
             onboarding
+            // 弹窗打开时：透明遮罩拦截背景交互，点击空白即刻关弹窗+模糊（三层触发的第一层）
+            if showBlur {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if editing { editing = false }
+                        showBlur = false
+                    }
+                    .ignoresSafeArea()
+            }
             PlayerSettingsDrawer(open: $showSettings)
         }
         .blur(radius: showBlur ? 8 : 0)
@@ -106,6 +116,7 @@ struct PlayerView: View {
                 .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Color.canvas)
+                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.80))) // 让空白点击直达遮罩层
                 .onAppear { showBlur = true }
                 .onDisappear {
                     showBlur = false

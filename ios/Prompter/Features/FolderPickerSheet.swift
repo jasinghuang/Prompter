@@ -107,5 +107,6 @@ struct FolderPickerSheet: View {
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("folder.new")
     }
 }

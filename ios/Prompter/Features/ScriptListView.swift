@@ -19,11 +19,13 @@ struct ScriptListView: View {
     @State private var folderPickerScript: Script?
     @State private var newFolderAlert = false
     @State private var newFolderName = "" // 独立跟踪弹窗可见性，消失即刻关模糊
+    @State private var newFolderTarget: Script? // 新建文件夹的目标稿件（弹窗前先记下，弹窗期间选择器已关）
 
     @State private var confirmClearAll = false
     // 删除撤销（单篇；批量在 M4 泛化）
     @State private var undoItems: [UndoSnapshot] = []
     @State private var showUndo = false
+    @State private var undoCountdown = 1.0
 
     // 剪贴板导入
     @State private var pendingPayload: ExportPayload?
@@ -154,6 +156,7 @@ struct ScriptListView: View {
                     folderPickerScript = nil
                 },
                 onNewFolder: {
+                    newFolderTarget = script // 先记目标，再关选择器弹 alert（此前读已置 nil 的选择器导致创建丢失）
                     folderPickerScript = nil
                     newFolderName = ""
                     newFolderAlert = true
@@ -173,14 +176,17 @@ struct ScriptListView: View {
             TextField("文件夹名称", text: $newFolderName)
             Button("创建") {
                 let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !name.isEmpty, let script = folderPickerScript ?? editingScript {
+                if !name.isEmpty, let script = newFolderTarget {
                     script.folder = name
-                } else if !name.isEmpty {
-                    // 没有目标稿件时仅创建文件夹（挂到下一篇稿上）
+                    script.updatedAt = Date()
                 }
+                newFolderTarget = nil
                 newFolderName = ""
             }
-            Button("取消", role: .cancel) { newFolderName = "" }
+            Button("取消", role: .cancel) {
+                newFolderTarget = nil
+                newFolderName = ""
+            }
         }
         .confirmationDialog("确认清空全部稿件？", isPresented: $confirmClearAll, titleVisibility: .visible) {
             Button("删除全部 \(scripts.count) 篇", role: .destructive) { deleteAll() }
@@ -386,7 +392,9 @@ struct ScriptListView: View {
         guard !targets.isEmpty else { return }
         undoItems = targets.map { UndoSnapshot(script: $0, starred: $0.starred, isFilmed: $0.isFilmed) }
         targets.forEach(context.delete) // 卡片退场+补位动画由 cardsGrid 的 animation(value:) 驱动
+        undoCountdown = 1
         withAnimation(.easeOut(duration: 0.18)) { showUndo = true }
+        withAnimation(.linear(duration: 2)) { undoCountdown = 0 } // 与 2 秒撤销窗口同步收尽
         Task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             if showUndo { // 2 秒窗口结束，真正落下
@@ -414,22 +422,43 @@ struct ScriptListView: View {
             Button {
                 undoDelete()
             } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 13, weight: .bold))
-                    Text("撤销删除").font(.system(size: 14, weight: .bold))
+                HStack(spacing: 0) {
+                    // 状态区 | 撤销区 —— 与顶栏胶囊同构（T1 壳 44pt / 内格 34pt / 分颊 1×16）
+                    Text("已删除 \(undoItems.count) 篇")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .padding(.horizontal, 13)
+                        .frame(height: 34)
+                    CapsuleDivider()
+                    Text("撤销")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.accentGold)
+                        .padding(.horizontal, 15)
+                        .frame(height: 34)
                 }
-                .foregroundStyle(Color.accentGold)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color.surface.opacity(0.9), in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.accentGold.opacity(0.3)))
-                .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
+                .padding(.horizontal, 5)
+                .frame(height: CTL.t1)
+                .background(Color.surface.opacity(0.72), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.07), lineWidth: 1))
+                .overlay(alignment: .bottom) { undoCountdownLine }
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.5), radius: 20, y: 8) // 悬浮于卡片之上的一层，不再像临时贴片
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
             .transition(.move(edge: .top).combined(with: .opacity))
-            .padding(.top, 76)
+            .padding(.top, 72)
         }
+    }
+
+    /// 撤销窗口倒计时：胶囊底边金色细线 2 秒内收尽，直观表达时机限时
+    private var undoCountdownLine: some View {
+        GeometryReader { geo in
+            Capsule()
+                .fill(Color.accentGold.opacity(0.55))
+                .frame(width: geo.size.width * undoCountdown, height: 2)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        }
+        .allowsHitTesting(false)
     }
 
     private func deleteAll() {

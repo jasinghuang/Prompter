@@ -85,6 +85,33 @@ final class PlayerUITests: XCTestCase {
         snapshot("10-list-delete-after")
     }
 
+    /// 卡片文件夹按钮 → 新建文件夹 → 目标稿件应移入新文件夹（此前 alert 读不到目标而静默丢失）
+    func testCreateFolderFromCard() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["-seedDemo", "-skipOnboard"]
+        app.launch()
+        let folderButtons = app.buttons.matching(identifier: "card.folder")
+        XCTAssertTrue(folderButtons.firstMatch.waitForExistence(timeout: 10))
+        folderButtons.firstMatch.tap()
+
+        let newFolder = app.buttons["folder.new"]
+        XCTAssertTrue(newFolder.waitForExistence(timeout: 5))
+        newFolder.tap()
+
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "点新建应弹出命名 alert")
+        let field = alert.textFields.firstMatch
+        field.tap()
+        field.typeText("测试分组")
+        alert.buttons["创建"].tap()
+
+        sleep(1)
+        XCTAssertTrue(
+            app.staticTexts["测试分组"].waitForExistence(timeout: 5),
+            "创建后卡片/筛选 chips 应出现新文件夹名"
+        )
+    }
+
     func testPlayerPortrait() throws {
         XCUIDevice.shared.orientation = .portrait
         app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard"]

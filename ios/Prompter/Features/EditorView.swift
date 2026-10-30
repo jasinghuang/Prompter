@@ -59,9 +59,9 @@ struct EditorView: View {
     private var titleRow: some View {
         HStack(spacing: 8) {
             TextField("稿件标题", text: $title)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.white)
-                .padding(.vertical, 8)
+                .padding(.vertical, 12)
                 .overlay(alignment: .bottom) {
                     Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
                 }
