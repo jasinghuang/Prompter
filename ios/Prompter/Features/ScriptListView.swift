@@ -76,35 +76,35 @@ struct ScriptListView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    header
-                    if !scripts.isEmpty {
-                        filterChips
-                        toolbar
+            ZStack {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        header
+                        if !scripts.isEmpty {
+                            filterChips
+                            toolbar
+                        }
+                        if visible.isEmpty {
+                            emptyState
+                        } else {
+                            cardsGrid
+                        }
                     }
-                    if visible.isEmpty {
-                        emptyState
-                    } else {
-                        cardsGrid
-                    }
+                    .padding(.horizontal, 16)
                 }
-                .padding(.horizontal, 16)
-            }
-            .background(Color.canvas)
-            .blur(radius: showBlur ? 8 : 0)
-            // 三层触发，谁先到谁关模糊：
-            // ① 点击空白区（onTapGesture 接管，零延迟）
-            // ② 绑定变 nil（onChange，覆盖下拉关闭和其他 dismiss 路径）
-            // ③ 视图移除（onDisappear 兜底）
-            .onTapGesture {
-                if editingScript != nil {
-                    editingScript = nil
-                    showBlur = false
-                }
-                if creatingNew {
-                    creatingNew = false
-                    showBlur = false
+                .background(Color.canvas)
+                .blur(radius: showBlur ? 8 : 0)
+
+                // 弹窗打开时：透明遮罩拦截所有背景交互，点击即刻关弹窗+模糊
+                if showBlur {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            if editingScript != nil { editingScript = nil }
+                            if creatingNew { creatingNew = false }
+                            showBlur = false
+                        }
+                        .ignoresSafeArea()
                 }
             }
             .onChange(of: editingScript?.id) { _, _ in
