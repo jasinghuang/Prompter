@@ -38,19 +38,7 @@ struct EditorView: View {
             pauseRow
             textEditor
         }
-        .background(Color.canvas)
-        .overlay(
-            ZStack {
-                // 辉光层：粗描边 + 模糊 = 发光扩散（等效 CSS box-shadow）
-                RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(Color.accentGold.opacity(0.35), lineWidth: 4)
-                    .blur(radius: 8)
-                // 锐利边线：清晰的金色描边（等效 CSS border）
-                RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(Color.accentGold.opacity(0.4), lineWidth: 1)
-            }
-            .allowsHitTesting(false)
-        )
+        .background(.clear) // 让 sheet 的 thinMaterial 毛玻璃透出
         .onAppear {
             guard !loaded else { return }
             loaded = true
