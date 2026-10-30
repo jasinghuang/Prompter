@@ -98,12 +98,14 @@ struct ScriptListView: View {
         .sheet(item: $editingScript) { script in
             EditorView(script: script)
                 .presentationDragIndicator(.visible)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.fraction(0.67), .large])
+                .presentationBackground(.black.opacity(0.6))
         }
         .sheet(isPresented: $creatingNew) {
             EditorView(script: nil)
                 .presentationDragIndicator(.visible)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.fraction(0.67), .large])
+                .presentationBackground(.black.opacity(0.6))
         }
         .fullScreenCover(item: $playingScript) { script in
             PlayerView(script: script)
