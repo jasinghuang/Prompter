@@ -26,12 +26,12 @@ struct EditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 自定义拖拽指示条（替代系统 presentationDragIndicator，间距可控）
+            // 自定义拖拽指示条
             Capsule()
                 .fill(Color.white.opacity(0.25))
                 .frame(width: 36, height: 4)
                 .padding(.top, 10)
-                .padding(.bottom, 6)
+                .padding(.bottom, 4)
             titleRow
             folderRow
             splitRow
@@ -54,27 +54,15 @@ struct EditorView: View {
 
     private var titleRow: some View {
         HStack(spacing: 8) {
-            Button {
-                saveAndClose()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
-                    .frame(width: 34, height: 34)
-                    .background(Color.surface.opacity(0.7), in: Capsule())
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.07)))
-            }
-            .buttonStyle(.plain)
             TextField("稿件标题", text: $title)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white)
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
                 .overlay(alignment: .bottom) {
                     Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
                 }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
     }
 
     // MARK: 分组行

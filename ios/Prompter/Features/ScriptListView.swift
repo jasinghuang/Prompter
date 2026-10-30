@@ -98,12 +98,14 @@ struct ScriptListView: View {
         .sheet(item: $editingScript) { script in
             EditorView(script: script)
                 .presentationDetents([.fraction(0.67), .large])
-                .presentationBackground(.black.opacity(0.6))
+                .presentationDragIndicator(.hidden)
+                .presentationBackground(.ultraThinMaterial)
         }
         .sheet(isPresented: $creatingNew) {
             EditorView(script: nil)
                 .presentationDetents([.fraction(0.67), .large])
-                .presentationBackground(.black.opacity(0.6))
+                .presentationDragIndicator(.hidden)
+                .presentationBackground(.ultraThinMaterial)
         }
         .fullScreenCover(item: $playingScript) { script in
             PlayerView(script: script)
@@ -160,15 +162,15 @@ struct ScriptListView: View {
             .buttonStyle(.plain)
             .layoutPriority(1)
         }
-        .padding(.top, 12)
-        .padding(.bottom, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
     }
 
     // MARK: 筛选 chips（T2 40px）
 
     private var filterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 FilterChip(active: filter == "all", height: CTL.t2, fontSize: 14) {
                     setFilter("all")
                 } label: {
@@ -191,7 +193,7 @@ struct ScriptListView: View {
                     }
                 }
             }
-            .padding(.bottom, 12)
+            .padding(.bottom, 8)
         }
     }
 
@@ -235,13 +237,13 @@ struct ScriptListView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.bottom, 14)
+        .padding(.bottom, 8)
     }
 
     // MARK: 卡片网格
 
     private var cardsGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 12)], spacing: 12) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 10)], spacing: 10) {
             ForEach(visible) { script in
                 ScriptCardView(
                     script: script,
@@ -252,7 +254,7 @@ struct ScriptListView: View {
                 }
             }
         }
-        .padding(.bottom, 24)
+        .padding(.bottom, 16)
     }
 
     private func handleCardAction(_ action: ScriptCardView.Action, _ script: Script) {

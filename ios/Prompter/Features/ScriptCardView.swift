@@ -15,29 +15,29 @@ struct ScriptCardView: View {
 
     var body: some View {
         Button { onAction(.open) } label: {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 titleRow
                 if !script.content.isEmpty {
                     Text(script.content)
-                        .font(.system(size: 14))
+                        .font(.system(size: 13))
                         .foregroundStyle(.white.opacity(script.isFilmed ? 0.15 : 0.25))
                         .lineLimit(2)
-                        .lineSpacing(4)
+                        .lineSpacing(3)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 metaRow
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 script.isFilmed
                     ? Color.successGreen.opacity(0.06)
                     : Color.surface.opacity(0.7),
-                in: RoundedRectangle(cornerRadius: 16)
+                in: RoundedRectangle(cornerRadius: 14)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 14)
                     .strokeBorder(
                         script.isFilmed ? Color.successGreen.opacity(0.3) : Color.accentGold.opacity(0.15),
                         lineWidth: 1
@@ -75,10 +75,11 @@ struct ScriptCardView: View {
     private func actionButton(icon: String, label: String, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 15))
+                .font(.system(size: 18))
                 .foregroundStyle(tint)
                 .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+                .background(Color.white.opacity(0.06), in: Circle())
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
@@ -142,10 +143,11 @@ struct ScriptCardView: View {
             onAction(.toggleStar)
         } label: {
             Image(systemName: script.starred ? "star.fill" : "star")
-                .font(.system(size: 16))
+                .font(.system(size: 18))
                 .foregroundStyle(script.starred ? .accentGold : .white.opacity(0.35))
                 .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+                .background(Color.white.opacity(0.06), in: Circle())
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(script.starred ? "取消星标" : "星标")
