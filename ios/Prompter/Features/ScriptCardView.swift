@@ -78,8 +78,7 @@ struct ScriptCardView: View {
                 .font(.system(size: 18))
                 .foregroundStyle(tint)
                 .frame(width: 44, height: 44)
-                .background(Color.white.opacity(0.06), in: Circle())
-                .contentShape(Circle())
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
@@ -146,8 +145,7 @@ struct ScriptCardView: View {
                 .font(.system(size: 18))
                 .foregroundStyle(script.starred ? .accentGold : .white.opacity(0.35))
                 .frame(width: 44, height: 44)
-                .background(Color.white.opacity(0.06), in: Circle())
-                .contentShape(Circle())
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(script.starred ? "取消星标" : "星标")

@@ -91,6 +91,7 @@ struct ScriptListView: View {
                 .padding(.horizontal, 16)
             }
             .background(Color.canvas)
+            .blur(radius: editingScript != nil || creatingNew ? 8 : 0)
             .navigationBarHidden(true)
             .overlay(alignment: .top) { undoPill }
         }
@@ -99,13 +100,13 @@ struct ScriptListView: View {
             EditorView(script: script)
                 .presentationDetents([.fraction(0.67), .large])
                 .presentationDragIndicator(.hidden)
-                .presentationBackground(.ultraThinMaterial)
+                .presentationBackground(Color.surface.opacity(0.95))
         }
         .sheet(isPresented: $creatingNew) {
             EditorView(script: nil)
                 .presentationDetents([.fraction(0.67), .large])
                 .presentationDragIndicator(.hidden)
-                .presentationBackground(.ultraThinMaterial)
+                .presentationBackground(Color.surface.opacity(0.95))
         }
         .fullScreenCover(item: $playingScript) { script in
             PlayerView(script: script)
