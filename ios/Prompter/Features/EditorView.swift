@@ -157,10 +157,10 @@ struct EditorView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.white)
                 .padding(.leading, 16)
-            SegmentedPill(
-                options: SplitMode.allCases.map { ($0, $0.label) },
-                selection: $splitMode
-            )
+            Picker("", selection: $splitMode) {
+                ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
             .frame(width: 100, height: 32)
             // 关键词框常驻：未选关键词时灰色，位置大小不变
             keyField("关键词", text: $settings.data.splitKeyword, enabled: splitMode == .keyword)
@@ -190,10 +190,10 @@ struct EditorView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.white)
                 .padding(.leading, 16)
-            SegmentedPill(
-                options: PauseMode.allCases.map { ($0, $0.label) },
-                selection: $pauseMode
-            )
+            Picker("", selection: $pauseMode) {
+                ForEach(PauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
             .frame(width: 140, height: 32)
             // 关键词框常驻：未选关键词时灰色
             keyField("关键词", text: $settings.data.pauseKeyword, enabled: pauseMode == .keyword)
