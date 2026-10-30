@@ -106,7 +106,7 @@ struct ScriptCardView: View {
         )
     }
 
-    // 文件夹：Menu 弹出可选文件夹（含未分组）
+    // 文件夹：Menu 弹出可选文件夹（含未分组）；无分组时仅暗淡图标
     private var folderMenu: some View {
         Menu {
             ForEach(folders, id: \.self) { name in
@@ -126,13 +126,15 @@ struct ScriptCardView: View {
             }
         } label: {
             HStack(spacing: 3) {
-                Image(systemName: "folder.fill")
+                Image(systemName: script.folder != nil ? "folder.fill" : "folder")
                     .font(.system(size: 18))
-                Text(script.folder ?? "分组")
-                    .font(.system(size: 12))
-                    .lineLimit(1)
+                if let folder = script.folder {
+                    Text(folder)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                }
             }
-            .foregroundStyle(.accentGold)
+            .foregroundStyle(script.folder != nil ? .accentGold : .white.opacity(0.35))
             .frame(height: 44)
             .contentShape(Rectangle())
         }
