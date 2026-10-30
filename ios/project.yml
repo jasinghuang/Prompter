@@ -47,6 +47,16 @@ targets:
       - PrompterTests
     dependencies:
       - target: Prompter
+  PrompterUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - PrompterUITests
+    dependencies:
+      - target: Prompter
+    settings:
+      base:
+        TEST_TARGET_NAME: Prompter
 schemes:
   Prompter:
     build:
@@ -57,3 +67,4 @@ schemes:
       gatherCoverageData: false
       targets:
         - PrompterTests
+        - PrompterUITests

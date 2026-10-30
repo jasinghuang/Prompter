@@ -8,6 +8,9 @@ extension ShapeStyle where Self == Color {
     static var accentGold: Color { Color(red: 212 / 255, green: 164 / 255, blue: 50 / 255) } // #D4A432
     static var dangerRed: Color { Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255) } // #DC2626
     static var successGreen: Color { Color(red: 34 / 255, green: 197 / 255, blue: 94 / 255) } // #22C55E
+    static var textPrimary: Color { Color(red: 245 / 255, green: 245 / 255, blue: 245 / 255) } // #F5F5F5
+    static var textSecondary: Color { Color(red: 161 / 255, green: 161 / 255, blue: 170 / 255) } // #A1A1AA
+    static var textMuted: Color { Color(red: 113 / 255, green: 113 / 255, blue: 122 / 255) } // #71717A
 }
 
 /// 控件层级阶梯（T1 主操作 44 / T2 导航 40 / T3 工具 32 / T4 元信息 12pt 文字）
@@ -22,6 +25,16 @@ struct PressableCardStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: configuration.isPressed)
+    }
+}
+
+/// 通用按压缩放反馈（对应 Web 的 active:scale-95，小控件用）
+struct PressableStyle: ButtonStyle {
+    var scale: CGFloat = 0.95
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1)
             .animation(.spring(response: 0.25, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }

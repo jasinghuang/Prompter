@@ -289,6 +289,7 @@ struct EditorView: View {
 
         let finalTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         if let script {
+            guard !script.isDeleted else { return } // 智能拆分已删原稿，不再回写
             script.title = finalTitle.isEmpty ? "未命名稿件" : finalTitle
             script.content = content
             script.folder = folder

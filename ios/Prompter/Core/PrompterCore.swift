@@ -32,6 +32,85 @@ enum PrompterCore {
         case (false, true): return 3
         }
     }
+
+    // MARK: 播放页（与 Web 版 types.ts / Teleprompter.tsx 对齐）
+
+    static let fontSizeMin = 24
+    static let fontSizeMax = 120
+    static let letterSpacingMin = 0.0
+    static let letterSpacingMax = 0.3
+    static let lineHeightMin = 1.0
+    static let lineHeightMax = 2.5
+    static let paddingMin = 4
+    static let paddingMax = 20
+
+    /// 自动滚动速度（pt/s）= 可滚动总距离 / 字数 × (字/分 ÷ 60)
+    /// 即把整篇可滚动距离均摊到每个字上，字/分换算为每秒位移
+    static func pointsPerSecond(maxOffset: Double, charCount: Int, wordsPerMinute: Int) -> Double {
+        guard charCount > 0, maxOffset > 0, wordsPerMinute > 0 else { return 0 }
+        return (maxOffset / Double(charCount)) * (Double(wordsPerMinute) / 60.0)
+    }
+
+    /// 双指捏合换算字号：起始字号按手指间距比例缩放，步进 2 取偶，夹在 [fontSizeMin, fontSizeMax]
+    static func pinchFontSize(scale: Double, startFontSize: Int) -> Int {
+        guard scale > 0, scale.isFinite else { return startFontSize }
+        let raw = Double(startFontSize) * scale
+        let stepped = Int((raw / 2).rounded()) * 2
+        return min(fontSizeMax, max(fontSizeMin, stepped))
+    }
+
+    /// 段落起点集合（UTF-16 偏移）：连续 2+ 换行之后的首个非换行字符位置
+    static func paragraphStarts(_ content: String) -> Set<Int> {
+        let units = Array(content.utf16)
+        let newline = UInt16(10)
+        var starts = Set<Int>()
+        guard units.count > 1 else { return starts }
+        for i in 1..<units.count where units[i] == newline && units[i - 1] == newline {
+            var j = i + 1
+            while j < units.count && units[j] == newline { j += 1 }
+            if j < units.count { starts.insert(j) }
+        }
+        return starts
+    }
+}
+
+// MARK: - 自动暂停（与 Web 版 usePauseOnKeyword / usePauseOnParagraph 一致）
+
+/// 关键词自动暂停：在当前行起点前后窗口内查找关键词，同一命中位置只触发一次
+struct KeywordPauseTracker {
+    private(set) var pausedAt = -1
+
+    mutating func reset() { pausedAt = -1 }
+
+    /// 返回 true 表示此刻应暂停（并记录命中位置）；偏移均为 UTF-16
+    mutating func shouldPause(content: String, keyword: String, activeIndex: Int) -> Bool {
+        guard !keyword.isEmpty else { return false }
+        let text = content as NSString
+        let keywordLength = (keyword as NSString).length
+        let ctxStart = max(0, activeIndex - max(keywordLength, 30))
+        let ctxEnd = min(text.length, activeIndex + keywordLength)
+        guard ctxEnd > ctxStart else { return false }
+        let ctx = text.substring(with: NSRange(location: ctxStart, length: ctxEnd - ctxStart)) as NSString
+        let skip = pausedAt >= ctxStart ? pausedAt - ctxStart + 1 : 0
+        guard skip < ctx.length else { return false }
+        let found = ctx.range(of: keyword, options: [], range: NSRange(location: skip, length: ctx.length - skip))
+        guard found.location != NSNotFound else { return false }
+        pausedAt = ctxStart + found.location
+        return true
+    }
+}
+
+/// 段落自动暂停：滚到段落起点行时暂停，同一起点只触发一次
+struct ParagraphPauseTracker {
+    private(set) var pausedAt = -1
+
+    mutating func reset() { pausedAt = -1 }
+
+    mutating func shouldPause(paragraphStarts: Set<Int>, activeIndex: Int) -> Bool {
+        guard paragraphStarts.contains(activeIndex), pausedAt != activeIndex else { return false }
+        pausedAt = activeIndex
+        return true
+    }
 }
 
 enum SortKey: String, CaseIterable {

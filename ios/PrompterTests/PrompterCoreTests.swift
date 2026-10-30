@@ -88,4 +88,70 @@ final class PrompterCoreTests: XCTestCase {
         XCTAssertEqual(data.scrollSpeed, PrompterCore.speedMax, "速度应夹到上限")
         XCTAssertEqual(data.lineHeight, SettingsData.defaults.lineHeight, "未提供的字段保持默认")
     }
+
+    // MARK: 播放页：滚动速度换算（可滚动距离均摊到每个字）
+
+    func testPointsPerSecond() {
+        // 1000pt 可滚动 / 100 字 = 10pt/字；60 字/分 = 1 字/秒 → 10pt/s
+        XCTAssertEqual(PrompterCore.pointsPerSecond(maxOffset: 1000, charCount: 100, wordsPerMinute: 60), 10, accuracy: 0.0001)
+        XCTAssertEqual(PrompterCore.pointsPerSecond(maxOffset: 0, charCount: 100, wordsPerMinute: 60), 0)
+        XCTAssertEqual(PrompterCore.pointsPerSecond(maxOffset: 1000, charCount: 0, wordsPerMinute: 60), 0)
+        XCTAssertEqual(PrompterCore.pointsPerSecond(maxOffset: 1000, charCount: 100, wordsPerMinute: 0), 0)
+    }
+
+    // MARK: 播放页：捏合字号（步进 2 取偶 + 夹紧）
+
+    func testPinchFontSize() {
+        XCTAssertEqual(PrompterCore.pinchFontSize(scale: 1, startFontSize: 64), 64)
+        XCTAssertEqual(PrompterCore.pinchFontSize(scale: 1.5, startFontSize: 64), 96)
+        XCTAssertEqual(PrompterCore.pinchFontSize(scale: 1.1, startFontSize: 64), 70, "70.4 → 取偶 70")
+        XCTAssertEqual(PrompterCore.pinchFontSize(scale: 10, startFontSize: 64), PrompterCore.fontSizeMax)
+        XCTAssertEqual(PrompterCore.pinchFontSize(scale: 0.1, startFontSize: 64), PrompterCore.fontSizeMin)
+        XCTAssertEqual(PrompterCore.pinchFontSize(scale: 0, startFontSize: 64), 64, "非法比例返回起始字号")
+    }
+
+    // MARK: 播放页：段落起点（连续 2+ 换行后的首字）
+
+    func testParagraphStarts() {
+        XCTAssertEqual(PrompterCore.paragraphStarts("ab\n\ncd"), [4])
+        XCTAssertEqual(PrompterCore.paragraphStarts("a\n\n\n\nb"), [5], "3+ 连续换行只记一个起点")
+        XCTAssertEqual(PrompterCore.paragraphStarts("a\nb"), [], "单个换行不是段落分隔")
+        XCTAssertEqual(PrompterCore.paragraphStarts("a\n\n"), [], "末尾空行后无内容不记")
+        XCTAssertEqual(PrompterCore.paragraphStarts(""), [])
+    }
+
+    // MARK: 播放页：关键词自动暂停（同一命中只触发一次，reset 后重新生效）
+
+    func testKeywordPauseTracker() {
+        var tracker = KeywordPauseTracker()
+        let content = "ab\n\n主持人：cd"
+        XCTAssertTrue(tracker.shouldPause(content: content, keyword: "主持人：", activeIndex: 4))
+        XCTAssertEqual(tracker.pausedAt, 4)
+        XCTAssertFalse(tracker.shouldPause(content: content, keyword: "主持人：", activeIndex: 4), "同一位置不重复触发")
+        XCTAssertFalse(tracker.shouldPause(content: content, keyword: "主持人：", activeIndex: 100), "窗口越界安全")
+        XCTAssertFalse(tracker.shouldPause(content: content, keyword: "", activeIndex: 4), "空关键词不触发")
+        tracker.reset()
+        XCTAssertTrue(tracker.shouldPause(content: content, keyword: "主持人：", activeIndex: 4), "reset 后重新生效")
+    }
+
+    func testKeywordPauseTrackerHitsWithinLookback() {
+        var tracker = KeywordPauseTracker()
+        // 关键词在当前行起点之前 30 字内也算命中（Web 版回看窗口）
+        let content = "开场白停一下继续说后面的内容"
+        XCTAssertTrue(tracker.shouldPause(content: content, keyword: "停一下", activeIndex: 10))
+        XCTAssertEqual(tracker.pausedAt, 3)
+    }
+
+    // MARK: 播放页：段落自动暂停
+
+    func testParagraphPauseTracker() {
+        var tracker = ParagraphPauseTracker()
+        let starts: Set<Int> = [4, 9]
+        XCTAssertFalse(tracker.shouldPause(paragraphStarts: starts, activeIndex: 0))
+        XCTAssertTrue(tracker.shouldPause(paragraphStarts: starts, activeIndex: 4))
+        XCTAssertFalse(tracker.shouldPause(paragraphStarts: starts, activeIndex: 4), "同一起点不重复触发")
+        XCTAssertTrue(tracker.shouldPause(paragraphStarts: starts, activeIndex: 9))
+        tracker.reset()
+        XCTAssertTrue(tracker.shouldPause(paragraphStarts: starts, activeIndex: 4))
+    }
 }

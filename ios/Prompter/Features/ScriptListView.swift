@@ -192,7 +192,16 @@ struct ScriptListView: View {
         } message: {
             Text("剪贴板中有 \(pendingPayload?.scripts?.count ?? 0) 篇稿件数据，要导入吗？")
         }
-        .task { checkPasteboardOnce() }
+        .task {
+            checkPasteboardOnce()
+            #if DEBUG
+            // 自动化截图验证用：-openPlayer 直接进入首篇稿件的播放页
+            if ProcessInfo.processInfo.arguments.contains("-openPlayer"), playingScript == nil,
+               let first = visible.first {
+                playingScript = first
+            }
+            #endif
+        }
     }
 
     // MARK: 头部
