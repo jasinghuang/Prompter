@@ -126,6 +126,7 @@ struct ScriptListView: View {
                 .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Color.canvas)
+                .presentationCornerRadius(16)
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.80)))
                 .onAppear { showBlur = true }
                 .onDisappear { showBlur = false }
@@ -135,6 +136,7 @@ struct ScriptListView: View {
                 .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Color.canvas)
+                .presentationCornerRadius(16)
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.80)))
                 .onAppear { showBlur = true }
                 .onDisappear { showBlur = false }

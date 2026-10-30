@@ -1,6 +1,31 @@
 import SwiftUI
 import SwiftData
 
+/// 只描顶弧（左角 → 顶边 → 右角），不描侧边和底边
+struct TopArcBorder: Shape {
+    var cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let r = cornerRadius
+        let w = rect.width
+
+        // 左侧从圆角下方开始
+        path.move(to: CGPoint(x: 0, y: r + 8))
+        path.addLine(to: CGPoint(x: 0, y: r))
+        // 左上角弧
+        path.addQuadCurve(to: CGPoint(x: r, y: 0), control: CGPoint(x: 0, y: 0))
+        // 顶边
+        path.addLine(to: CGPoint(x: w - r, y: 0))
+        // 右上角弧
+        path.addQuadCurve(to: CGPoint(x: w, y: r), control: CGPoint(x: w, y: 0))
+        // 右侧延伸到圆角下方一点
+        path.addLine(to: CGPoint(x: w, y: r + 8))
+
+        return path
+    }
+}
+
 /// 编辑页（M2）：标题 / 分组 / 拆分 / 暂停 / 正文——自定义深色视觉 + 常驻关键词框
 struct EditorView: View {
     @Environment(\.modelContext) private var context
@@ -39,12 +64,12 @@ struct EditorView: View {
             textEditor
         }
         .background(.clear)
-        .overlay(
-            // 整圈金色细描边
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Color.accentGold.opacity(0.3), lineWidth: 1)
+        .overlay(alignment: .top) {
+            // 顶部弧线金色描边（只描上边缘+两角，不描底部和侧边）
+            TopArcBorder(cornerRadius: 16)
+                .stroke(Color.accentGold.opacity(0.3), lineWidth: 1)
                 .allowsHitTesting(false)
-        )
+        }
         .onAppear {
             guard !loaded else { return }
             loaded = true
