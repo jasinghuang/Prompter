@@ -93,12 +93,18 @@ struct ScriptListView: View {
             }
             .background(Color.canvas)
             .blur(radius: showBlur ? 8 : 0)
-            .onChange(of: editingScript?.id) { _, _ in
-                if editingScript == nil { showBlur = false } // 绑定变 nil 即刻关模糊（早于 onDisappear）
+            .onTapGesture {
+                // 接管点击空白区的 dismiss：弹窗和模糊同时消失，零延迟
+                if editingScript != nil {
+                    editingScript = nil
+                    showBlur = false
+                }
+                if creatingNew {
+                    creatingNew = false
+                    showBlur = false
+                }
             }
-            .onChange(of: creatingNew) { _, _ in
-                if !creatingNew { showBlur = false }
-            }
+            .allowsHitTesting(!showBlur ? true : true) // 弹窗打开时列表仍可接收点击（关闭弹窗用）
             .navigationBarHidden(true)
             .overlay(alignment: .top) { undoPill }
         }
@@ -108,6 +114,7 @@ struct ScriptListView: View {
                 .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Color.surface)
+                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.80)))
                 .onAppear { showBlur = true }
                 .onDisappear { showBlur = false }
         }
@@ -116,6 +123,7 @@ struct ScriptListView: View {
                 .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Color.surface)
+                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.80)))
                 .onAppear { showBlur = true }
                 .onDisappear { showBlur = false }
         }
