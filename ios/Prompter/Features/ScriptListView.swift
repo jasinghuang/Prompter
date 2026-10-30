@@ -102,13 +102,13 @@ struct ScriptListView: View {
             EditorView(script: script)
                 .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
-                .presentationBackground(.thinMaterial)
+                .presentationBackground(Color.surface)
         }
         .sheet(isPresented: $creatingNew) {
             EditorView(script: nil)
                 .presentationDetents([.fraction(0.80), .large])
                 .presentationDragIndicator(.hidden)
-                .presentationBackground(.thinMaterial)
+                .presentationBackground(Color.surface)
         }
         .fullScreenCover(item: $playingScript) { script in
             PlayerView(script: script)

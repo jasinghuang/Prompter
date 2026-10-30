@@ -31,7 +31,7 @@ struct EditorView: View {
                 .fill(Color.white.opacity(0.3))
                 .frame(width: 60, height: 5)
                 .padding(.top, 10)
-                .padding(.bottom, 4)
+                .padding(.bottom, 14)
             titleRow
             folderRow
             splitRow
