@@ -58,7 +58,7 @@ final class PrompterCoreTests: XCTestCase {
 
     func testMergeSettingsOnlyOverwritesPresentFields() {
         var data = SettingsData.defaults
-        let exported = MigrationService.ExportedSettings(fontSize: 80, letterSpacing: nil, lineHeight: nil, scrollSpeed: 999, mirror: nil, horizontalPadding: nil, textAlign: nil, pauseKeyword: nil, pauseOnParagraph: nil, completeAction: nil, splitMode: nil, splitKeyword: nil)
+        let exported = ExportedSettings(fontSize: 80, letterSpacing: nil, lineHeight: nil, scrollSpeed: 999, mirror: nil, horizontalPadding: nil, textAlign: nil, pauseKeyword: nil, pauseOnParagraph: nil, completeAction: nil, splitMode: nil, splitKeyword: nil)
         MigrationService.mergeSettings(exported, into: &data)
         XCTAssertEqual(data.fontSize, 80)
         XCTAssertEqual(data.scrollSpeed, PrompterCore.speedMax, "速度应夹到上限")

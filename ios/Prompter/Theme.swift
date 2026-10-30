@@ -1,12 +1,13 @@
 import SwiftUI
 
 // 设计 Token —— 与 Web 版 index.css 一一对应
-extension Color {
-    static let canvas = Color(red: 10 / 255, green: 10 / 255, blue: 11 / 255) // #0A0A0B
-    static let surface = Color(red: 19 / 255, green: 19 / 255, blue: 22 / 255) // #131316
-    static let accentGold = Color(red: 212 / 255, green: 164 / 255, blue: 50 / 255) // #D4A432
-    static let dangerRed = Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255) // #DC2626
-    static let successGreen = Color(red: 34 / 255, green: 197 / 255, blue: 94 / 255) // #22C55E
+// （挂在 ShapeStyle where Self == Color 上，foregroundStyle(.accentGold) 等快捷写法才可用）
+extension ShapeStyle where Self == Color {
+    static var canvas: Color { Color(red: 10 / 255, green: 10 / 255, blue: 11 / 255) } // #0A0A0B
+    static var surface: Color { Color(red: 19 / 255, green: 19 / 255, blue: 22 / 255) } // #131316
+    static var accentGold: Color { Color(red: 212 / 255, green: 164 / 255, blue: 50 / 255) } // #D4A432
+    static var dangerRed: Color { Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255) } // #DC2626
+    static var successGreen: Color { Color(red: 34 / 255, green: 197 / 255, blue: 94 / 255) } // #22C55E
 }
 
 /// 控件层级阶梯（T1 主操作 44 / T2 导航 40 / T3 工具 32 / T4 元信息 12pt 文字）

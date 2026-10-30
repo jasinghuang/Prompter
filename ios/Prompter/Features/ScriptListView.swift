@@ -49,15 +49,19 @@ struct ScriptListView: View {
                 $0.title.lowercased().contains(q) || $0.content.lowercased().contains(q)
             }
         }
-        let dir = sortAsc ? 1 : -1
+        let dir = sortAsc
         list.sort { a, b in
             switch sortKey {
-            case .title: return dir * a.title.localizedStandardCompare(b.title) == .orderedAscending
+            case .title:
+                let r = a.title.localizedStandardCompare(b.title)
+                return dir ? r == .orderedAscending : r == .orderedDescending
             case .chars:
                 let ac = PrompterCore.readableCharCount(a.content)
                 let bc = PrompterCore.readableCharCount(b.content)
-                return dir * (ac - bc) < 0
-            case .date: return dir * a.createdAt.compare(b.createdAt) == .orderedAscending
+                return dir ? ac < bc : ac > bc
+            case .date:
+                let r = a.createdAt.compare(b.createdAt)
+                return dir ? r == .orderedAscending : r == .orderedDescending
             }
         }
         // 分层稳定分区：星标未拍 → 未拍 → 星标已拍 → 已拍（沉底）
@@ -231,18 +235,6 @@ struct ScriptListView: View {
                 .buttonStyle(.plain)
             }
             Spacer(minLength: 8)
-            Button {
-                MigrationService.copyToPasteboard(
-                    MigrationService.exportJSON(scripts: scripts, settings: settings.data)
-                )
-            } label: {
-                Label("导出", systemImage: "square.and.arrow.up")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.45))
-                    .padding(.horizontal, 10)
-                    .frame(height: CTL.t3)
-            }
-            .buttonStyle(.plain)
             Button {
                 confirmClearAll = true
             } label: {
