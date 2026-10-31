@@ -93,10 +93,7 @@ struct ScriptCardView: View {
         )
         .onChange(of: highlighted) { _, isOn in
             if isOn {
-                helloGlow = 0.14
-                withAnimation(.easeInOut(duration: 1.7).repeatCount(2, autoreverses: true)) {
-                    helloGlow = 0.32 // 0.14→0.32→0.14 两个来回，落回常亮值
-                }
+                breathe()
             } else {
                 withAnimation(.easeOut(duration: 0.3)) { helloGlow = 0 }
             }
@@ -104,11 +101,22 @@ struct ScriptCardView: View {
         .onAppear {
             // Lazy 网格中卡片若在返回后才滚入视口，change 已错过 → 出场时补呼吸
             if highlighted && helloGlow == 0 {
-                helloGlow = 0.14
-                withAnimation(.easeInOut(duration: 1.7).repeatCount(2, autoreverses: true)) {
-                    helloGlow = 0.32
-                }
+                breathe()
             }
+        }
+    }
+
+    /// 呼吸两次后落在保留余光的常亮值（Web card-hello 1.7s/次×2）。
+    /// 不用 repeatCount(autoreverses)：其动画结束落在目标值（峰值）会突变；
+    /// 逐段链式（完成回调续下一段）保证 亮→暗→亮→暗 连续无跳变，最终停在暗端余光。
+    private func breathe(step: Int = 0) {
+        guard step < 4 else { return }
+        if step == 0 { helloGlow = 0.14 } // 基线余光瞬时到位（Web 加 class 同款），再升峰
+        let peak: Double = step % 2 == 0 ? 0.32 : 0.14 // 偶数段升到亮、奇数段落回余光
+        withAnimation(.easeInOut(duration: 0.85)) {
+            helloGlow = peak
+        } completion: {
+            breathe(step: step + 1)
         }
     }
 
