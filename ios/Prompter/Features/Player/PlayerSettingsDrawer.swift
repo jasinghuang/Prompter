@@ -105,7 +105,6 @@ struct PlayerSettingsDrawer: View {
                                   step: 10, suffix: " 字/分") { settings.data.scrollSpeed = Int($0) }
                     alignmentRow
                     mirrorRow
-                    completeActionRow
                     autoPauseRow
                 }
                 .padding(.horizontal, 24)
@@ -195,23 +194,6 @@ struct PlayerSettingsDrawer: View {
             sectionLabel(icon: "flip.horizontal", "镜像翻转")
         }
         .tint(.accentGold)
-        .padding(.top, 20)
-        .overlay(alignment: .top) { hairline }
-    }
-
-    // MARK: 读完动作
-
-    private var completeActionRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionLabel(icon: "flag", "读完动作")
-            Picker("", selection: $settings.data.completeAction) {
-                Text("不开启").tag("none")
-                Text("返回列表").tag("list")
-                Text("回到开头").tag("restart")
-            }
-            .pickerStyle(.segmented)
-            .frame(height: 32)
-        }
         .padding(.top, 20)
         .overlay(alignment: .top) { hairline }
     }
