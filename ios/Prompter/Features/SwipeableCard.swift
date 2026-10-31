@@ -14,9 +14,9 @@ final class SwipeArbiter {
 
 enum SwipeGeometry {
     static let limitRight: CGFloat = 72
-    static let limitLeft: CGFloat = -120 // 提示条移除后缩短（原 -150），左右滑距更接近
+    static let limitLeft: CGFloat = -72 // 与红区同宽：滑满正好完整揭示，不再露黑边
     static let commitFilmed: CGFloat = 40
-    static let commitDelete: CGFloat = -100
+    static let commitDelete: CGFloat = -70
     static let revealFilmed: CGFloat = 20
     static let revealDelete: CGFloat = -20
     static let zoneWidth: CGFloat = 72
@@ -63,15 +63,20 @@ struct SwipeableCard<Content: View>: View {
     // MARK: 手势
 
     private var swipe: some Gesture {
-        DragGesture(minimumDistance: 12)
+        DragGesture(minimumDistance: 16)
             .onChanged { value in
                 guard swipeEnabled else { return }
                 let dx = value.translation.width
                 let dy = value.translation.height
                 if !locked {
-                    // 起步判定：明显横向（1.2 倍于竖向）才接管；之后锁定，跟手不再受轨迹抖动影响
-                    guard abs(dx) > 6, abs(dx) > abs(dy) * 1.2 else { return }
+                    // 起步判定：横向明显占优（1.35 倍）才接管；起判 16pt 给列表滚动留足启动空间
+                    guard abs(dx) > 10, abs(dx) > abs(dy) * 1.35 else { return }
                     locked = true
+                } else if abs(dy) > abs(dx) * 1.6, abs(dy) > 28 {
+                    // 锁定后手指明显转向竖向 → 交还列表滚动，卡片弹回
+                    locked = false
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { swipeX = 0 }
+                    return
                 }
                 if abs(dx) > 8 { arbiter.didSwipe = true } // 松手 tap 由卡片 Button 吞掉
                 swipeX = min(SwipeGeometry.limitRight, max(SwipeGeometry.limitLeft, dx))
@@ -103,10 +108,10 @@ struct SwipeableCard<Content: View>: View {
 
     // MARK: 连续动效映射（揭示渐显/垃圾桶缩放/红色加深都随距离平滑变化）
 
-    /// -20 → -150 映射 0 → 1
+    /// 揭示(-20) → 触发点(-70) 映射 0 → 1：盖子恰好在触发删除时完全盖合
     private var deleteProgress: Double {
         let t = (-swipeX - SwipeGeometry.revealDelete.magnitude)
-            / (SwipeGeometry.limitLeft.magnitude - SwipeGeometry.revealDelete.magnitude)
+            / (SwipeGeometry.commitDelete.magnitude - SwipeGeometry.revealDelete.magnitude)
         return min(1, max(0, t))
     }
 
@@ -158,11 +163,11 @@ private struct LidTrash: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            // 桶身：梯形 + 两道竖纹 + 顶部横沿
+            // 桶身：梯形 + 两道竖纹 + 顶部横沿（桶沿顶在 y=8）
             ZStack {
                 Path { p in
-                    p.move(to: CGPoint(x: 5, y: 10))
-                    p.addLine(to: CGPoint(x: 21, y: 10))
+                    p.move(to: CGPoint(x: 5, y: 10.6))
+                    p.addLine(to: CGPoint(x: 21, y: 10.6))
                     p.addLine(to: CGPoint(x: 19, y: 25))
                     p.addLine(to: CGPoint(x: 7, y: 25))
                     p.closeSubpath()
@@ -175,22 +180,21 @@ private struct LidTrash: View {
                 .stroke(style: stroke)
                 Capsule().fill() // 顶部提沿
                     .frame(width: 14, height: 2.6)
-                    .offset(y: 8.2)
+                    .offset(y: 8)
             }
-            // 盖子：绕左端铰点翻起（真实垃圾桶沿后沿翻开）
+            // 盖子：闭合时下缘贴住桶沿（y=8），绕左端铰点翻起
             ZStack(alignment: .bottom) {
-                Rectangle().fill()
-                    .frame(width: 19, height: 2.6)
-                Capsule().fill()
+                Capsule().fill() // 盖顶小把手
                     .frame(width: 5, height: 3)
-                    .offset(y: -2.8)
+                    .offset(y: -3)
+                Rectangle().fill() // 盖板
+                    .frame(width: 19, height: 2.6)
             }
-            .frame(height: 6)
+            .frame(width: 19, height: 8, alignment: .bottom) // 盖板落在容器底部=桶沿处
             .rotationEffect(.degrees(-80 * (1 - lidClosed)), anchor: UnitPoint(x: 0, y: 0.5))
         }
         .frame(width: 26, height: 30)
         .foregroundStyle(.white)
-        .offset(y: -1)
     }
 }
 

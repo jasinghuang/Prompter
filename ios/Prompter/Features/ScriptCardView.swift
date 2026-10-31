@@ -72,7 +72,8 @@ struct ScriptCardView: View {
             .accessibilityIdentifier("card")
         }
         // 返回高亮：光晕呼吸两次（Web card-hello 1.7s×2）后保持常亮微光；离开高亮即灭
-        .shadow(color: Color.accentGold.opacity(helloGlow), radius: 13)
+        // 半径随强度同步变化（Web: blur 22→30px），不只调透明度
+        .shadow(color: Color.accentGold.opacity(helloGlow), radius: 11 + (helloGlow - 0.14) / 0.18 * 4)
         .onChange(of: highlighted) { _, isOn in
             if isOn {
                 helloGlow = 0.14
