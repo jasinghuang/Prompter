@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import QuartzCore
 
 /// 前置化妆镜（复刻 Web CameraMirror）：打开才取流，关闭立即停会话释放设备（指示灯灭）；
 /// 纯本地预览不录制不上传，水平镜像；加载/错误态文案与 Web 一致。
@@ -195,12 +196,8 @@ private final class RotationHolder {
         coordinator = rotation
         let apply: (AVCaptureDevice.RotationCoordinator) -> Void = { [weak view] coord in
             guard let view, let connection = view.videoPreviewLayer.connection else { return }
-            // 必须先关自动镜像再手动设镜像，否则抛
-            // "Cannot be set when automaticallyAdjustsVideoMirroring is YES" 异常（真机卡死根因）
-            if connection.isVideoMirroringSupported {
-                connection.automaticallyAdjustsVideoMirroring = false
-                connection.isVideoMirrored = true
-            }
+            // 镜像交给系统自动处理（前置摄像头默认自动镜像，即 PWA/相机 App 的观感）；
+            // 手动关自动+设镜像曾在部分机型上致黑屏，不再介入
             let angle = coord.videoRotationAngleForHorizonLevelPreview
             if connection.isVideoRotationAngleSupported(angle) {
                 connection.videoRotationAngle = angle
@@ -222,4 +219,13 @@ private final class RotationHolder {
 private final class PreviewView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     var videoPreviewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+
+    // 旋转/布局变化时预览层 frame 可能滞留旧值（曾致画面铺满全屏），这里强制跟随
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true) // 禁隐式动画，避免旋转时画面"飞"一下
+        videoPreviewLayer.frame = bounds
+        CATransaction.commit()
+    }
 }
