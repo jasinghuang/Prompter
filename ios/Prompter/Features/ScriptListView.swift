@@ -15,6 +15,7 @@ struct ScriptListView: View {
     @State private var editingScript: Script?
     @State private var creatingNew = false
     @State private var playingScript: Script?
+    @State private var lastOpenedId: UUID? // 最近打开：返回列表时其卡片金边高亮（会话级，Web 同款）
     @State private var showBlur = false
     @State private var folderPickerScript: Script?
     @State private var newFolderAlert = false
@@ -390,7 +391,8 @@ struct ScriptListView: View {
                     wordsPerMinute: settings.data.scrollSpeed,
                     folders: folders,
                     selectMode: selectMode,
-                    isSelected: selected.contains(script.id)
+                    isSelected: selected.contains(script.id),
+                    highlighted: script.id == lastOpenedId && !selectMode
                 ) { action in
                     handleCardAction(action, script)
                 }
@@ -509,7 +511,9 @@ struct ScriptListView: View {
 
     private func handleCardAction(_ action: ScriptCardView.Action, _ script: Script) {
         switch action {
-        case .open: playingScript = script
+        case .open:
+            lastOpenedId = script.id
+            playingScript = script
         case .edit: editingScript = script
         case .toggleStar:
             withAnimation(.easeInOut(duration: 0.2)) { script.starred.toggle() }

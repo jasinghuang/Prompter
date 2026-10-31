@@ -12,12 +12,14 @@ struct ScriptCardView: View {
     let folders: [String]
     var selectMode = false
     var isSelected = false
+    var highlighted = false // 最近打开：返回列表时金边常亮 + 光晕呼吸两次（Web: highlighted）
     let onAction: (Action) -> Void
 
     private var charCount: Int { PrompterCore.readableCharCount(script.content) }
 
     @State private var longPressFired = false // 长按刚触发时吞掉随后的 click（Web: longPressFiredRef）
     @State private var swipeArbiter = SwipeArbiter() // 滑动期间吞掉松手误触
+    @State private var helloGlow: Double = 0 // 高亮光晕强度：常亮 0.14，呼吸峰值 0.32
 
     /// 静态外壳底色/描边（随 filmed/多选选中变化；不随拖动滑动）
     private var cardBackground: Color {
@@ -26,6 +28,7 @@ struct ScriptCardView: View {
 
     private var cardBorderColor: Color {
         if selectMode && isSelected { return Color.accentGold.opacity(0.6) } // Web 多选选中
+        if highlighted { return Color.accentGold.opacity(0.45) } // Web: border-[#D4A432]/45
         return script.isFilmed
             ? Color.successGreen.opacity(0.3)
             : Color.accentGold.opacity(0.15)
@@ -67,6 +70,27 @@ struct ScriptCardView: View {
                     }
             )
             .accessibilityIdentifier("card")
+        }
+        // 返回高亮：光晕呼吸两次（Web card-hello 1.7s×2）后保持常亮微光；离开高亮即灭
+        .shadow(color: Color.accentGold.opacity(helloGlow), radius: 13)
+        .onChange(of: highlighted) { _, isOn in
+            if isOn {
+                helloGlow = 0.14
+                withAnimation(.easeInOut(duration: 1.7).repeatCount(2, autoreverses: true)) {
+                    helloGlow = 0.32 // 0.14→0.32→0.14 两个来回，落回常亮值
+                }
+            } else {
+                withAnimation(.easeOut(duration: 0.3)) { helloGlow = 0 }
+            }
+        }
+        .onAppear {
+            // Lazy 网格中卡片若在返回后才滚入视口，change 已错过 → 出场时补呼吸
+            if highlighted && helloGlow == 0 {
+                helloGlow = 0.14
+                withAnimation(.easeInOut(duration: 1.7).repeatCount(2, autoreverses: true)) {
+                    helloGlow = 0.32
+                }
+            }
         }
     }
 

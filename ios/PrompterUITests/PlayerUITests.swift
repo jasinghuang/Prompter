@@ -184,6 +184,22 @@ final class PlayerUITests: XCTestCase {
         XCTAssertFalse(close.waitForExistence(timeout: 3), "点关闭应收起镜子")
     }
 
+    /// 返回列表后，刚打开的卡片金边高亮 + 光晕呼吸（Web: card-hello）
+    func testReturnHighlight() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
+        app.launch()
+        let card = app.buttons.matching(identifier: "card").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        card.tap()
+        let back = app.buttons["返回"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10), "应已进入播放页")
+        back.tap()
+        XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5), "应返回列表")
+        sleep(1) // 光晕呼吸中段
+        snapshot("19-return-highlight")
+    }
+
     /// 播放页左缘右滑 → 返回列表页（对齐系统返回手势习惯）
     func testEdgeSwipeBackToList() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
