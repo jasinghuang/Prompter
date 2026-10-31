@@ -25,7 +25,7 @@ enum SwipeGeometry {
 struct SwipeableCard<Content: View>: View {
     let isFilmed: Bool
     var swipeEnabled = true // 多选模式下禁用滑动
-    let cardBackground: Color // 静态外壳底色（filmed/选中态由外部决定）
+    let contentBackground: Color // 内容层常驻底色（不透明=静止观感；遮盖式揭示的关键）
     let cardBorderColor: Color // 静态外壳描边
     let arbiter: SwipeArbiter
     let onCommitFilmed: () -> Void
@@ -42,13 +42,12 @@ struct SwipeableCard<Content: View>: View {
 
     var body: some View {
         ZStack {
-            filmedZone
+            filmedZone // 遮盖式：色区始终实色，静止时被内容层完全盖住
             deleteZone
             content()
-                .background(swipeX != 0 ? Color.surface : .clear) // 滑动时实底，避免透出底色区
+                .background(contentBackground) // 常驻不透明底（= 静止观感），滑动即揭开色区
                 .offset(x: swipeX)
         }
-        .background(cardBackground, in: cardShape)
         .overlay(cardShape.strokeBorder(cardBorderColor, lineWidth: 1))
         .clipShape(cardShape)
         .modifier(CardShake(travel: 4, shakes: 2, animatableData: shakeTrigger))
@@ -127,7 +126,6 @@ struct SwipeableCard<Content: View>: View {
                 }
             }
             .frame(width: SwipeGeometry.zoneWidth)
-            .opacity(min(1, max(0, (swipeX - 8) / 24))) // 8pt 起连续淡入
             Spacer(minLength: 0)
         }
     }
@@ -149,7 +147,6 @@ struct SwipeableCard<Content: View>: View {
                     .scaleEffect(1 + 0.15 * deleteProgress)
             }
             .frame(width: SwipeGeometry.zoneWidth)
-            .opacity(min(1, max(0, (-swipeX - 8) / 24)))
         }
     }
 }

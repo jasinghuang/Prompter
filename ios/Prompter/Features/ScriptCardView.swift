@@ -21,9 +21,20 @@ struct ScriptCardView: View {
     @State private var swipeArbiter = SwipeArbiter() // 滑动期间吞掉松手误触
     @State private var helloGlow: Double = 0 // 高亮光晕强度：常亮 0.14，呼吸峰值 0.32
 
-    /// 静态外壳底色/描边（随 filmed/多选选中变化；不随拖动滑动）
-    private var cardBackground: Color {
-        script.isFilmed ? Color.successGreen.opacity(0.06) : Color.surface.opacity(0.7)
+    /// 呼吸相位 0..1（静止 0，峰值 1）
+    private var helloPulse: Double {
+        min(1, max(0, (helloGlow - 0.14) / 0.18))
+    }
+
+    /// 内容层常驻底色：与"半透明叠 canvas"的静止观感等效的不透明色（遮盖式揭示的关键）
+    private var contentBackground: Color {
+        if script.isFilmed {
+            // green 6% over canvas(#0A0A0B) 的等效实色
+            Color(red: 11 / 255, green: 21 / 255, blue: 16 / 255)
+        } else {
+            // surface 70% over canvas 的等效实色
+            Color(red: 16 / 255, green: 16 / 255, blue: 19 / 255)
+        }
     }
 
     private var cardBorderColor: Color {
@@ -38,7 +49,7 @@ struct ScriptCardView: View {
         SwipeableCard(
             isFilmed: script.isFilmed,
             swipeEnabled: !selectMode, // 多选中禁用滑动（Web: bind 移除）
-            cardBackground: cardBackground,
+            contentBackground: contentBackground,
             cardBorderColor: cardBorderColor,
             arbiter: swipeArbiter,
             onCommitFilmed: { onAction(.toggleFilmed) }, // 右滑提交
@@ -71,9 +82,15 @@ struct ScriptCardView: View {
             )
             .accessibilityIdentifier("card")
         }
-        // 返回高亮：光晕呼吸两次（Web card-hello 1.7s×2）后保持常亮微光；离开高亮即灭
-        // 半径随强度同步变化（Web: blur 22→30px），不只调透明度
-        .shadow(color: Color.accentGold.opacity(helloGlow), radius: 11 + (helloGlow - 0.14) / 0.18 * 4)
+        // 返回高亮（Web card-hello：box-shadow 带 spread，最亮处贴边一圈）。
+        // SwiftUI 无 spread → 双层复刻：边缘亮环（描边+轻模糊）+ 环境光晕（shadow）
+        .shadow(color: Color.accentGold.opacity(helloGlow * 0.55), radius: 12 + 4 * helloPulse)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.accentGold.opacity(min(1, helloGlow + 0.18)), lineWidth: 2 + 3 * helloPulse)
+                .blur(radius: 2.5)
+                .allowsHitTesting(false)
+        )
         .onChange(of: highlighted) { _, isOn in
             if isOn {
                 helloGlow = 0.14
