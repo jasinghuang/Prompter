@@ -3,15 +3,17 @@ import AVFoundation
 
 /// 前置化妆镜（复刻 Web CameraMirror）：打开才取流，关闭立即停会话释放设备（指示灯灭）；
 /// 纯本地预览不录制不上传，水平镜像；加载/错误态文案与 Web 一致。
+/// session 必须 @State 持有——view struct 每次重渲染会重建，普通 let 会产生多个
+/// 并发会话导致二次打开闪退。
 struct CameraMirrorView: View {
     @Binding var open: Bool
     @State private var status: Status = .loading
+    @State private var session = AVCaptureSession()
 
     private enum Status: Equatable {
         case loading, ready, failed(String)
     }
 
-    private let session = AVCaptureSession()
     private let queue = DispatchQueue(label: "prompter.camera")
 
     var body: some View {
@@ -33,7 +35,7 @@ struct CameraMirrorView: View {
         .onDisappear { stop() }
     }
 
-    // MARK: 镜面卡片（Web: rounded-[22px] 白10% 描边 surface 底）
+    // MARK: 镜面卡片（Web: rounded-[22px] 白10% 描边 surface 底 + 高光渐变描边提升质感）
 
     private var mirrorCard: some View {
         ZStack {
@@ -43,7 +45,17 @@ struct CameraMirrorView: View {
             closeButton
         }
         .background(Color.surface, in: RoundedRectangle(cornerRadius: 22))
-        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.30), .white.opacity(0.08)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .shadow(color: .black.opacity(0.5), radius: 30, y: 12)
     }
@@ -141,7 +153,8 @@ struct CameraMirrorView: View {
     }
 }
 
-/// 前置预览层（水平镜像，铺满裁剪——对应 Web -scale-x-100 object-cover）
+/// 前置预览层（水平镜像，铺满裁剪——对应 Web -scale-x-100 object-cover）；
+/// 随界面横竖屏设置 videoOrientation，横屏画面才是正的。
 private struct MirrorPreview: UIViewRepresentable {
     let session: AVCaptureSession
 
@@ -149,15 +162,36 @@ private struct MirrorPreview: UIViewRepresentable {
         let view = PreviewView()
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
-        DispatchQueue.main.async {
-            if let connection = view.videoPreviewLayer.connection, connection.isVideoMirroringSupported {
-                connection.isVideoMirrored = true
-            }
-        }
+        configure(view)
         return view
     }
 
-    func updateUIView(_ uiView: PreviewView, context: Context) {}
+    func updateUIView(_ uiView: PreviewView, context: Context) {
+        configure(uiView) // 旋转后重算方向
+    }
+
+    private func configure(_ view: PreviewView) {
+        let orientation = interfaceOrientation
+        DispatchQueue.main.async {
+            guard let connection = view.videoPreviewLayer.connection else { return }
+            if connection.isVideoMirroringSupported { connection.isVideoMirrored = true }
+            if connection.isVideoOrientationSupported {
+                connection.videoOrientation = orientation
+            }
+        }
+    }
+
+    private var interfaceOrientation: AVCaptureVideoOrientation {
+        let scene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.interfaceOrientation ?? .portrait
+        switch scene {
+        case .landscapeLeft: return .landscapeLeft
+        case .landscapeRight: return .landscapeRight
+        case .portraitUpsideDown: return .portraitUpsideDown
+        default: return .portrait
+        }
+    }
 }
 
 private final class PreviewView: UIView {

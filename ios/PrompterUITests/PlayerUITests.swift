@@ -105,6 +105,7 @@ final class PlayerUITests: XCTestCase {
         c.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
             .press(forDuration: 0.1, thenDragTo: c.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
         sleep(1)
+        XCTAssertFalse(app.buttons["返回"].exists, "右滑不应误开播放页")
         let firstAfter = app.buttons.matching(identifier: "card").firstMatch
         XCTAssertTrue(firstAfter.exists)
         XCTAssertFalse(firstAfter.label.contains("脚本1"), "右滑标记已拍后脚本1应沉底，实际首卡：\(firstAfter.label)")
@@ -179,19 +180,6 @@ final class PlayerUITests: XCTestCase {
         snapshot("18-mirror-simulator")
         close.tap()
         XCTAssertFalse(close.waitForExistence(timeout: 3), "点关闭应收起镜子")
-    }
-
-    /// 工具行导出：复制 JSON 到剪贴板 → 弹确认 → 关闭
-    func testToolbarExport() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
-        app.launch()
-        let export = app.buttons["toolbar.export"]
-        XCTAssertTrue(export.waitForExistence(timeout: 10))
-        export.tap()
-        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 3), "导出后应弹确认")
-        app.alerts.buttons["好"].tap()
-        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2), "确认后应关闭")
     }
 
     /// 播放页左缘右滑 → 返回列表页（对齐系统返回手势习惯）

@@ -5,6 +5,13 @@ import UIKit
 /// 右滑揭示绿区（勾=标记已拍 / 已拍时灰底叉=取消），≥40pt 松手提交；
 /// 左滑揭示红区（-20 起），越过 -130 出现「松开删除」渐变条+震动，松手删除；
 /// 竖向为主的拖动让给列表滚动；提交删除走外部退场+撤销链路。
+/// 卡片底色/描边放在不随拖动的静态外壳上（Web: 边框在根节点）——揭示区因此有完整边框收口。
+/// 滑动期间置 arbiter.didSwipe，卡片 Button 的 action 据此吞掉松手误触，杜绝滑动误开稿件。
+/// 滑动仲裁：SwipeableCard 与卡片 Button 跨闭包共享的抑制标志（引用类型）
+final class SwipeArbiter {
+    var didSwipe = false
+}
+
 enum SwipeGeometry {
     static let limitRight: CGFloat = 72
     static let limitLeft: CGFloat = -150
@@ -19,6 +26,9 @@ enum SwipeGeometry {
 struct SwipeableCard<Content: View>: View {
     let isFilmed: Bool
     var swipeEnabled = true // 多选模式下禁用滑动
+    let cardBackground: Color // 静态外壳底色（filmed/选中态由外部决定）
+    let cardBorderColor: Color // 静态外壳描边
+    let arbiter: SwipeArbiter
     let onCommitFilmed: () -> Void
     let onDelete: () -> Void
     @ViewBuilder let content: () -> Content
@@ -38,11 +48,17 @@ struct SwipeableCard<Content: View>: View {
             content()
                 .background(swipeX != 0 ? Color.surface : .clear) // 滑动时实底，避免透出底色区
                 .offset(x: swipeX)
-                .modifier(CardShake(travel: 4, shakes: 2, animatableData: shakeTrigger))
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .simultaneousGesture(swipe) // 与滚动/按钮并存，方向闸门决定谁吃掉这次拖动
+        .background(cardBackground, in: cardShape)
+        .overlay(cardShape.strokeBorder(cardBorderColor, lineWidth: 1))
+        .clipShape(cardShape)
+        .modifier(CardShake(travel: 4, shakes: 2, animatableData: shakeTrigger))
+        .contentShape(cardShape)
+        .simultaneousGesture(swipe)
+    }
+
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
     }
 
     // MARK: 手势
@@ -54,6 +70,7 @@ struct SwipeableCard<Content: View>: View {
                 let dx = value.translation.width
                 let dy = value.translation.height
                 guard abs(dx) > abs(dy) else { return } // 纵向为主的拖动让给列表滚动
+                if abs(dx) > 8 { arbiter.didSwipe = true } // 松手 tap 由卡片 Button 吞掉
                 swipeX = min(SwipeGeometry.limitRight, max(SwipeGeometry.limitLeft, dx))
                 if swipeX <= SwipeGeometry.commitDelete && !shook {
                     shook = true
@@ -71,6 +88,8 @@ struct SwipeableCard<Content: View>: View {
                     onDelete() // 退场动画+撤销由外层卡片网格承担
                 }
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { swipeX = 0 }
+                // 同一轮 runloop 内先让 Button 的 tap 读到 didSwipe，再复位
+                DispatchQueue.main.async { arbiter.didSwipe = false }
             }
     }
 

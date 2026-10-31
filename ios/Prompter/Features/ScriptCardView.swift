@@ -17,15 +17,32 @@ struct ScriptCardView: View {
     private var charCount: Int { PrompterCore.readableCharCount(script.content) }
 
     @State private var longPressFired = false // 长按刚触发时吞掉随后的 click（Web: longPressFiredRef）
+    @State private var swipeArbiter = SwipeArbiter() // 滑动期间吞掉松手误触
+
+    /// 静态外壳底色/描边（随 filmed/多选选中变化；不随拖动滑动）
+    private var cardBackground: Color {
+        script.isFilmed ? Color.successGreen.opacity(0.06) : Color.surface.opacity(0.7)
+    }
+
+    private var cardBorderColor: Color {
+        if selectMode && isSelected { return Color.accentGold.opacity(0.6) } // Web 多选选中
+        return script.isFilmed
+            ? Color.successGreen.opacity(0.3)
+            : Color.accentGold.opacity(0.15)
+    }
 
     var body: some View {
         SwipeableCard(
             isFilmed: script.isFilmed,
             swipeEnabled: !selectMode, // 多选中禁用滑动（Web: bind 移除）
+            cardBackground: cardBackground,
+            cardBorderColor: cardBorderColor,
+            arbiter: swipeArbiter,
             onCommitFilmed: { onAction(.toggleFilmed) }, // 右滑提交
             onDelete: { onAction(.delete) }               // 左滑阶段2提交
         ) {
             Button {
+                if swipeArbiter.didSwipe { return } // 刚发生过滑动，吞掉松手误触
                 if longPressFired {
                     longPressFired = false // 长按刚触发，吞掉这次点击
                     return
@@ -33,13 +50,12 @@ struct ScriptCardView: View {
                 onAction(selectMode ? .toggleSelect : .open)
             } label: {
                 cardContent
+                    .overlay(alignment: .topTrailing) {
+                        if selectMode { selectCircle.padding(12) } // 占编辑/删除按钮的同一位置
+                    }
             }
             .buttonStyle(PressableCardStyle())
-            .overlay(alignment: .topTrailing) {
-                if selectMode { selectCircle.padding(12) } // 占编辑/删除按钮的同一位置
-            }
-            .accessibilityIdentifier("card")
-            // 长按与点按共存（挂在外层会被 Button 抢占）；>10pt 移动取消，对齐 Web slop
+            // 长按与点按共存（挂 Button 上）；>10pt 移动取消，对齐 Web slop
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.5, maximumDistance: 10)
                     .onEnded { _ in
@@ -48,6 +64,7 @@ struct ScriptCardView: View {
                         onAction(.longPress)
                     }
             )
+            .accessibilityIdentifier("card")
         }
     }
 
@@ -89,41 +106,7 @@ struct ScriptCardView: View {
         .padding(.top, 12)          // Web: pt-3 = 12pt
         .padding(.bottom, 10)       // Web: pb-2.5 = 10pt
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            script.isFilmed
-                ? AnyShapeStyle(Color.successGreen.opacity(0.06))
-                : AnyShapeStyle(Color.surface.opacity(0.7)),
-            in: RoundedRectangle(cornerRadius: 16)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(
-                    selectMode && isSelected
-                        ? Color.accentGold.opacity(0.6) // Web 多选选中: border-[#D4A432]/60
-                        : script.isFilmed
-                            ? Color.successGreen.opacity(0.3)
-                            : Color.accentGold.opacity(0.15),
-                    lineWidth: 1
-                )
-        )
-    }
-
-    // MARK: 卡片底色与边框
-
-    private var cardBackground: some ShapeStyle {
-        script.isFilmed
-            ? AnyShapeStyle(Color.successGreen.opacity(0.06))
-            : AnyShapeStyle(Color.surface.opacity(0.7))
-    }
-
-    private var cardBorder: some View {
-        RoundedRectangle(cornerRadius: 16)   // Web: rounded-2xl = 16pt
-            .strokeBorder(
-                script.isFilmed
-                    ? Color.successGreen.opacity(0.3)
-                    : Color.accentGold.opacity(0.15),
-                lineWidth: 1
-            )
+        // 底色/描边由 SwipeableCard 的静态外壳承担（不随拖动滑动）
     }
 
     // MARK: 标题行（Web: items-start justify-between，标题截断，按钮在右侧）

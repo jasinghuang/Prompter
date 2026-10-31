@@ -22,8 +22,6 @@ struct ScriptListView: View {
     @State private var newFolderTarget: Script? // 新建文件夹的目标稿件（弹窗前先记下，弹窗期间选择器已关）
 
     @State private var confirmClearAll = false
-    @State private var showExportDone = false
-    @State private var exportDoneCount = 0
     // 长按多选 + 批量操作
     @State private var selectMode = false
     @State private var selected: Set<UUID> = []
@@ -236,11 +234,6 @@ struct ScriptListView: View {
             }
             Button("取消", role: .cancel) {}
         }
-        .alert("已复制 \(exportDoneCount) 篇稿件数据到剪贴板", isPresented: $showExportDone) {
-            Button("好", role: .cancel) {}
-        } message: {
-            Text("可直接粘贴到备忘录等处备份；在另一台设备的提词器 App 里会自动识别导入")
-        }
         .alert("检测到提词器数据", isPresented: $showImportPrompt) {
             Button("导入") { importPending() }
             Button("取消", role: .cancel) {}
@@ -367,21 +360,6 @@ struct ScriptListView: View {
             }
             Spacer(minLength: 8)
             Button {
-                MigrationService.copyToPasteboard(
-                    MigrationService.exportJSON(scripts: scripts, settings: settings.data)
-                )
-                exportDoneCount = scripts.count
-                showExportDone = true
-            } label: {
-                Label("导出", systemImage: "square.and.arrow.up")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.45))
-                    .padding(.horizontal, 10)
-                    .frame(height: CTL.t3)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("toolbar.export")
-            Button {
                 confirmClearAll = true
             } label: {
                 Label("清空全部", systemImage: "trash")
@@ -426,6 +404,10 @@ struct ScriptListView: View {
         scripts.filter { selected.contains($0.id) }
     }
 
+    private var allVisibleSelected: Bool {
+        !visible.isEmpty && Set(visible.map(\.id)).isSubset(of: selected)
+    }
+
     private var selectBar: some View {
         HStack(spacing: 8) {
             Button {
@@ -446,9 +428,14 @@ struct ScriptListView: View {
                 .foregroundStyle(.white.opacity(0.5))
 
             Button {
-                selected = Set(visible.map(\.id))
+                let visibleIds = Set(visible.map(\.id))
+                if visibleIds.isSubset(of: selected) {
+                    selected.subtract(visibleIds) // 已全选 → 取消全选
+                } else {
+                    selected.formUnion(visibleIds)
+                }
             } label: {
-                Text("全选")
+                Text(allVisibleSelected ? "取消全选" : "全选")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.white.opacity(0.6))
                     .padding(.horizontal, 12)

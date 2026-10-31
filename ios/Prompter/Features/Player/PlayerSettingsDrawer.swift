@@ -295,8 +295,8 @@ struct SettingSlider: View {
             }
             HStack(spacing: 8) {
                 stepButton("minus", label: "减小\(label)") { commit(value - step) }
-                MinimalSlider(value: sliderValue, range: range, step: step)
-                    .accessibilityElement()
+                Slider(value: sliderValue, in: range, step: step)
+                    .tint(.accentGold)
                     .accessibilityIdentifier("slider.\(label)")
                 stepButton("plus", label: "增大\(label)") { commit(value + step) }
             }
