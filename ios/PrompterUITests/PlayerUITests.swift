@@ -255,8 +255,17 @@ final class PlayerUITests: XCTestCase {
         let folderButtons = app.buttons.matching(identifier: "card.folder")
         XCTAssertTrue(folderButtons.firstMatch.waitForExistence(timeout: 10))
         snapshot("14-card-before-folder")
-        // 演示数据：脚本1/2 已在「口播」，脚本3 无文件夹——用第三张卡走"无→有"链路
-        folderButtons.element(boundBy: 2).tap()
+        // 演示数据：脚本1/2/4 在「口播」，脚本3 无文件夹——动态找未分组卡走"无→有"链路
+        // （顺序随分层/日期排序变化，写死下标会点错卡）
+        var targetIndex = -1
+        for i in 0..<folderButtons.count {
+            if !folderButtons.element(boundBy: i).label.contains("口播") {
+                targetIndex = i
+                break
+            }
+        }
+        XCTAssertNotEqual(targetIndex, -1, "应存在未分组的演示卡片")
+        folderButtons.element(boundBy: targetIndex).tap()
 
         let newFolder = app.buttons["folder.new"]
         XCTAssertTrue(newFolder.waitForExistence(timeout: 5))
@@ -267,12 +276,17 @@ final class PlayerUITests: XCTestCase {
         let field = alert.textFields.firstMatch
         field.tap()
         field.typeText("测试分组")
-        alert.buttons["创建"].tap()
+        field.typeText("\n") // 回车=默认按钮（创建）；横屏下键盘可能挡住按钮点击
+        if alert.waitForExistence(timeout: 2) {
+            alert.buttons["创建"].tap() // 回车没提交时兜底再点一次
+        }
+        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2), "alert 应已提交关闭")
 
         sleep(1)
+        // SwiftUI 会把按钮内文字吞进 a11y label，断言派生文件夹 chip 的显式 identifier
         XCTAssertTrue(
-            app.staticTexts["测试分组"].waitForExistence(timeout: 5),
-            "创建后卡片/筛选 chips 应出现新文件夹名"
+            app.buttons["chip.测试分组"].waitForExistence(timeout: 5),
+            "创建后筛选 chips 应出现新文件夹 chip"
         )
         snapshot("13-card-with-folder")
     }

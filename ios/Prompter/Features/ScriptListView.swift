@@ -332,6 +332,8 @@ struct ScriptListView: View {
                             active: filter == folder
                         )
                     }
+                    // 显式 identifier：按钮内文字会被 a11y 合并吞掉，UI 测试靠它定位
+                    .accessibilityIdentifier("chip.\(folder)")
                 }
             }
             .padding(.bottom, 16) // Web: filter chips mb-4 = 16pt
