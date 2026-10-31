@@ -91,6 +91,46 @@ final class PlayerUITests: XCTestCase {
         XCTAssertFalse(close.waitForExistence(timeout: 3), "右拨应关闭抽屉")
     }
 
+    /// 卡片右滑 → 标记已拍 → 沉到已拍层
+    func testCardSwipeFilmed() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
+        app.launch()
+        let cards = app.buttons.matching(identifier: "card")
+        XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 10))
+        let firstBefore = cards.firstMatch.label
+        XCTAssertTrue(firstBefore.contains("脚本1"), "演示数据第一张应为脚本1，实际：\(firstBefore)")
+
+        let c = cards.firstMatch
+        c.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: c.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+        sleep(1)
+        let firstAfter = app.buttons.matching(identifier: "card").firstMatch
+        XCTAssertTrue(firstAfter.exists)
+        XCTAssertFalse(firstAfter.label.contains("脚本1"), "右滑标记已拍后脚本1应沉底，实际首卡：\(firstAfter.label)")
+        let third = app.buttons.matching(identifier: "card").element(boundBy: 2)
+        XCTAssertTrue(third.exists && third.label.contains("脚本1"), "脚本1 应沉到已拍层（第 3 位），实际：\(third.label)")
+    }
+
+    /// 卡片左滑越阈值松手 → 删除 + 撤销胶囊 + 卡片数减一
+    func testCardSwipeDelete() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
+        app.launch()
+        let cards = app.buttons.matching(identifier: "card")
+        XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 10))
+        let beforeCount = cards.count
+
+        let c = cards.firstMatch
+        c.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+            .press(forDuration: 0.15, thenDragTo: c.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)),
+                   withVelocity: .slow, thenHoldForDuration: 0.05)
+        XCTAssertTrue(app.buttons["undo.pill"].waitForExistence(timeout: 5), "左滑删除后应出现撤销胶囊")
+        sleep(1)
+        XCTAssertEqual(app.buttons.matching(identifier: "card").count, beforeCount - 1, "删除后卡片数应减一")
+        snapshot("15-swipe-delete-undo")
+    }
+
     /// 播放页左缘右滑 → 返回列表页（对齐系统返回手势习惯）
     func testEdgeSwipeBackToList() throws {
         XCUIDevice.shared.orientation = .landscapeLeft

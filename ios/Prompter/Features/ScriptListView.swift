@@ -360,6 +360,12 @@ struct ScriptListView: View {
         case .edit: editingScript = script
         case .toggleStar:
             withAnimation(.easeInOut(duration: 0.2)) { script.starred.toggle() }
+        case .toggleFilmed:
+            // 右滑提交：标记/取消已拍 → 分层排序自动沉底/归位
+            withAnimation(.easeInOut(duration: 0.3)) {
+                script.isFilmed.toggle()
+                script.updatedAt = Date()
+            }
         case .delete: deleteScripts([script])
         case .showFolderPicker:
             folderPickerScript = script
@@ -448,6 +454,7 @@ struct ScriptListView: View {
             .buttonStyle(PressableStyle())
             .transition(.move(edge: .top).combined(with: .opacity))
             .padding(.top, 72)
+            .accessibilityIdentifier("undo.pill")
         }
     }
 

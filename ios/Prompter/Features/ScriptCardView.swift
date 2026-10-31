@@ -3,7 +3,7 @@ import SwiftUI
 /// 稿件卡片 —— 逐项对齐 Web 版 SwipeableCard 的间距/字号/颜色/布局
 struct ScriptCardView: View {
     enum Action {
-        case open, edit, delete, toggleStar, showFolderPicker
+        case open, edit, delete, toggleStar, toggleFilmed, showFolderPicker
     }
 
     let script: Script
@@ -14,11 +14,17 @@ struct ScriptCardView: View {
     private var charCount: Int { PrompterCore.readableCharCount(script.content) }
 
     var body: some View {
-        Button { onAction(.open) } label: {
-            cardContent
+        SwipeableCard(
+            isFilmed: script.isFilmed,
+            onCommitFilmed: { onAction(.toggleFilmed) }, // 右滑提交
+            onDelete: { onAction(.delete) }               // 左滑阶段2提交
+        ) {
+            Button { onAction(.open) } label: {
+                cardContent
+            }
+            .buttonStyle(PressableCardStyle())
+            .accessibilityIdentifier("card")
         }
-        .buttonStyle(PressableCardStyle())
-        .accessibilityIdentifier("card")
     }
 
     private var cardContent: some View {
