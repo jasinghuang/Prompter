@@ -153,51 +153,69 @@ struct CameraMirrorView: View {
     }
 }
 
-/// 前置预览层（水平镜像，铺满裁剪——对应 Web -scale-x-100 object-cover）；
-/// 随界面横竖屏设置 videoOrientation，横屏画面才是正的。
+/// 前置预览层（水平镜像，铺满裁剪——对应 Web -scale-x-100 object-cover）。
+/// 方向交给 AVCaptureDevice.RotationCoordinator（iOS 17 官方 API）：
+/// 它监听设备姿态、始终给出地平线水平的预览角——手动映射界面方向在
+/// 「镜像 + 左右横屏」叠加下会差 180°，浏览器(PWA)内部就是做的这件事所以没错。
 private struct MirrorPreview: UIViewRepresentable {
     let session: AVCaptureSession
+
+    func makeCoordinator() -> RotationHolder { RotationHolder() }
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
-        configure(view)
+        context.coordinator.attachIfNeeded(view: view, session: session)
         return view
     }
 
     func updateUIView(_ uiView: PreviewView, context: Context) {
-        configure(uiView) // 旋转后重算方向
+        // 会话异步配置完成后 input 才存在——每次重渲染都尝试挂一次协调器
+        context.coordinator.attachIfNeeded(view: uiView, session: session)
     }
 
-    private func configure(_ view: PreviewView) {
-        let angle = rotationAngle
-        DispatchQueue.main.async {
-            guard let connection = view.videoPreviewLayer.connection else { return }
+    static func dismantleUIView(_ uiView: PreviewView, coordinator: RotationHolder) {
+        coordinator.teardown()
+    }
+}
+
+/// 持有旋转协调器 + KVO：角度变化（含初始）即应用到连接，同时保持手动镜像
+@MainActor
+private final class RotationHolder {
+    var coordinator: AVCaptureDevice.RotationCoordinator?
+    var observation: NSKeyValueObservation?
+    private var applied = false
+
+    func attachIfNeeded(view: PreviewView, session: AVCaptureSession) {
+        guard !applied,
+              let device = (session.inputs.first as? AVCaptureDeviceInput)?.device else { return }
+        applied = true
+        let rotation = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: view.videoPreviewLayer)
+        coordinator = rotation
+        let apply: (AVCaptureDevice.RotationCoordinator) -> Void = { [weak view] coord in
+            guard let view, let connection = view.videoPreviewLayer.connection else { return }
             // 必须先关自动镜像再手动设镜像，否则抛
             // "Cannot be set when automaticallyAdjustsVideoMirroring is YES" 异常（真机卡死根因）
             if connection.isVideoMirroringSupported {
                 connection.automaticallyAdjustsVideoMirroring = false
                 connection.isVideoMirrored = true
             }
-            // iOS 17+ 用角度 API（旧 videoOrientation 枚举已弃用）
+            let angle = coord.videoRotationAngleForHorizonLevelPreview
             if connection.isVideoRotationAngleSupported(angle) {
                 connection.videoRotationAngle = angle
             }
         }
+        apply(rotation) // 初始角度
+        observation = rotation.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.new]) { coord, _ in
+            DispatchQueue.main.async { apply(coord) }
+        }
     }
 
-    /// 界面方向 → 预览旋转角（portrait=0 landscapeRight=90 upsideDown=180 landscapeLeft=270）
-    private var rotationAngle: CGFloat {
-        let scene = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.interfaceOrientation ?? .portrait
-        switch scene {
-        case .landscapeLeft: return 270
-        case .landscapeRight: return 90
-        case .portraitUpsideDown: return 180
-        default: return 0
-        }
+    func teardown() {
+        observation?.invalidate()
+        observation = nil
+        coordinator = nil
     }
 }
 
