@@ -224,11 +224,13 @@ struct ScriptListView: View {
                 let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !name.isEmpty {
                     if batchMovePending {
-                        // 批量：选中项全部移入新文件夹，保持多选状态
+                        // 批量：选中项全部移入新文件夹，然后退出多选
                         for script in selectedScripts {
                             script.folder = name
                             script.updatedAt = Date()
                         }
+                        selected = []
+                        selectMode = false
                     } else if let script = newFolderTarget {
                         script.folder = name
                         script.updatedAt = Date()
@@ -537,10 +539,10 @@ struct ScriptListView: View {
             withAnimation(.easeInOut(duration: 0.2)) { script.starred.toggle() }
         case .toggleFilmed:
             // 右滑提交：标记/取消已拍 → 分层排序自动沉底/归位
-            withAnimation(.easeInOut(duration: 0.3)) {
-                script.isFilmed.toggle()
-                script.updatedAt = Date()
-            }
+            // 不加 withAnimation：多元素交叉淡变（勾图标/描边/底色/标题划线/沉底位移动画叠在一起）
+            // 在不同图层上各自渐变 → 视觉重影；直接切换=干净利落
+            script.isFilmed.toggle()
+            script.updatedAt = Date()
         case .delete: deleteScripts([script])
         case .showFolderPicker:
             folderPickerScript = script
