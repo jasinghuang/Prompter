@@ -165,6 +165,22 @@ final class PlayerUITests: XCTestCase {
         snapshot("17-multiselect-undo-restored")
     }
 
+    /// 化妆镜：顶栏相机按钮 → 镜面卡片（模拟器无摄像头走错误态）→ 关闭
+    func testCameraMirrorOverlay() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-resetSettings"]
+        app.launch()
+        let mirrorButton = app.buttons["前置镜子"]
+        XCTAssertTrue(mirrorButton.waitForExistence(timeout: 10))
+        mirrorButton.tap()
+        let close = app.buttons["mirror.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "镜子卡片应出现")
+        sleep(1) // 等错误态文案稳定（模拟器无摄像头）
+        snapshot("18-mirror-simulator")
+        close.tap()
+        XCTAssertFalse(close.waitForExistence(timeout: 3), "点关闭应收起镜子")
+    }
+
     /// 播放页左缘右滑 → 返回列表页（对齐系统返回手势习惯）
     func testEdgeSwipeBackToList() throws {
         XCUIDevice.shared.orientation = .landscapeLeft

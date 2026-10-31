@@ -21,6 +21,7 @@ struct PlayerView: View {
     @State private var paragraphTracker = ParagraphPauseTracker()
 
     @State private var showSettings = false
+    @State private var showMirror = false
     @State private var editing = false
     @State private var showBlur = false
     @State private var showOnboarding = !UserDefaults.standard.bool(forKey: PlayerView.onboardKey)
@@ -67,9 +68,16 @@ struct PlayerView: View {
                     .ignoresSafeArea()
             }
             PlayerSettingsDrawer(open: $showSettings)
+            // 前置化妆镜（最顶层；打开才取流，关闭即释放）
+            if showMirror {
+                CameraMirrorView(open: $showMirror)
+                    .transition(.opacity)
+                    .zIndex(10)
+            }
         }
         .blur(radius: showBlur ? 8 : 0)
         .animation(.easeOut(duration: 0.25), value: showBlur)
+        .animation(.easeOut(duration: 0.22), value: showMirror)
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .onAppear {
@@ -189,6 +197,8 @@ struct PlayerView: View {
                 .padding(.horizontal, 11)
                 .frame(height: 34)
                 .accessibilityLabel(isPlaying ? "播放中" : "已暂停")
+                CapsuleDivider()
+                CapsuleButton(icon: "camera", label: "前置镜子") { showMirror = true }
             }
 
             Spacer(minLength: 0)
