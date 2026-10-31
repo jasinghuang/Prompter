@@ -29,6 +29,15 @@ struct PressableCardStyle: ButtonStyle {
     }
 }
 
+/// 把 Button 的 isPressed 同步到外部 Binding（缩放由外层统一施加=整个卡片一起缩）
+struct CardPressTracker: ButtonStyle {
+    @Binding var isPressed: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .onChange(of: configuration.isPressed) { _, on in isPressed = on }
+    }
+}
+
 /// 通用按压缩放反馈（对应 Web 的 active:scale-95，小控件用）
 struct PressableStyle: ButtonStyle {
     var scale: CGFloat = 0.95

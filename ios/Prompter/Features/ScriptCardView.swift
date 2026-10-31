@@ -19,7 +19,8 @@ struct ScriptCardView: View {
 
     @State private var longPressFired = false // 长按刚触发时吞掉随后的 click（Web: longPressFiredRef）
     @State private var swipeArbiter = SwipeArbiter() // 滑动期间吞掉松手误触
-    @State private var helloGlow: Double = 0 // 高亮光晕强度：常亮 0.14，呼吸峰值 0.32
+    @State private var helloGlow: Double = 0
+    @State private var isPressed = false // 整卡按压缩放（外层统一施加） // 高亮光晕强度：常亮 0.14，呼吸峰值 0.32
 
     /// 呼吸相位 0..1（静止 0，峰值 1）
     /// 内容层常驻底色：与"半透明叠 canvas"的静止观感等效的不透明色（遮盖式揭示的关键）
@@ -66,7 +67,7 @@ struct ScriptCardView: View {
                     // 底色已移到静态外壳，内容层透明区域需显式 contentShape 才可点
                     .contentShape(Rectangle())
             }
-            .buttonStyle(PressableCardStyle()) // 按压缩放反馈（偏移根因已修，不再闪烁）
+            .buttonStyle(CardPressTracker(isPressed: $isPressed)) // 同步按压态到外层
             // 长按与点按共存（挂 Button 上）；>10pt 移动取消，对齐 Web slop
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.5, maximumDistance: 10)
@@ -78,6 +79,8 @@ struct ScriptCardView: View {
             )
             .accessibilityIdentifier("card")
         }
+        .scaleEffect(isPressed ? 0.98 : 1) // 整卡缩放（含底色+描边，PWA 同款 active:scale-0.98）
+        .animation(.easeOut(duration: 0.15), value: isPressed)
         // 返回高亮（Web card-hello：box-shadow 带 spread，最亮处贴边一圈）。
         // SwiftUI 无 spread → 双层复刻：边缘亮环（描边+轻模糊）+ 环境光晕（shadow）
         // 只在有高亮时挂 shadow/overlay（opacity 0 的合成滤镜仍耗 GPU，多卡列表点击卡顿帮凶）
