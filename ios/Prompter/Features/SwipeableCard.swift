@@ -126,6 +126,7 @@ struct SwipeableCard<Content: View>: View {
                 }
             }
             .frame(width: SwipeGeometry.zoneWidth)
+            .opacity(abs(swipeX) < 0.5 ? 0 : 1) // 静止隐藏：防整卡淡入淡出时色区透出闪烁
             Spacer(minLength: 0)
         }
     }
