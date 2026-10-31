@@ -33,6 +33,7 @@ struct SwipeableCard<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     @State private var swipeX: CGFloat = 0
+    @State private var isPressed = false // 按压缩放反馈（Web active:scale-0.98）
     @State private var shook = false
     @State private var shakeTrigger: CGFloat = 0
     @State private var locked = false // 起步判定后锁定横向，不再逐帧比方向（防轨迹抖动中途冻结）
@@ -50,12 +51,18 @@ struct SwipeableCard<Content: View>: View {
         }
         .overlay(cardShape.strokeBorder(cardBorderColor, lineWidth: 1))
         .clipShape(cardShape)
+        .scaleEffect(isPressed ? 0.98 : 1)
         .modifier(CardShake(travel: 4, shakes: 2, animatableData: shakeTrigger))
         .contentShape(cardShape)
         // simultaneous + 竖向闸门：ScrollView 优先启动竖向滚动（不被 highPriority 阻断），
         // 横向锁定时更新 swipeX；竖向起手 our 手势不响应 → 滚动畅通。
         // highPriority 会阻断 ScrollView pan = 列表不能滚动（真机实锤），不能用在滚动容器内的 item 上
         .simultaneousGesture(swipe)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in if !isPressed { withAnimation(.easeOut(duration: 0.15)) { isPressed = true } } }
+                .onEnded { _ in withAnimation(.easeOut(duration: 0.15)) { isPressed = false } }
+        )
     }
 
     private var cardShape: RoundedRectangle {
@@ -71,8 +78,8 @@ struct SwipeableCard<Content: View>: View {
                 let dx = value.translation.width
                 let dy = value.translation.height
                 if !locked {
-                    // 起步判定（对齐苹果原生 slop：~10pt + 方向优势 1.2 倍）
-                    guard abs(dx) > 6, abs(dx) > abs(dy) * 1.2 else { return }
+                    // 起步判定：≥12pt 且横向占优（点击时 5-8pt 自然漂移不触发偏移）
+                    guard abs(dx) > 12, abs(dx) > abs(dy) * 1.2 else { return }
                     locked = true
                 } else if abs(dy) > abs(dx) * 1.6, abs(dy) > 28 {
                     // 锁定后手指明显转向竖向 → 交还列表滚动，卡片弹回
