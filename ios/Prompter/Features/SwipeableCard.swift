@@ -14,9 +14,9 @@ final class SwipeArbiter {
 
 enum SwipeGeometry {
     static let limitRight: CGFloat = 72
-    static let limitLeft: CGFloat = -150
+    static let limitLeft: CGFloat = -120 // 提示条移除后缩短（原 -150），左右滑距更接近
     static let commitFilmed: CGFloat = 40
-    static let commitDelete: CGFloat = -130
+    static let commitDelete: CGFloat = -100
     static let revealFilmed: CGFloat = 20
     static let revealDelete: CGFloat = -20
     static let zoneWidth: CGFloat = 72
@@ -110,14 +110,16 @@ struct SwipeableCard<Content: View>: View {
         return min(1, max(0, t))
     }
 
-    /// 右滑揭示（leading）：未拍=绿底白勾；已拍=灰底白叉（取消）
+    /// 右滑揭示（leading）：对勾随滑动逐笔画出，滑到提交点恰好画完（勾画完=拍完）
     private var filmedZone: some View {
         HStack {
             ZStack {
                 Rectangle().fill(isFilmed ? filmedGray : Color.successGreen)
-                Image(systemName: isFilmed ? "xmark" : "checkmark")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(.white)
+                if isFilmed {
+                    DrawnX(progress: filmedProgress)
+                } else {
+                    DrawnCheck(progress: filmedProgress)
+                }
             }
             .frame(width: SwipeGeometry.zoneWidth)
             .opacity(min(1, max(0, (swipeX - 8) / 24))) // 8pt 起连续淡入
@@ -125,21 +127,101 @@ struct SwipeableCard<Content: View>: View {
         }
     }
 
-    /// 左滑揭示（trailing）：垃圾桶随拖动距离连续放大、红区持续加深；越阈值震动+抖动收尾
+    /// 8 → 56pt 映射 0 → 1（提交点 40pt 时对勾已画完）
+    private var filmedProgress: Double {
+        min(1, max(0, Double((swipeX - 8) / 48)))
+    }
+
+    /// 左滑揭示（trailing）：垃圾桶盖随滑动连续盖合（到提交点完全盖住=扔定了），
+    /// 图标放大、红区加深；越阈值震动+抖动收尾
     private var deleteZone: some View {
         HStack {
             Spacer(minLength: 0)
             ZStack {
                 Rectangle().fill(Color.dangerRed)
                 Rectangle().fill(commitRed).opacity(deleteProgress) // #DC2626 → #EF4444 渐进加深
-                Image(systemName: "trash")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .scaleEffect(1 + 0.25 * deleteProgress) // 1.0 → 1.25 连续放大
+                LidTrash(lidClosed: deleteProgress)
+                    .scaleEffect(1 + 0.15 * deleteProgress)
             }
             .frame(width: SwipeGeometry.zoneWidth)
             .opacity(min(1, max(0, (-swipeX - 8) / 24)))
         }
+    }
+}
+
+// MARK: - 自绘图标动效
+
+/// 带盖垃圾桶：lidProgress 0=盖子翻开 ~80°，1=完全盖住（绕后沿铰点盖合）
+private struct LidTrash: View {
+    var lidClosed: Double
+    private let stroke = StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round)
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            // 桶身：梯形 + 两道竖纹 + 顶部横沿
+            ZStack {
+                Path { p in
+                    p.move(to: CGPoint(x: 5, y: 10))
+                    p.addLine(to: CGPoint(x: 21, y: 10))
+                    p.addLine(to: CGPoint(x: 19, y: 25))
+                    p.addLine(to: CGPoint(x: 7, y: 25))
+                    p.closeSubpath()
+                }
+                .stroke(style: stroke)
+                Path { p in
+                    p.move(to: CGPoint(x: 10.5, y: 14)); p.addLine(to: CGPoint(x: 10, y: 21))
+                    p.move(to: CGPoint(x: 15.5, y: 14)); p.addLine(to: CGPoint(x: 16, y: 21))
+                }
+                .stroke(style: stroke)
+                Capsule().fill() // 顶部提沿
+                    .frame(width: 14, height: 2.6)
+                    .offset(y: 8.2)
+            }
+            // 盖子：绕左端铰点翻起（真实垃圾桶沿后沿翻开）
+            ZStack(alignment: .bottom) {
+                Rectangle().fill()
+                    .frame(width: 19, height: 2.6)
+                Capsule().fill()
+                    .frame(width: 5, height: 3)
+                    .offset(y: -2.8)
+            }
+            .frame(height: 6)
+            .rotationEffect(.degrees(-80 * (1 - lidClosed)), anchor: UnitPoint(x: 0, y: 0.5))
+        }
+        .frame(width: 26, height: 30)
+        .foregroundStyle(.white)
+        .offset(y: -1)
+    }
+}
+
+/// 对勾：随 progress 从起笔逐笔画出
+private struct DrawnCheck: View {
+    var progress: Double
+    var body: some View {
+        Path { p in
+            p.move(to: CGPoint(x: 3, y: 13))
+            p.addLine(to: CGPoint(x: 9.5, y: 20))
+            p.addLine(to: CGPoint(x: 21, y: 6))
+        }
+        .trim(from: 0, to: progress)
+        .stroke(style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+        .frame(width: 24, height: 26)
+        .foregroundStyle(.white)
+    }
+}
+
+/// 取消叉：同样逐笔画出
+private struct DrawnX: View {
+    var progress: Double
+    var body: some View {
+        Path { p in
+            p.move(to: CGPoint(x: 5, y: 5)); p.addLine(to: CGPoint(x: 19, y: 19))
+            p.move(to: CGPoint(x: 19, y: 5)); p.addLine(to: CGPoint(x: 5, y: 19))
+        }
+        .trim(from: 0, to: progress)
+        .stroke(style: StrokeStyle(lineWidth: 3, lineCap: .round))
+        .frame(width: 24, height: 24)
+        .foregroundStyle(.white)
     }
 }
 

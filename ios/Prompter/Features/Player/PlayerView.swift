@@ -284,6 +284,8 @@ struct PlayerView: View {
             guideBar
         }
         .padding(.horizontal, 12)
+        .opacity(isPlaying ? 1 : 0) // 暂停时让位正文，播放时才亮起
+        .animation(.easeInOut(duration: 0.3), value: isPlaying)
         .allowsHitTesting(false)
     }
 
