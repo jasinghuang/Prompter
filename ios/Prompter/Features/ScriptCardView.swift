@@ -4,27 +4,67 @@ import SwiftUI
 struct ScriptCardView: View {
     enum Action {
         case open, edit, delete, toggleStar, toggleFilmed, showFolderPicker
+        case longPress, toggleSelect // 长按进入多选 / 多选中点选
     }
 
     let script: Script
     let wordsPerMinute: Int
     let folders: [String]
+    var selectMode = false
+    var isSelected = false
     let onAction: (Action) -> Void
 
     private var charCount: Int { PrompterCore.readableCharCount(script.content) }
 
+    @State private var longPressFired = false // 长按刚触发时吞掉随后的 click（Web: longPressFiredRef）
+
     var body: some View {
         SwipeableCard(
             isFilmed: script.isFilmed,
+            swipeEnabled: !selectMode, // 多选中禁用滑动（Web: bind 移除）
             onCommitFilmed: { onAction(.toggleFilmed) }, // 右滑提交
             onDelete: { onAction(.delete) }               // 左滑阶段2提交
         ) {
-            Button { onAction(.open) } label: {
+            Button {
+                if longPressFired {
+                    longPressFired = false // 长按刚触发，吞掉这次点击
+                    return
+                }
+                onAction(selectMode ? .toggleSelect : .open)
+            } label: {
                 cardContent
             }
             .buttonStyle(PressableCardStyle())
+            .overlay(alignment: .topTrailing) {
+                if selectMode { selectCircle.padding(12) } // 占编辑/删除按钮的同一位置
+            }
             .accessibilityIdentifier("card")
+            // 长按与点按共存（挂在外层会被 Button 抢占）；>10pt 移动取消，对齐 Web slop
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.5, maximumDistance: 10)
+                    .onEnded { _ in
+                        guard !selectMode else { return }
+                        longPressFired = true
+                        onAction(.longPress)
+                    }
+            )
         }
+    }
+
+    /// 多选圈（Web: 22pt 圆——选中=金底深色勾；未选=白30描边）
+    private var selectCircle: some View {
+        ZStack {
+            Circle()
+                .fill(isSelected ? Color.accentGold : Color.black.opacity(0.4))
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.canvas)
+            }
+        }
+        .frame(width: 22, height: 22)
+        .overlay(Circle().strokeBorder(isSelected ? .clear : Color.white.opacity(0.3), lineWidth: 1))
+        .allowsHitTesting(false)
     }
 
     private var cardContent: some View {
@@ -58,9 +98,11 @@ struct ScriptCardView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .strokeBorder(
-                    script.isFilmed
-                        ? Color.successGreen.opacity(0.3)
-                        : Color.accentGold.opacity(0.15),
+                    selectMode && isSelected
+                        ? Color.accentGold.opacity(0.6) // Web 多选选中: border-[#D4A432]/60
+                        : script.isFilmed
+                            ? Color.successGreen.opacity(0.3)
+                            : Color.accentGold.opacity(0.15),
                     lineWidth: 1
                 )
         )
@@ -104,16 +146,20 @@ struct ScriptCardView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // 右侧：操作按钮（Web: ghost 样式 32pt 高、rounded-lg、无底色）
+            // 右侧：操作按钮（Web: ghost 样式 32pt 高、rounded-lg、无底色；多选中 invisible 保占位）
             HStack(spacing: 4) {                                   // Web: gap-1 = 4pt
                 ghostButton(icon: "pencil", tint: .white.opacity(0.40)) {
                     onAction(.edit)
                 }
                 .accessibilityIdentifier("card.edit")
+                .opacity(selectMode ? 0 : 1)
+                .disabled(selectMode)
                 ghostButton(icon: "trash", tint: .accentGold.opacity(0.70)) {
                     onAction(.delete)
                 }
                 .accessibilityIdentifier("card.delete")
+                .opacity(selectMode ? 0 : 1)
+                .disabled(selectMode)
             }
         }
     }
@@ -145,11 +191,13 @@ struct ScriptCardView: View {
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // 右侧：文件夹 + 星标（Web: ml-auto gap-1.5）
+            // 右侧：文件夹 + 星标（Web: ml-auto gap-1.5；多选中禁用降透明度）
             HStack(spacing: 6) {
                 folderButton
                 starButton
             }
+            .opacity(selectMode ? 0.3 : 1)
+            .disabled(selectMode)
         }
         .font(.system(size: 12))                                    // Web: text-xs = 12pt
         .foregroundStyle(.white.opacity(script.isFilmed ? 0.35 : 0.50))

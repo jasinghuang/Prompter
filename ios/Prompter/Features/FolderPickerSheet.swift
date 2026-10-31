@@ -1,13 +1,17 @@
 import SwiftUI
 
-/// 文件夹选择弹窗 —— 复刻 Web 版 FolderPickerSheet 样式
-/// Web 版样式：glass-surface 底、rounded-3xl、选项 rounded-xl px-3 py-3 text-sm
+/// 文件夹选择弹窗 —— 复刻 Web 版 FolderPickerSheet 样式（单篇/批量共用）
 struct FolderPickerSheet: View {
-    let script: Script
+    /// 目标稿件：1 篇 = 单卡流程；多篇 = 批量移动（勾选只在单篇时显示）
+    let targets: [Script]
     let folders: [String]
     let allScripts: [Script]
     let onSelect: (String?) -> Void
     let onNewFolder: () -> Void
+
+    private var currentFolder: String? {
+        targets.count == 1 ? targets.first?.folder : nil
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,13 +39,13 @@ struct FolderPickerSheet: View {
             // 选项列表（Web: p-3 = 12pt padding）
             ScrollView {
                 VStack(spacing: 2) {
-                    optionRow(label: "未分组", active: script.folder == nil) {
+                    optionRow(label: "未分组", active: currentFolder == nil) {
                         onSelect(nil)
                     }
 
                     ForEach(folders, id: \.self) { folder in
                         let count = allScripts.filter { $0.folder == folder }.count
-                        optionRow(label: folder, count: count, active: script.folder == folder) {
+                        optionRow(label: folder, count: count, active: currentFolder == folder) {
                             onSelect(folder)
                         }
                     }

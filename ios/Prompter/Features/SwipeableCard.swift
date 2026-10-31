@@ -18,6 +18,7 @@ enum SwipeGeometry {
 
 struct SwipeableCard<Content: View>: View {
     let isFilmed: Bool
+    var swipeEnabled = true // 多选模式下禁用滑动
     let onCommitFilmed: () -> Void
     let onDelete: () -> Void
     @ViewBuilder let content: () -> Content
@@ -49,6 +50,7 @@ struct SwipeableCard<Content: View>: View {
     private var swipe: some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { value in
+                guard swipeEnabled else { return }
                 let dx = value.translation.width
                 let dy = value.translation.height
                 guard abs(dx) > abs(dy) else { return } // 纵向为主的拖动让给列表滚动
@@ -60,6 +62,7 @@ struct SwipeableCard<Content: View>: View {
                 }
             }
             .onEnded { _ in
+                guard swipeEnabled else { return }
                 defer { shook = false }
                 if swipeX > SwipeGeometry.commitFilmed {
                     UISelectionFeedbackGenerator().selectionChanged()

@@ -131,6 +131,40 @@ final class PlayerUITests: XCTestCase {
         snapshot("15-swipe-delete-undo")
     }
 
+    /// 长按多选 → 点选 → 批量删除（确认）→ 撤销胶囊整批恢复
+    func testMultiSelectBatchDelete() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
+        app.launch()
+        let cards = app.buttons.matching(identifier: "card")
+        XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 10))
+        let before = cards.count
+
+        // 长按第一张进入多选（且不应误开播放页）
+        cards.firstMatch.press(forDuration: 1.2)
+        XCTAssertTrue(app.staticTexts["已选 1 篇"].waitForExistence(timeout: 5), "长按应进入多选")
+        XCTAssertFalse(app.buttons["返回"].exists, "长按不应误开播放页")
+
+        // 点第二张 → 已选 2 篇
+        app.buttons.matching(identifier: "card").element(boundBy: 1).tap()
+        XCTAssertTrue(app.staticTexts["已选 2 篇"].waitForExistence(timeout: 3), "点第二张应变为已选 2 篇")
+
+        // 批量删除（系统确认框）
+        app.buttons["batch.delete"].tap()
+        let confirm = app.buttons["删除 2 篇"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 3), "应弹出批量删除确认")
+        confirm.tap()
+        XCTAssertTrue(app.buttons["undo.pill"].waitForExistence(timeout: 5), "批量删除后应出现撤销胶囊")
+        XCTAssertTrue(app.staticTexts["已删除 2 篇"].exists)
+        XCTAssertEqual(app.buttons.matching(identifier: "card").count, before - 2, "批量删除后卡片数应减二")
+
+        // 撤销（2 秒窗口内立即点）→ 整批恢复
+        app.buttons["undo.pill"].tap()
+        sleep(1)
+        XCTAssertEqual(app.buttons.matching(identifier: "card").count, before, "撤销应整批恢复")
+        snapshot("17-multiselect-undo-restored")
+    }
+
     /// 播放页左缘右滑 → 返回列表页（对齐系统返回手势习惯）
     func testEdgeSwipeBackToList() throws {
         XCUIDevice.shared.orientation = .landscapeLeft

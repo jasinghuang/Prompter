@@ -22,6 +22,11 @@ struct ScriptListView: View {
     @State private var newFolderTarget: Script? // 新建文件夹的目标稿件（弹窗前先记下，弹窗期间选择器已关）
 
     @State private var confirmClearAll = false
+    // 长按多选 + 批量操作
+    @State private var selectMode = false
+    @State private var selected: Set<UUID> = []
+    @State private var confirmBatchDelete = false
+    @State private var batchMoveOpen = false
     // 删除撤销（单篇；批量在 M4 泛化）
     @State private var undoItems: [UndoSnapshot] = []
     @State private var showUndo = false
@@ -86,8 +91,12 @@ struct ScriptListView: View {
                     VStack(spacing: 0) {
                         header
                         if !scripts.isEmpty {
-                            filterChips
-                            toolbar
+                            if selectMode {
+                                selectBar
+                            } else {
+                                filterChips
+                                toolbar
+                            }
                         }
                         if visible.isEmpty {
                             emptyState
@@ -147,7 +156,7 @@ struct ScriptListView: View {
         }
         .sheet(item: $folderPickerScript) { script in
             FolderPickerSheet(
-                script: script,
+                targets: [script],
                 folders: folders,
                 allScripts: scripts,
                 onSelect: { folder in
@@ -160,6 +169,31 @@ struct ScriptListView: View {
                     folderPickerScript = nil
                     newFolderName = ""
                     newFolderAlert = true
+                }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(Color.canvas)
+            .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+            .onAppear { showBlur = true }
+            .onDisappear { showBlur = false }
+        }
+        .sheet(isPresented: $batchMoveOpen) {
+            FolderPickerSheet(
+                targets: selectedScripts,
+                folders: folders,
+                allScripts: scripts,
+                onSelect: { folder in
+                    for script in selectedScripts {
+                        script.folder = folder
+                        script.updatedAt = Date()
+                    }
+                    batchMoveOpen = false
+                    exitSelectMode()
+                },
+                onNewFolder: {
+                    batchMoveOpen = false
+                    exitSelectMode()
                 }
             )
             .presentationDetents([.medium])
@@ -190,6 +224,14 @@ struct ScriptListView: View {
         }
         .confirmationDialog("确认清空全部稿件？", isPresented: $confirmClearAll, titleVisibility: .visible) {
             Button("删除全部 \(scripts.count) 篇", role: .destructive) { deleteAll() }
+            Button("取消", role: .cancel) {}
+        }
+        .confirmationDialog("确认删除选中的 \(selected.count) 篇稿件？", isPresented: $confirmBatchDelete, titleVisibility: .visible) {
+            Button("删除 \(selected.count) 篇", role: .destructive) {
+                let targets = selectedScripts
+                exitSelectMode()
+                deleteScripts(targets) // 批量撤销胶囊显示「已删除 N 篇」
+            }
             Button("取消", role: .cancel) {}
         }
         .alert("检测到提词器数据", isPresented: $showImportPrompt) {
@@ -339,7 +381,9 @@ struct ScriptListView: View {
                 ScriptCardView(
                     script: script,
                     wordsPerMinute: settings.data.scrollSpeed,
-                    folders: folders
+                    folders: folders,
+                    selectMode: selectMode,
+                    isSelected: selected.contains(script.id)
                 ) { action in
                     handleCardAction(action, script)
                 }
@@ -352,6 +396,89 @@ struct ScriptListView: View {
         // id 集合变化（删除/新建/筛选）时驱动补位动画——对应 Web 的 FLIP
         .animation(.easeInOut(duration: 0.3), value: visible.map(\.id))
         .padding(.bottom, 24)
+    }
+
+    // MARK: 多选栏（长按卡片进入；占据筛选 chips + 排序行的同一位置，Web mb-5=20pt）
+
+    private var selectedScripts: [Script] {
+        scripts.filter { selected.contains($0.id) }
+    }
+
+    private var selectBar: some View {
+        HStack(spacing: 8) {
+            Button {
+                exitSelectMode()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .frame(width: CTL.t3, height: CTL.t3)
+                    .background(Color.surface.opacity(0.8), in: Circle())
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityIdentifier("select.exit")
+
+            Text("已选 \(selected.count) 篇")
+                .font(.system(size: 13))
+                .foregroundStyle(.white.opacity(0.5))
+
+            Button {
+                selected = Set(visible.map(\.id))
+            } label: {
+                Text("全选")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .padding(.horizontal, 12)
+                    .frame(height: CTL.t3)
+                    .background(Color.surface.opacity(0.8), in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityIdentifier("select.all")
+
+            Spacer(minLength: 8)
+
+            Button {
+                batchMoveOpen = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder").font(.system(size: 13))
+                    Text("移动到文件夹").font(.system(size: 13, weight: .medium))
+                }
+                .foregroundStyle(Color.accentGold.opacity(0.8))
+                .padding(.horizontal, 12)
+                .frame(height: CTL.t3)
+            }
+            .buttonStyle(PressableStyle())
+            .disabled(selected.isEmpty)
+            .opacity(selected.isEmpty ? 0.3 : 1)
+            .accessibilityIdentifier("batch.move")
+
+            Button {
+                confirmBatchDelete = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "trash").font(.system(size: 13))
+                    Text("删除").font(.system(size: 13, weight: .medium))
+                }
+                .foregroundStyle(Color.dangerRed.opacity(0.9))
+                .padding(.horizontal, 12)
+                .frame(height: CTL.t3)
+            }
+            .buttonStyle(PressableStyle())
+            .disabled(selected.isEmpty)
+            .opacity(selected.isEmpty ? 0.3 : 1)
+            .accessibilityIdentifier("batch.delete")
+        }
+        .padding(.bottom, 20)
+    }
+
+    private func exitSelectMode() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selected = []
+            selectMode = false
+        }
     }
 
     private func handleCardAction(_ action: ScriptCardView.Action, _ script: Script) {
@@ -369,6 +496,21 @@ struct ScriptListView: View {
         case .delete: deleteScripts([script])
         case .showFolderPicker:
             folderPickerScript = script
+        case .longPress:
+            // 长按进入多选并选中本卡（Web: LONG_PRESS_MS 500 + 本卡预选）
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectMode = true
+                selected = [script.id]
+            }
+        case .toggleSelect:
+            withAnimation(.easeInOut(duration: 0.15)) {
+                if selected.contains(script.id) {
+                    selected.remove(script.id)
+                } else {
+                    selected.insert(script.id)
+                }
+            }
         }
     }
 
