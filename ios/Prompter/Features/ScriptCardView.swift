@@ -22,10 +22,6 @@ struct ScriptCardView: View {
     @State private var helloGlow: Double = 0 // 高亮光晕强度：常亮 0.14，呼吸峰值 0.32
 
     /// 呼吸相位 0..1（静止 0，峰值 1）
-    private var helloPulse: Double {
-        min(1, max(0, (helloGlow - 0.14) / 0.18))
-    }
-
     /// 内容层常驻底色：与"半透明叠 canvas"的静止观感等效的不透明色（遮盖式揭示的关键）
     private var contentBackground: Color {
         if script.isFilmed {
@@ -70,7 +66,7 @@ struct ScriptCardView: View {
                     // 底色已移到静态外壳，内容层透明区域需显式 contentShape 才可点
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain) // 缩放反馈与 SwipeableCard 的滑动/光晕叠加产生闪烁，去掉
+            .buttonStyle(PressableCardStyle()) // 按压缩放反馈（偏移根因已修，不再闪烁）
             // 长按与点按共存（挂 Button 上）；>10pt 移动取消，对齐 Web slop
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.5, maximumDistance: 10)
@@ -85,7 +81,7 @@ struct ScriptCardView: View {
         // 返回高亮（Web card-hello：box-shadow 带 spread，最亮处贴边一圈）。
         // SwiftUI 无 spread → 双层复刻：边缘亮环（描边+轻模糊）+ 环境光晕（shadow）
         // 只在有高亮时挂 shadow/overlay（opacity 0 的合成滤镜仍耗 GPU，多卡列表点击卡顿帮凶）
-        .modifier(HighlightGlow(glow: helloGlow, pulse: helloPulse))
+        .shadow(color: Color.accentGold.opacity(helloGlow), radius: 18) // 柔和外发光（Web: 0 0 22px 0.14）
         .onChange(of: highlighted) { _, isOn in
             if isOn {
                 // 静态光晕：亮起后保持不消失；打开下一张时前一张自动灭（列表只传一张 true）
@@ -99,27 +95,6 @@ struct ScriptCardView: View {
             if highlighted && helloGlow == 0 {
                 helloGlow = 0.25
             }
-        }
-    }
-}
-
-/// 高亮光晕：只在 glow > 0 时挂 shadow/overlay（避免全列表每卡都带合成滤镜）
-struct HighlightGlow: ViewModifier {
-    var glow: Double
-    var pulse: Double
-
-    func body(content: Content) -> some View {
-        if glow > 0.01 {
-            content
-                .shadow(color: Color.accentGold.opacity(glow * 0.55), radius: 12 + 4 * pulse)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color.accentGold.opacity(min(1, glow + 0.18)), lineWidth: 2 + 3 * pulse)
-                        .blur(radius: 2.5)
-                        .allowsHitTesting(false)
-                )
-        } else {
-            content
         }
     }
 }
