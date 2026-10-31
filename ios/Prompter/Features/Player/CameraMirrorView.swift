@@ -126,7 +126,6 @@ private struct MirrorCameraView: UIViewRepresentable {
 
     func updateUIView(_ uiView: MirrorCameraUIView, context: Context) {
         uiView.onStatus = onStatus
-        uiView.applyConnectionSettings() // 横竖屏变化时重申方向/镜像
     }
 
     static func dismantleUIView(_ uiView: MirrorCameraUIView, coordinator: ()) {
@@ -142,6 +141,8 @@ final class MirrorCameraUIView: UIView {
 
     private let session = AVCaptureSession()
     private let queue = DispatchQueue(label: "prompter.camera")
+    private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+    private var rotationObservation: NSKeyValueObservation?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -189,13 +190,16 @@ final class MirrorCameraUIView: UIView {
             session.commitConfiguration()
             session.startRunning()
             DispatchQueue.main.async {
-                self.applyConnectionSettings()
+                self.setupRotationCoordinator(device: device)
                 self.onStatus?(nil) // 就绪
             }
         }
     }
 
     func stop() {
+        rotationObservation?.invalidate()
+        rotationObservation = nil
+        rotationCoordinator = nil
         queue.async { [session] in
             if session.isRunning { session.stopRunning() }
             session.inputs.forEach(session.removeInput) // 立即释放设备
@@ -212,29 +216,28 @@ final class MirrorCameraUIView: UIView {
         }
     }
 
-    /// 镜像（先关自动再手动，否则抛异常）+ 方向（界面方向映射角度，横屏两向对调版）
-    func applyConnectionSettings() {
-        guard let connection = videoPreviewLayer.connection else { return }
-        if connection.isVideoMirroringSupported {
-            connection.automaticallyAdjustsVideoMirroring = false
-            connection.isVideoMirrored = true
-        }
-        let angle = rotationAngle
-        if connection.isVideoRotationAngleSupported(angle) {
-            connection.videoRotationAngle = angle
+    // MARK: 自动旋转（RotationCoordinator：监听设备姿态始终给地平线水平角；含镜像）
+
+    private func setupRotationCoordinator(device: AVCaptureDevice) {
+        rotationObservation?.invalidate()
+        let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: videoPreviewLayer)
+        rotationCoordinator = coordinator
+        applyRotation()
+        rotationObservation = coordinator.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.new]) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.applyRotation() }
         }
     }
 
-    private var rotationAngle: CGFloat {
-        let scene = UIApplication.shared.connectedScenes
-            .compactMap { ($0 as? UIWindowScene)?.interfaceOrientation }
-            .first ?? .portrait
-        // 全系 +90°（真机实测旧系差 90°：90↔270 对调只改 180°，正确值在两版正中）
-        switch scene {
-        case .landscapeLeft: return 180
-        case .landscapeRight: return 0
-        case .portraitUpsideDown: return 270
-        default: return 90
+    private func applyRotation() {
+        guard let coordinator = rotationCoordinator,
+              let connection = videoPreviewLayer.connection else { return }
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false // 先关自动再手动设镜像（否则抛异常）
+            connection.isVideoMirrored = true
+        }
+        let angle = coordinator.videoRotationAngleForHorizonLevelPreview
+        if connection.isVideoRotationAngleSupported(angle) {
+            connection.videoRotationAngle = angle
         }
     }
 
