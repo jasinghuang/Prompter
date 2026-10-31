@@ -69,8 +69,10 @@ final class PlayerUITests: XCTestCase {
         close.tap()
         XCTAssertFalse(close.waitForExistence(timeout: 3), "点关闭应收起抽屉")
 
-        // ② 顶栏设置胶囊 → 重新打开
-        app.buttons["设置"].tap()
+        // ② 顶栏设置胶囊 → 重新打开（先等元素出现，避免高负载下竞态）
+        let settingsButton = app.buttons["设置"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "顶栏设置按钮应可见")
+        settingsButton.tap()
         XCTAssertTrue(close.waitForExistence(timeout: 3), "胶囊应重新打开抽屉")
 
         // ③ 从面板左缘把手区快速右拨（终点离屏幕右缘 130pt，避开 Home 条系统手势区）
@@ -94,7 +96,7 @@ final class PlayerUITests: XCTestCase {
     /// 卡片右滑 → 标记已拍 → 沉到已拍层
     func testCardSwipeFilmed() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
         app.launch()
         let cards = app.buttons.matching(identifier: "card")
         XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 10))
@@ -116,7 +118,7 @@ final class PlayerUITests: XCTestCase {
     /// 卡片左滑越阈值松手 → 删除 + 撤销胶囊 + 卡片数减一
     func testCardSwipeDelete() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
         app.launch()
         let cards = app.buttons.matching(identifier: "card")
         XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 10))
@@ -135,7 +137,7 @@ final class PlayerUITests: XCTestCase {
     /// 长按多选 → 点选 → 批量删除（确认）→ 撤销胶囊整批恢复
     func testMultiSelectBatchDelete() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
         app.launch()
         let cards = app.buttons.matching(identifier: "card")
         XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 10))
@@ -202,13 +204,20 @@ final class PlayerUITests: XCTestCase {
         let backToTop = app.buttons["回到顶部"]
         XCTAssertTrue(backToTop.waitForExistence(timeout: 40), "读完自动停止后应出现回到顶部按钮")
         sleep(1)
+        // 自动停止后计时应冻结（用户反馈：播完时间还在跑）
+        let elapsed = app.staticTexts["player.elapsed"]
+        XCTAssertTrue(elapsed.waitForExistence(timeout: 3), "计时应可读")
+        let t1 = elapsed.label
+        sleep(3)
+        let t2 = app.staticTexts["player.elapsed"].label
+        XCTAssertEqual(t1, t2, "自动停止后计时应冻结：\(t1) → \(t2)")
         snapshot("08-landscape-atbottom-backtotop")
     }
 
     /// 列表删除动画：点删除 → 卡片数 -1（退场动画由 cardsGrid 的 animation 驱动）
     func testListDeleteAnimation() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
         app.launch()
         let deletes = app.buttons.matching(identifier: "card.delete")
         XCTAssertTrue(deletes.firstMatch.waitForExistence(timeout: 10))
@@ -225,7 +234,7 @@ final class PlayerUITests: XCTestCase {
     /// 卡片文件夹按钮 → 新建文件夹 → 目标稿件应移入新文件夹（此前 alert 读不到目标而静默丢失）
     func testCreateFolderFromCard() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
         app.launch()
         let folderButtons = app.buttons.matching(identifier: "card.folder")
         XCTAssertTrue(folderButtons.firstMatch.waitForExistence(timeout: 10))

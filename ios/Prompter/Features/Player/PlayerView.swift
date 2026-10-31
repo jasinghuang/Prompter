@@ -146,7 +146,12 @@ struct PlayerView: View {
             onReachEnd: handleReachEnd,
             onAtBottom: { atBottom = $0 },
             onPointerDown: { pointerDown = $0 },
-            onTap: { isPlaying.toggle() },
+            onTap: {
+                if !isPlaying && engine.isAtTop {
+                    elapsed = 0 // 从头开拍一条新计时；暂停续播不清零（与 Web 一致）
+                }
+                isPlaying.toggle()
+            },
             onPinch: { size in
                 settings.data.fontSize = size
                 showToast("字号 \(size)px", duration: nil)
@@ -194,6 +199,7 @@ struct PlayerView: View {
                         .tracking(0.5)
                         .fixedSize() // 防止被挤成两行
                         .foregroundStyle(.white.opacity(0.6))
+                        .accessibilityIdentifier("player.elapsed")
                 }
                 .padding(.horizontal, 11)
                 .frame(height: 34)
@@ -320,6 +326,7 @@ struct PlayerView: View {
         if atBottom && !isPlaying {
             Button {
                 isPlaying = false
+                elapsed = 0
                 engine.scrollToIndex(0)
             } label: {
                 HStack(spacing: 6) {
@@ -409,9 +416,10 @@ struct PlayerView: View {
         isPlaying = false
         switch settings.data.completeAction {
         case "restart":
-            // 重读：自动暂停重新生效，回到开头并暂停
+            // 重读：自动暂停重新生效，回到开头并暂停，计时归零（新一条）
             keywordTracker.reset()
             paragraphTracker.reset()
+            elapsed = 0
             engine.scrollToIndex(0)
         case "list":
             completed = true

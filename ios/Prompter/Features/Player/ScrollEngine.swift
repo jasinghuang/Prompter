@@ -72,7 +72,7 @@ struct PrompterScrollView: UIViewRepresentable {
         var wordsPerMinute = 160
         private(set) var activeIndex = 0
 
-        private weak var textView: PrompterTextView?
+        weak var textView: PrompterTextView?
         private var displayLink: CADisplayLink?
         private var lastTimestamp: CFTimeInterval?
         private var position: CGFloat = 0 // 自持滚动位置，避免逐帧取整漂移
@@ -415,6 +415,11 @@ final class ScrollEngineController {
 
     func scrollToIndex(_ index: Int) {
         coordinator?.scrollToIndex(index)
+    }
+
+    /// 是否停在顶部（重新开拍一条时用于计时归零）
+    var isAtTop: Bool {
+        (coordinator?.textView?.contentOffset.y ?? 0) <= 1
     }
 }
 

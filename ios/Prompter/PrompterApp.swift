@@ -9,6 +9,13 @@ struct PrompterApp: App {
     init() {
         let modelContainer = try! ModelContainer(for: Script.self)
         container = modelContainer
+        // UI 测试用：-resetDemo 清空全部数据并重置播种标记（每批次干净起点，防跨轮污染）
+        if ProcessInfo.processInfo.arguments.contains("-resetDemo") {
+            let context = ModelContext(modelContainer)
+            try? context.delete(model: Script.self) // iOS 17 批量删除（erase 要 18）
+            try? context.save()
+            UserDefaults.standard.set(false, forKey: "demo_seeded")
+        }
         // 模拟器演示：launch argument -seedDemo 插入示例数据（真机不受影响）
         if ProcessInfo.processInfo.arguments.contains("-seedDemo"),
            !UserDefaults.standard.bool(forKey: "demo_seeded") {

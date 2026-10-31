@@ -138,13 +138,13 @@ struct ScriptCardView: View {
                 }
                 .accessibilityIdentifier("card.edit")
                 .opacity(selectMode ? 0 : 1)
-                .disabled(selectMode)
+                .allowsHitTesting(!selectMode) // 隐形仍会吞点击，必须整体摘出命中测试
                 ghostButton(icon: "trash", tint: .accentGold.opacity(0.70)) {
                     onAction(.delete)
                 }
                 .accessibilityIdentifier("card.delete")
                 .opacity(selectMode ? 0 : 1)
-                .disabled(selectMode)
+                .allowsHitTesting(!selectMode)
             }
         }
     }
@@ -182,7 +182,7 @@ struct ScriptCardView: View {
                 starButton
             }
             .opacity(selectMode ? 0.3 : 1)
-            .disabled(selectMode)
+            .allowsHitTesting(!selectMode)
         }
         .font(.system(size: 12))                                    // Web: text-xs = 12pt
         .foregroundStyle(.white.opacity(script.isFilmed ? 0.35 : 0.50))

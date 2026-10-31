@@ -243,10 +243,12 @@ struct ScriptListView: View {
         .task {
             checkPasteboardOnce()
             #if DEBUG
-            // 自动化截图验证用：-openPlayer 直接进入首篇稿件的播放页
+            // 自动化截图验证用：-openPlayer 进入内容最长的稿件（不受排序/已拍状态被其他用例污染影响）
             if ProcessInfo.processInfo.arguments.contains("-openPlayer"), playingScript == nil,
-               let first = visible.first {
-                playingScript = first
+               let longest = visible.max(by: {
+                   PrompterCore.readableCharCount($0.content) < PrompterCore.readableCharCount($1.content)
+               }) {
+                playingScript = longest
             }
             #endif
         }
@@ -426,6 +428,8 @@ struct ScriptListView: View {
             Text("已选 \(selected.count) 篇")
                 .font(.system(size: 13))
                 .foregroundStyle(.white.opacity(0.5))
+                .lineLimit(1)
+                .fixedSize()
 
             Button {
                 let visibleIds = Set(visible.map(\.id))
@@ -451,10 +455,18 @@ struct ScriptListView: View {
             Button {
                 batchMoveOpen = true
             } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "folder").font(.system(size: 13))
-                    Text("移动到文件夹").font(.system(size: 13, weight: .medium))
+                // 竖屏窄宽度时降级为「移动」，保证单行（系统 ViewThatFits）
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder").font(.system(size: 13))
+                        Text("移动到文件夹").font(.system(size: 13, weight: .medium))
+                    }
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder").font(.system(size: 13))
+                        Text("移动").font(.system(size: 13, weight: .medium))
+                    }
                 }
+                .lineLimit(1)
                 .foregroundStyle(Color.accentGold.opacity(0.8))
                 .padding(.horizontal, 12)
                 .frame(height: CTL.t3)
