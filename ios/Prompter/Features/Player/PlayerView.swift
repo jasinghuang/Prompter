@@ -76,7 +76,8 @@ struct PlayerView: View {
             }
         }
         .blur(radius: showBlur ? 8 : 0)
-        .animation(.easeOut(duration: 0.25), value: showBlur)
+        // 出现=淡入；消失=瞬时（收起动画后不再拖 0.25s 淡出尾巴）
+        .animation(showBlur ? .easeOut(duration: 0.25) : nil, value: showBlur)
         .animation(.easeOut(duration: 0.22), value: showMirror)
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)

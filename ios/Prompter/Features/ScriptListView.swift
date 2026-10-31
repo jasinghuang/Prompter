@@ -108,7 +108,8 @@ struct ScriptListView: View {
                 }
                 .background(Color.canvas)
                 .blur(radius: showBlur ? 8 : 0)
-                .animation(.easeOut(duration: 0.25), value: showBlur)
+                // 出现=淡入；消失=瞬时（收起动画后不再拖 0.25s 淡出尾巴）
+                .animation(showBlur ? .easeOut(duration: 0.25) : nil, value: showBlur)
 
                 // 弹窗打开时：透明遮罩拦截所有背景交互，点击即刻关弹窗+模糊
                 if showBlur {
@@ -118,6 +119,7 @@ struct ScriptListView: View {
                             if editingScript != nil { editingScript = nil }
                             if creatingNew { creatingNew = false }
                             if folderPickerScript != nil { folderPickerScript = nil }
+                            if batchMoveOpen { batchMoveOpen = false }
                             showBlur = false
                         }
                         .ignoresSafeArea()
@@ -205,6 +207,9 @@ struct ScriptListView: View {
         }
         .onChange(of: folderPickerScript?.id) { _, _ in
             if folderPickerScript == nil { showBlur = false }
+        }
+        .onChange(of: batchMoveOpen) { _, open in
+            if !open { showBlur = false }
         }
         .alert("新建文件夹", isPresented: $newFolderAlert) {
             TextField("文件夹名称", text: $newFolderName)
