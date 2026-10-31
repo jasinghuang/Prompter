@@ -53,6 +53,8 @@ struct ScriptCardView: View {
                     .overlay(alignment: .topTrailing) {
                         if selectMode { selectCircle.padding(12) } // 占编辑/删除按钮的同一位置
                     }
+                    // 底色已移到静态外壳，内容层透明区域需显式 contentShape 才可点
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PressableCardStyle())
             // 长按与点按共存（挂 Button 上）；>10pt 移动取消，对齐 Web slop

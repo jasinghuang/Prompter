@@ -20,7 +20,6 @@ enum SwipeGeometry {
     static let revealFilmed: CGFloat = 20
     static let revealDelete: CGFloat = -20
     static let zoneWidth: CGFloat = 72
-    static let hintMaxWidth: CGFloat = 80
 }
 
 struct SwipeableCard<Content: View>: View {
@@ -36,6 +35,7 @@ struct SwipeableCard<Content: View>: View {
     @State private var swipeX: CGFloat = 0
     @State private var shook = false
     @State private var shakeTrigger: CGFloat = 0
+    @State private var locked = false // 起步判定后锁定横向，不再逐帧比方向（防轨迹抖动中途冻结）
 
     private let commitRed = Color(red: 239 / 255, green: 68 / 255, blue: 68 / 255) // #EF4444
     private let filmedGray = Color(red: 82 / 255, green: 82 / 255, blue: 91 / 255) // #52525B
@@ -43,7 +43,6 @@ struct SwipeableCard<Content: View>: View {
     var body: some View {
         ZStack {
             filmedZone
-            deleteHint
             deleteZone
             content()
                 .background(swipeX != 0 ? Color.surface : .clear) // 滑动时实底，避免透出底色区
@@ -69,7 +68,11 @@ struct SwipeableCard<Content: View>: View {
                 guard swipeEnabled else { return }
                 let dx = value.translation.width
                 let dy = value.translation.height
-                guard abs(dx) > abs(dy) else { return } // 纵向为主的拖动让给列表滚动
+                if !locked {
+                    // 起步判定：明显横向（1.2 倍于竖向）才接管；之后锁定，跟手不再受轨迹抖动影响
+                    guard abs(dx) > 6, abs(dx) > abs(dy) * 1.2 else { return }
+                    locked = true
+                }
                 if abs(dx) > 8 { arbiter.didSwipe = true } // 松手 tap 由卡片 Button 吞掉
                 swipeX = min(SwipeGeometry.limitRight, max(SwipeGeometry.limitLeft, dx))
                 if swipeX <= SwipeGeometry.commitDelete && !shook {
@@ -79,8 +82,11 @@ struct SwipeableCard<Content: View>: View {
                 }
             }
             .onEnded { _ in
+                defer {
+                    shook = false
+                    locked = false
+                }
                 guard swipeEnabled else { return }
-                defer { shook = false }
                 if swipeX > SwipeGeometry.commitFilmed {
                     UISelectionFeedbackGenerator().selectionChanged()
                     onCommitFilmed()
@@ -95,7 +101,16 @@ struct SwipeableCard<Content: View>: View {
 
     // MARK: 揭示区（Web: 72pt 宽、圆角随卡片裁剪）
 
-    /// 右滑（leading）：未拍=绿底白勾；已拍=灰底白叉（取消）
+    // MARK: 连续动效映射（揭示渐显/垃圾桶缩放/红色加深都随距离平滑变化）
+
+    /// -20 → -150 映射 0 → 1
+    private var deleteProgress: Double {
+        let t = (-swipeX - SwipeGeometry.revealDelete.magnitude)
+            / (SwipeGeometry.limitLeft.magnitude - SwipeGeometry.revealDelete.magnitude)
+        return min(1, max(0, t))
+    }
+
+    /// 右滑揭示（leading）：未拍=绿底白勾；已拍=灰底白叉（取消）
     private var filmedZone: some View {
         HStack {
             ZStack {
@@ -105,52 +120,26 @@ struct SwipeableCard<Content: View>: View {
                     .foregroundStyle(.white)
             }
             .frame(width: SwipeGeometry.zoneWidth)
-            .opacity(swipeX > SwipeGeometry.revealFilmed ? 1 : 0)
+            .opacity(min(1, max(0, (swipeX - 8) / 24))) // 8pt 起连续淡入
             Spacer(minLength: 0)
         }
     }
 
-    /// 左滑（trailing）：红区 + 越阈值变亮红、图标放大
+    /// 左滑揭示（trailing）：垃圾桶随拖动距离连续放大、红区持续加深；越阈值震动+抖动收尾
     private var deleteZone: some View {
         HStack {
             Spacer(minLength: 0)
             ZStack {
-                Rectangle().fill(swipeX <= SwipeGeometry.commitDelete ? commitRed : Color.dangerRed)
+                Rectangle().fill(Color.dangerRed)
+                Rectangle().fill(commitRed).opacity(deleteProgress) // #DC2626 → #EF4444 渐进加深
                 Image(systemName: "trash")
-                    .font(.system(size: 17))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.white)
-                    .scaleEffect(swipeX <= SwipeGeometry.commitDelete ? 1.15 : 1)
+                    .scaleEffect(1 + 0.25 * deleteProgress) // 1.0 → 1.25 连续放大
             }
             .frame(width: SwipeGeometry.zoneWidth)
-            .opacity(swipeX < SwipeGeometry.revealDelete ? 1 : 0)
+            .opacity(min(1, max(0, (-swipeX - 8) / 24)))
         }
-    }
-
-    /// 左滑阶段2：红区左侧的确认引导条（渐变），文案随阈值切换
-    private var deleteHint: some View {
-        HStack {
-            Spacer(minLength: 0)
-            Text(swipeX <= SwipeGeometry.commitDelete ? "松开删除" : "继续滑动")
-                .font(.system(size: 10, weight: .bold))
-                .tracking(1)
-                .foregroundStyle(.white.opacity(0.95))
-                .lineLimit(1)
-                .fixedSize()
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-                .padding(.trailing, SwipeGeometry.zoneWidth)
-                .background(alignment: .trailing) {
-                    LinearGradient(
-                        colors: [Color.dangerRed.opacity(0.85), Color.dangerRed.opacity(0.15)],
-                        startPoint: .trailing,
-                        endPoint: .leading
-                    )
-                    .frame(width: min(SwipeGeometry.hintMaxWidth, max(0, -swipeX - SwipeGeometry.zoneWidth)))
-                    .frame(maxHeight: .infinity)
-                    .ignoresSafeArea()
-                }
-                .opacity(swipeX < -SwipeGeometry.zoneWidth ? 1 : 0)
-        }
-        .allowsHitTesting(false)
     }
 }
 

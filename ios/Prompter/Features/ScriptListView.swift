@@ -393,8 +393,8 @@ struct ScriptListView: View {
                 ))
             }
         }
-        // id 集合变化（删除/新建/筛选）时驱动补位动画——对应 Web 的 FLIP
-        .animation(.easeInOut(duration: 0.3), value: visible.map(\.id))
+        // id 集合变化（删除/新建/筛选）时驱动补位动画——对应 Web 的 FLIP；spring 手感更顺
+        .animation(.spring(response: 0.38, dampingFraction: 0.86), value: visible.map(\.id))
         .padding(.bottom, 24)
     }
 
