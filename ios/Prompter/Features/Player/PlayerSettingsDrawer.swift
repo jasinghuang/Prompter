@@ -295,13 +295,9 @@ struct SettingSlider: View {
             }
             HStack(spacing: 8) {
                 stepButton("minus", label: "减小\(label)") { commit(value - step) }
-                Slider(
-                    value: Binding(get: { value }, set: { commit($0) }),
-                    in: range,
-                    step: step
-                )
-                .tint(.accentGold)
-                .accessibilityIdentifier("slider.\(label)")
+                MinimalSlider(value: sliderValue, range: range, step: step)
+                    .accessibilityElement()
+                    .accessibilityIdentifier("slider.\(label)")
                 stepButton("plus", label: "增大\(label)") { commit(value + step) }
             }
         }
@@ -309,6 +305,10 @@ struct SettingSlider: View {
 
     private var formatted: String {
         String(format: "%.\(fractionDigits)f", value)
+    }
+
+    private var sliderValue: Binding<Double> {
+        Binding(get: { value }, set: { commit($0) })
     }
 
     /// 按步进取整并夹在范围内（浮点步进如 0.01 需要二次取整去尾差）

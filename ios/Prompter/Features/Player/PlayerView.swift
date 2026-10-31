@@ -500,13 +500,14 @@ private struct ParamGroup: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 2)
                 .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
-            Slider(
-                value: Binding(get: { Double(value) }, set: { onChange(Int($0.rounded())) }),
-                in: Double(range.lowerBound)...Double(range.upperBound),
+            MinimalSlider(
+                value: Binding(
+                    get: { Double(value) },
+                    set: { onChange(Int($0.rounded())) }
+                ),
+                range: Double(range.lowerBound)...Double(range.upperBound),
                 step: Double(step)
             )
-            .tint(.accentGold)
-            .frame(height: CTL.t1)
         }
         .frame(maxWidth: .infinity)
     }

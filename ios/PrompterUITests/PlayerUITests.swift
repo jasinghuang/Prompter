@@ -25,7 +25,7 @@ final class PlayerUITests: XCTestCase {
 
     func testPlayerLandscape() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard"]
+        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-resetSettings"]
         app.launch()
         sleep(2) // 等首次排版稳定
         snapshot("01-landscape-paused")
@@ -220,7 +220,7 @@ final class PlayerUITests: XCTestCase {
     /// 列表删除动画：点删除 → 卡片数 -1（退场动画由 cardsGrid 的 animation 驱动）
     func testListDeleteAnimation() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard"]
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
         app.launch()
         let deletes = app.buttons.matching(identifier: "card.delete")
         XCTAssertTrue(deletes.firstMatch.waitForExistence(timeout: 10))
@@ -237,7 +237,7 @@ final class PlayerUITests: XCTestCase {
     /// 卡片文件夹按钮 → 新建文件夹 → 目标稿件应移入新文件夹（此前 alert 读不到目标而静默丢失）
     func testCreateFolderFromCard() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard"]
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
         app.launch()
         let folderButtons = app.buttons.matching(identifier: "card.folder")
         XCTAssertTrue(folderButtons.firstMatch.waitForExistence(timeout: 10))
@@ -266,7 +266,7 @@ final class PlayerUITests: XCTestCase {
 
     func testPlayerPortrait() throws {
         XCUIDevice.shared.orientation = .portrait
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard"]
+        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-resetSettings"]
         app.launch()
         sleep(2)
         snapshot("06-portrait-paused")
