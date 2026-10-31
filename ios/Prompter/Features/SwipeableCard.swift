@@ -52,7 +52,9 @@ struct SwipeableCard<Content: View>: View {
         .clipShape(cardShape)
         .modifier(CardShake(travel: 4, shakes: 2, animatableData: shakeTrigger))
         .contentShape(cardShape)
-        .simultaneousGesture(swipe)
+        // highPriority：横向锁定时阻止 ScrollView 拦截（否则滚动吃掉滑动手势）；
+        // 竖向起手时起步判定不过 → 手势立刻失败 → 滚动正常启动（苹果原生仲裁）
+        .highPriorityGesture(swipe)
     }
 
     private var cardShape: RoundedRectangle {
@@ -62,14 +64,14 @@ struct SwipeableCard<Content: View>: View {
     // MARK: 手势
 
     private var swipe: some Gesture {
-        DragGesture(minimumDistance: 16)
+        DragGesture(minimumDistance: 10)
             .onChanged { value in
                 guard swipeEnabled else { return }
                 let dx = value.translation.width
                 let dy = value.translation.height
                 if !locked {
-                    // 起步判定：横向明显占优（1.35 倍）才接管；起判 16pt 给列表滚动留足启动空间
-                    guard abs(dx) > 10, abs(dx) > abs(dy) * 1.35 else { return }
+                    // 起步判定（对齐苹果原生 slop：~10pt + 方向优势 1.2 倍）
+                    guard abs(dx) > 6, abs(dx) > abs(dy) * 1.2 else { return }
                     locked = true
                 } else if abs(dy) > abs(dx) * 1.6, abs(dy) > 28 {
                     // 锁定后手指明显转向竖向 → 交还列表滚动，卡片弹回

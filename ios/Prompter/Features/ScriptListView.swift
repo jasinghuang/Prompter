@@ -28,6 +28,7 @@ struct ScriptListView: View {
     @State private var selected: Set<UUID> = []
     @State private var confirmBatchDelete = false
     @State private var batchMoveOpen = false
+    @State private var batchMovePending = false // 批量移动的新建文件夹正在命名
     // 删除撤销（单篇；批量在 M4 泛化）
     @State private var undoItems: [UndoSnapshot] = []
     @State private var showUndo = false
@@ -196,8 +197,12 @@ struct ScriptListView: View {
                     exitSelectMode()
                 },
                 onNewFolder: {
+                    // 批量新建：记目标为批量模式，关选择器弹 alert
+                    newFolderTarget = nil // 标记批量（nil + batchMovePending）
+                    batchMovePending = true
                     batchMoveOpen = false
-                    exitSelectMode()
+                    newFolderName = ""
+                    newFolderAlert = true
                 }
             )
             .presentationDetents([.medium])
@@ -217,14 +222,24 @@ struct ScriptListView: View {
             TextField("文件夹名称", text: $newFolderName)
             Button("创建") {
                 let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !name.isEmpty, let script = newFolderTarget {
-                    script.folder = name
-                    script.updatedAt = Date()
+                if !name.isEmpty {
+                    if batchMovePending {
+                        // 批量：选中项全部移入新文件夹，保持多选状态
+                        for script in selectedScripts {
+                            script.folder = name
+                            script.updatedAt = Date()
+                        }
+                    } else if let script = newFolderTarget {
+                        script.folder = name
+                        script.updatedAt = Date()
+                    }
                 }
+                batchMovePending = false
                 newFolderTarget = nil
                 newFolderName = ""
             }
             Button("取消", role: .cancel) {
+                batchMovePending = false
                 newFolderTarget = nil
                 newFolderName = ""
             }
