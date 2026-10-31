@@ -174,7 +174,12 @@ private struct MirrorPreview: UIViewRepresentable {
         let orientation = interfaceOrientation
         DispatchQueue.main.async {
             guard let connection = view.videoPreviewLayer.connection else { return }
-            if connection.isVideoMirroringSupported { connection.isVideoMirrored = true }
+            // 必须先关自动镜像再手动设镜像，否则抛
+            // "Cannot be set when automaticallyAdjustsVideoMirroring is YES" 异常（真机卡死根因）
+            if connection.isVideoMirroringSupported {
+                connection.automaticallyAdjustsVideoMirroring = false
+                connection.isVideoMirrored = true
+            }
             if connection.isVideoOrientationSupported {
                 connection.videoOrientation = orientation
             }
