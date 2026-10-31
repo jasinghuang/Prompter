@@ -158,7 +158,10 @@ struct PlayerView: View {
                 showToast("字号 \(size)px", duration: nil)
             },
             onPinchEnd: { size in showToast("字号 \(size)px", duration: 0.6) },
-            onEdgeBack: { dismiss() } // 左缘右滑返回列表，对齐系统返回手势
+            onEdgeBack: { dismiss() }, // 左缘右滑返回列表，对齐系统返回手势
+            onUserDragPause: {
+                if isPlaying { isPlaying = false } // 播放中拖动正文=回看，自动暂停并停表
+            }
         )
         .scaleEffect(x: settings.data.mirror ? -1 : 1, y: 1)
         .ignoresSafeArea()

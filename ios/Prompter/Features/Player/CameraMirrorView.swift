@@ -4,18 +4,17 @@ import QuartzCore
 
 /// 前置化妆镜（复刻 Web CameraMirror）：打开才取流，关闭立即停会话释放设备（指示灯灭）；
 /// 纯本地预览不录制不上传，水平镜像；加载/错误态文案与 Web 一致。
-/// session 必须 @State 持有——view struct 每次重渲染会重建，普通 let 会产生多个
-/// 并发会话导致二次打开闪退。
+///
+/// 架构（教科书原生）：整个摄像头生命周期（会话/输入/预览层/启停）收在
+/// MirrorCameraUIView 一个 UIView 里自持——SwiftUI 只嵌入与收状态回调，
+/// 不再有跨对象的 @State 会话与异步配置时序（黑屏/多会话两类 bug 的根源）。
 struct CameraMirrorView: View {
     @Binding var open: Bool
     @State private var status: Status = .loading
-    @State private var session = AVCaptureSession()
 
     private enum Status: Equatable {
         case loading, ready, failed(String)
     }
-
-    private let queue = DispatchQueue(label: "prompter.camera")
 
     var body: some View {
         GeometryReader { geo in
@@ -32,16 +31,20 @@ struct CameraMirrorView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .onAppear { start() }
-        .onDisappear { stop() }
     }
 
-    // MARK: 镜面卡片（Web: rounded-[22px] 白10% 描边 surface 底 + 高光渐变描边提升质感）
+    // MARK: 镜面卡片（Web: rounded-[22px] surface 底 + 高光渐变描边）
 
     private var mirrorCard: some View {
         ZStack {
-            MirrorPreview(session: session)
-                .opacity(status == .ready ? 1 : 0)
+            MirrorCameraView(onStatus: { message in
+                if let message {
+                    status = .failed(message)
+                } else {
+                    status = .ready
+                }
+            })
+            .opacity(status == .ready ? 1 : 0)
             if status != .ready { statusOverlay }
             closeButton
         }
@@ -103,20 +106,48 @@ struct CameraMirrorView: View {
         }
         .padding(10)
     }
+}
 
-    // MARK: 摄像会话
+// MARK: - 自持摄像头的原生视图（会话/输入/预览层生命周期全在此，无跨对象时序）
 
-    private func start() {
-        status = .loading
+/// nil = 就绪；非 nil = 错误文案
+private struct MirrorCameraView: UIViewRepresentable {
+    let onStatus: (String?) -> Void
+
+    func makeUIView(context: Context) -> MirrorCameraUIView {
+        let view = MirrorCameraUIView()
+        view.onStatus = onStatus
+        view.start()
+        return view
+    }
+
+    func updateUIView(_ uiView: MirrorCameraUIView, context: Context) {
+        uiView.onStatus = onStatus
+        uiView.applyConnectionSettings() // 横竖屏变化时重申方向/镜像
+    }
+
+    static func dismantleUIView(_ uiView: MirrorCameraUIView, coordinator: ()) {
+        uiView.stop() // 移除即释放设备（指示灯灭）
+    }
+}
+
+final class MirrorCameraUIView: UIView {
+    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+    private var videoPreviewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+
+    var onStatus: ((String?) -> Void)?
+
+    private let session = AVCaptureSession()
+    private let queue = DispatchQueue(label: "prompter.camera")
+
+    func start() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .denied, .restricted:
-            status = .failed("摄像头权限被拒绝，可在系统设置中允许后重试")
+            onStatus?("摄像头权限被拒绝，可在系统设置中允许后重试")
         case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .video) { granted in
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 DispatchQueue.main.async {
-                    if granted { configure() } else {
-                        status = .failed("摄像头权限被拒绝，可在系统设置中允许后重试")
-                    }
+                    granted ? self?.configure() : self?.onStatus?("摄像头权限被拒绝，可在系统设置中允许后重试")
                 }
             }
         default:
@@ -125,13 +156,14 @@ struct CameraMirrorView: View {
     }
 
     private func configure() {
-        queue.async {
+        queue.async { [weak self] in
+            guard let self else { return }
             guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
-                DispatchQueue.main.async { status = .failed("未检测到可用的摄像头") }
+                DispatchQueue.main.async { self.onStatus?("未检测到可用的摄像头") }
                 return
             }
             guard let input = try? AVCaptureDeviceInput(device: device) else {
-                DispatchQueue.main.async { status = .failed("摄像头暂时不可用（可能被其他应用占用）") }
+                DispatchQueue.main.async { self.onStatus?("摄像头暂时不可用（可能被其他应用占用）") }
                 return
             }
             session.beginConfiguration()
@@ -142,40 +174,23 @@ struct CameraMirrorView: View {
             }
             session.commitConfiguration()
             session.startRunning()
-            DispatchQueue.main.async { status = .ready }
+            DispatchQueue.main.async {
+                self.applyConnectionSettings()
+                self.onStatus?(nil) // 就绪
+            }
         }
     }
 
-    private func stop() {
-        queue.async {
+    func stop() {
+        queue.async { [session] in
             if session.isRunning { session.stopRunning() }
             session.inputs.forEach(session.removeInput) // 立即释放设备
         }
     }
-}
 
-/// 前置预览层（水平镜像，铺满裁剪——对应 Web -scale-x-100 object-cover）。
-/// 回退到「手动镜像 + 界面方向映射角度」结构（真机实拍出画面的版本）；
-/// RotationCoordinator 路线在真机上黑屏，弃用。横屏两向角度对调修正倒置。
-private struct MirrorPreview: UIViewRepresentable {
-    let session: AVCaptureSession
-
-    func makeUIView(context: Context) -> PreviewView {
-        let view = PreviewView()
-        view.videoPreviewLayer.session = session
-        view.videoPreviewLayer.videoGravity = .resizeAspectFill
-        configure(view)
-        return view
-    }
-
-    func updateUIView(_ uiView: PreviewView, context: Context) {
-        configure(uiView) // 状态/布局每次更新都重申（含 startRunning 之后）
-    }
-
-    private func configure(_ view: PreviewView) {
-        guard let connection = view.videoPreviewLayer.connection else { return }
-        // 必须先关自动镜像再手动设镜像，否则抛
-        // "Cannot be set when automaticallyAdjustsVideoMirroring is YES" 异常（真机卡死根因）
+    /// 镜像（先关自动再手动，否则抛异常）+ 方向（界面方向映射角度，横屏两向对调版）
+    func applyConnectionSettings() {
+        guard let connection = videoPreviewLayer.connection else { return }
         if connection.isVideoMirroringSupported {
             connection.automaticallyAdjustsVideoMirroring = false
             connection.isVideoMirrored = true
@@ -186,7 +201,6 @@ private struct MirrorPreview: UIViewRepresentable {
         }
     }
 
-    /// 界面方向 → 预览旋转角；横屏两向对调（上一版真机横屏实测是倒的）
     private var rotationAngle: CGFloat {
         let scene = UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.interfaceOrientation }
@@ -198,11 +212,6 @@ private struct MirrorPreview: UIViewRepresentable {
         default: return 0
         }
     }
-}
-
-private final class PreviewView: UIView {
-    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
-    var videoPreviewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
 
     // 旋转/布局变化时预览层 frame 可能滞留旧值（曾致画面铺满全屏），这里强制跟随
     override func layoutSubviews() {

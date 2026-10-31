@@ -30,6 +30,7 @@ struct PrompterScrollView: UIViewRepresentable {
     var onPinch: (Int) -> Void = { _ in }
     var onPinchEnd: (Int) -> Void = { _ in }
     var onEdgeBack: () -> Void = {}
+    var onUserDragPause: () -> Void = {} // 播放中用户拖动正文 → 暂停（计时随之停）
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -342,6 +343,10 @@ struct PrompterScrollView: UIViewRepresentable {
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
             userInteracting = true
             lastTimestamp = nil
+            // 播放中拖动 = 阅读回看 → 自动暂停（此前引擎悬停但计时照走，观感"播完了时间还在跑"）
+            if displayLink != nil {
+                notify { $0.onUserDragPause() }
+            }
         }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
