@@ -24,9 +24,13 @@ struct CameraMirrorView: View {
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture { open = false }
+                // 显式宽高（Web: 横屏 16:10·高 75%·最宽 80%；竖屏正方·高 72%）——
+                // aspectRatio 对贪婪子视图的求值不可靠，曾致卡片横向失控
+                let cardHeight = geo.size.height * (landscape ? 0.75 : 0.72)
+                let cardWidth = min(geo.size.width * (landscape ? 0.80 : 0.92),
+                                    cardHeight * (landscape ? 1.6 : 1.0))
                 mirrorCard
-                    .frame(height: geo.size.height * (landscape ? 0.75 : 0.72))
-                    .aspectRatio(landscape ? 16.0 / 10.0 : 1, contentMode: .fit)
+                    .frame(width: cardWidth, height: cardHeight)
                     .transition(.scale(scale: 0.94).combined(with: .opacity))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -117,7 +121,6 @@ private struct MirrorCameraView: UIViewRepresentable {
     func makeUIView(context: Context) -> MirrorCameraUIView {
         let view = MirrorCameraUIView()
         view.onStatus = onStatus
-        view.start()
         return view
     }
 
@@ -185,6 +188,16 @@ final class MirrorCameraUIView: UIView {
         queue.async { [session] in
             if session.isRunning { session.stopRunning() }
             session.inputs.forEach(session.removeInput) // 立即释放设备
+        }
+    }
+
+    // 真正挂上窗口才取流、离开窗口即释放（原生视图生命周期的标准触发点）
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil {
+            start()
+        } else {
+            stop()
         }
     }
 
