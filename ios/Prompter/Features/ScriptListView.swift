@@ -108,6 +108,7 @@ struct ScriptListView: View {
                     .padding(.horizontal, 16)
                 }
                 .background(Color.canvas)
+                .ignoresSafeArea(.keyboard) // 键盘不推列表：防止全网格 spring 重排（真机卡顿数秒根因）
                 .blur(radius: showBlur ? 8 : 0)
                 // 出现=淡入；消失=瞬时（收起动画后不再拖 0.25s 淡出尾巴）
                 .animation(showBlur ? .easeOut(duration: 0.25) : nil, value: showBlur)

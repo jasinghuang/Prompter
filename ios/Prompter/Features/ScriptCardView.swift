@@ -84,13 +84,8 @@ struct ScriptCardView: View {
         }
         // 返回高亮（Web card-hello：box-shadow 带 spread，最亮处贴边一圈）。
         // SwiftUI 无 spread → 双层复刻：边缘亮环（描边+轻模糊）+ 环境光晕（shadow）
-        .shadow(color: Color.accentGold.opacity(helloGlow * 0.55), radius: 12 + 4 * helloPulse)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.accentGold.opacity(min(1, helloGlow + 0.18)), lineWidth: 2 + 3 * helloPulse)
-                .blur(radius: 2.5)
-                .allowsHitTesting(false)
-        )
+        // 只在有高亮时挂 shadow/overlay（opacity 0 的合成滤镜仍耗 GPU，多卡列表点击卡顿帮凶）
+        .modifier(HighlightGlow(glow: helloGlow, pulse: helloPulse))
         .onChange(of: highlighted) { _, isOn in
             if isOn {
                 breathe()
@@ -117,10 +112,31 @@ struct ScriptCardView: View {
             helloGlow = peak
         } completion: {
             breathe(step: step + 1)
+    }
+}
+
+/// 高亮光晕：只在 glow > 0 时挂 shadow/overlay（避免全列表每卡都带合成滤镜）
+struct HighlightGlow: ViewModifier {
+    var glow: Double
+    var pulse: Double
+
+    func body(content: Content) -> some View {
+        if glow > 0.01 {
+            content
+                .shadow(color: Color.accentGold.opacity(glow * 0.55), radius: 12 + 4 * pulse)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.accentGold.opacity(min(1, glow + 0.18)), lineWidth: 2 + 3 * pulse)
+                        .blur(radius: 2.5)
+                        .allowsHitTesting(false)
+                )
+        } else {
+            content
         }
     }
+}
 
-    /// 多选圈（Web: 22pt 圆——选中=金底深色勾；未选=白30描边）
+/// 多选圈（Web: 22pt 圆——选中=金底深色勾；未选=白30描边）
     private var selectCircle: some View {
         ZStack {
             Circle()
