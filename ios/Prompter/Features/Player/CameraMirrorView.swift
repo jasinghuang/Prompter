@@ -171,7 +171,7 @@ private struct MirrorPreview: UIViewRepresentable {
     }
 
     private func configure(_ view: PreviewView) {
-        let orientation = interfaceOrientation
+        let angle = rotationAngle
         DispatchQueue.main.async {
             guard let connection = view.videoPreviewLayer.connection else { return }
             // 必须先关自动镜像再手动设镜像，否则抛
@@ -180,21 +180,23 @@ private struct MirrorPreview: UIViewRepresentable {
                 connection.automaticallyAdjustsVideoMirroring = false
                 connection.isVideoMirrored = true
             }
-            if connection.isVideoOrientationSupported {
-                connection.videoOrientation = orientation
+            // iOS 17+ 用角度 API（旧 videoOrientation 枚举已弃用）
+            if connection.isVideoRotationAngleSupported(angle) {
+                connection.videoRotationAngle = angle
             }
         }
     }
 
-    private var interfaceOrientation: AVCaptureVideoOrientation {
+    /// 界面方向 → 预览旋转角（portrait=0 landscapeRight=90 upsideDown=180 landscapeLeft=270）
+    private var rotationAngle: CGFloat {
         let scene = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first?.interfaceOrientation ?? .portrait
         switch scene {
-        case .landscapeLeft: return .landscapeLeft
-        case .landscapeRight: return .landscapeRight
-        case .portraitUpsideDown: return .portraitUpsideDown
-        default: return .portrait
+        case .landscapeLeft: return 270
+        case .landscapeRight: return 90
+        case .portraitUpsideDown: return 180
+        default: return 0
         }
     }
 }
