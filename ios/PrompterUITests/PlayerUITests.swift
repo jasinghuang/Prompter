@@ -181,6 +181,19 @@ final class PlayerUITests: XCTestCase {
         XCTAssertFalse(close.waitForExistence(timeout: 3), "点关闭应收起镜子")
     }
 
+    /// 工具行导出：复制 JSON 到剪贴板 → 弹确认 → 关闭
+    func testToolbarExport() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings"]
+        app.launch()
+        let export = app.buttons["toolbar.export"]
+        XCTAssertTrue(export.waitForExistence(timeout: 10))
+        export.tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 3), "导出后应弹确认")
+        app.alerts.buttons["好"].tap()
+        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2), "确认后应关闭")
+    }
+
     /// 播放页左缘右滑 → 返回列表页（对齐系统返回手势习惯）
     func testEdgeSwipeBackToList() throws {
         XCUIDevice.shared.orientation = .landscapeLeft

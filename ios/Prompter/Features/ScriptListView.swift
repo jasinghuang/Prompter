@@ -22,6 +22,8 @@ struct ScriptListView: View {
     @State private var newFolderTarget: Script? // 新建文件夹的目标稿件（弹窗前先记下，弹窗期间选择器已关）
 
     @State private var confirmClearAll = false
+    @State private var showExportDone = false
+    @State private var exportDoneCount = 0
     // 长按多选 + 批量操作
     @State private var selectMode = false
     @State private var selected: Set<UUID> = []
@@ -234,6 +236,11 @@ struct ScriptListView: View {
             }
             Button("取消", role: .cancel) {}
         }
+        .alert("已复制 \(exportDoneCount) 篇稿件数据到剪贴板", isPresented: $showExportDone) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text("可直接粘贴到备忘录等处备份；在另一台设备的提词器 App 里会自动识别导入")
+        }
         .alert("检测到提词器数据", isPresented: $showImportPrompt) {
             Button("导入") { importPending() }
             Button("取消", role: .cancel) {}
@@ -359,6 +366,21 @@ struct ScriptListView: View {
                 .buttonStyle(.plain)
             }
             Spacer(minLength: 8)
+            Button {
+                MigrationService.copyToPasteboard(
+                    MigrationService.exportJSON(scripts: scripts, settings: settings.data)
+                )
+                exportDoneCount = scripts.count
+                showExportDone = true
+            } label: {
+                Label("导出", systemImage: "square.and.arrow.up")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .padding(.horizontal, 10)
+                    .frame(height: CTL.t3)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("toolbar.export")
             Button {
                 confirmClearAll = true
             } label: {
