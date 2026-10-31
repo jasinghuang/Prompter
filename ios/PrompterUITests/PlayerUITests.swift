@@ -138,7 +138,9 @@ final class PlayerUITests: XCTestCase {
         app.launch()
         let folderButtons = app.buttons.matching(identifier: "card.folder")
         XCTAssertTrue(folderButtons.firstMatch.waitForExistence(timeout: 10))
-        folderButtons.firstMatch.tap()
+        snapshot("14-card-before-folder")
+        // 演示数据：脚本1/2 已在「口播」，脚本3 无文件夹——用第三张卡走"无→有"链路
+        folderButtons.element(boundBy: 2).tap()
 
         let newFolder = app.buttons["folder.new"]
         XCTAssertTrue(newFolder.waitForExistence(timeout: 5))

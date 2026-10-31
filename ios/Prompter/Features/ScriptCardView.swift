@@ -168,7 +168,8 @@ struct ScriptCardView: View {
                         .font(.system(size: 12))
                         .foregroundStyle(.white.opacity(0.50))      // Web: text-white/50
                         .lineLimit(1)
-                        .frame(maxWidth: 140, alignment: .leading)   // Web: max-w-[16vw]
+                        .truncationMode(.tail)
+                        .fixedSize(horizontal: false, vertical: true) // 理想宽=文本宽，空间不足时尾部截断
                 }
             }
             .foregroundStyle(script.folder != nil ? .accentGold : .white.opacity(0.35))
@@ -193,6 +194,7 @@ struct ScriptCardView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("card.star")
     }
 
     // MARK: 工具
