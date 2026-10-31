@@ -88,30 +88,18 @@ struct ScriptCardView: View {
         .modifier(HighlightGlow(glow: helloGlow, pulse: helloPulse))
         .onChange(of: highlighted) { _, isOn in
             if isOn {
-                breathe()
+                // 静态光晕：亮起后保持不消失；打开下一张时前一张自动灭（列表只传一张 true）
+                withAnimation(.easeOut(duration: 0.4)) { helloGlow = 0.25 }
             } else {
                 withAnimation(.easeOut(duration: 0.3)) { helloGlow = 0 }
             }
         }
         .onAppear {
-            // Lazy 网格中卡片若在返回后才滚入视口，change 已错过 → 出场时补呼吸
+            // Lazy 网格中卡片若在返回后才滚入视口，change 已错过 → 出场即亮
             if highlighted && helloGlow == 0 {
-                breathe()
+                helloGlow = 0.25
             }
         }
-    }
-
-    /// 呼吸两次后落在保留余光的常亮值（Web card-hello 1.7s/次×2）。
-    /// 不用 repeatCount(autoreverses)：其动画结束落在目标值（峰值）会突变；
-    /// 逐段链式（完成回调续下一段）保证 亮→暗→亮→暗 连续无跳变，最终停在暗端余光。
-    private func breathe(step: Int = 0) {
-        guard step < 4 else { return }
-        if step == 0 { helloGlow = 0.14 } // 基线余光瞬时到位（Web 加 class 同款），再升峰
-        let peak: Double = step % 2 == 0 ? 0.32 : 0.14 // 偶数段升到亮、奇数段落回余光
-        withAnimation(.easeInOut(duration: 0.85)) {
-            helloGlow = peak
-        } completion: {
-            breathe(step: step + 1)
     }
 }
 
@@ -136,8 +124,9 @@ struct HighlightGlow: ViewModifier {
     }
 }
 
-/// 多选圈（Web: 22pt 圆——选中=金底深色勾；未选=白30描边）
-    private var selectCircle: some View {
+private extension ScriptCardView {
+    /// 多选圈（Web: 22pt 圆——选中=金底深色勾；未选=白30描边）
+    var selectCircle: some View {
         ZStack {
             Circle()
                 .fill(isSelected ? Color.accentGold : Color.black.opacity(0.4))
