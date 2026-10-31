@@ -143,6 +143,17 @@ final class MirrorCameraUIView: UIView {
     private let session = AVCaptureSession()
     private let queue = DispatchQueue(label: "prompter.camera")
 
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        // 关键：预览层必须挂上会话才有画面（单视图重构时漏了这两行=黑屏根因）
+        videoPreviewLayer.session = session
+        videoPreviewLayer.videoGravity = .resizeAspectFill
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
     func start() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .denied, .restricted:
