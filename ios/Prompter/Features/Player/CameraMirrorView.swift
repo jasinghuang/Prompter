@@ -229,11 +229,12 @@ final class MirrorCameraUIView: UIView {
         let scene = UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.interfaceOrientation }
             .first ?? .portrait
+        // 全系 +90°（真机实测旧系差 90°：90↔270 对调只改 180°，正确值在两版正中）
         switch scene {
-        case .landscapeLeft: return 90
-        case .landscapeRight: return 270
-        case .portraitUpsideDown: return 180
-        default: return 0
+        case .landscapeLeft: return 180
+        case .landscapeRight: return 0
+        case .portraitUpsideDown: return 270
+        default: return 90
         }
     }
 
