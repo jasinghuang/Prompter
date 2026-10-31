@@ -70,7 +70,7 @@ struct ScriptCardView: View {
                     // 底色已移到静态外壳，内容层透明区域需显式 contentShape 才可点
                     .contentShape(Rectangle())
             }
-            .buttonStyle(PressableCardStyle())
+            .buttonStyle(.plain) // 缩放反馈与 SwipeableCard 的滑动/光晕叠加产生闪烁，去掉
             // 长按与点按共存（挂 Button 上）；>10pt 移动取消，对齐 Web slop
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.5, maximumDistance: 10)

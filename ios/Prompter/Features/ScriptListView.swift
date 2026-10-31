@@ -591,10 +591,10 @@ struct ScriptListView: View {
         targets.forEach(context.delete) // 卡片退场+补位动画由 cardsGrid 的 animation(value:) 驱动
         undoCountdown = 1
         withAnimation(.easeOut(duration: 0.18)) { showUndo = true }
-        withAnimation(.linear(duration: 2)) { undoCountdown = 0 } // 与 2 秒撤销窗口同步收尽
+        withAnimation(.linear(duration: 4)) { undoCountdown = 0 } // 与 4 秒撤销窗口同步收尽
         Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            if showUndo { // 2 秒窗口结束，真正落下
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            if showUndo { // 4 秒窗口结束，真正落下
                 withAnimation(.easeOut(duration: 0.18)) { showUndo = false }
                 undoItems = []
             }
@@ -648,7 +648,7 @@ struct ScriptListView: View {
         }
     }
 
-    /// 撤销窗口倒计时：胶囊底边金色细线 2 秒内收尽，直观表达时机限时
+    /// 撤销窗口倒计时：胶囊底边金色细线 4 秒内收尽，直观表达时机限时
     private var undoCountdownLine: some View {
         GeometryReader { geo in
             Capsule()
