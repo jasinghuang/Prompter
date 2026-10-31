@@ -147,6 +147,7 @@ struct SwipeableCard<Content: View>: View {
                     .scaleEffect(1 + 0.15 * deleteProgress)
             }
             .frame(width: SwipeGeometry.zoneWidth)
+            .opacity(abs(swipeX) < 0.5 ? 0 : 1) // 同上：静止隐藏防闪烁
         }
     }
 }
