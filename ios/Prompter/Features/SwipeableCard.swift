@@ -52,9 +52,10 @@ struct SwipeableCard<Content: View>: View {
         .clipShape(cardShape)
         .modifier(CardShake(travel: 4, shakes: 2, animatableData: shakeTrigger))
         .contentShape(cardShape)
-        // highPriority：横向锁定时阻止 ScrollView 拦截（否则滚动吃掉滑动手势）；
-        // 竖向起手时起步判定不过 → 手势立刻失败 → 滚动正常启动（苹果原生仲裁）
-        .highPriorityGesture(swipe)
+        // simultaneous + 竖向闸门：ScrollView 优先启动竖向滚动（不被 highPriority 阻断），
+        // 横向锁定时更新 swipeX；竖向起手 our 手势不响应 → 滚动畅通。
+        // highPriority 会阻断 ScrollView pan = 列表不能滚动（真机实锤），不能用在滚动容器内的 item 上
+        .simultaneousGesture(swipe)
     }
 
     private var cardShape: RoundedRectangle {

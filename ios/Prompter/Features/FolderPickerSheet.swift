@@ -10,7 +10,13 @@ struct FolderPickerSheet: View {
     let onNewFolder: () -> Void
 
     private var currentFolder: String? {
-        targets.count == 1 ? targets.first?.folder : nil
+        // 所有选中项在同一个文件夹 → 显示该文件夹的勾；混合/全未分组 → 不勾
+        guard !targets.isEmpty else { return nil }
+        let allFolders = targets.compactMap(\.folder)
+        if allFolders.count == targets.count, Set(allFolders).count == 1 {
+            return allFolders.first // 全部在同一个文件夹
+        }
+        return nil // 全未分组 或 混合 → 不勾任何文件夹行
     }
 
     var body: some View {
