@@ -4,16 +4,52 @@ import SwiftData
 @main
 struct PrompterApp: App {
     @StateObject private var settings = AppSettings()
-    private let container: ModelContainer
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var container: ModelContainer?
+    @State private var storageError: String?
 
-    init() {
-        let modelContainer = try! ModelContainer(for: Script.self)
-        container = modelContainer
+    var body: some Scene {
+        WindowGroup {
+            Group {
+                if let container {
+                    ScriptListView().modelContainer(container)
+                } else if let storageError {
+                    VStack(spacing: 20) {
+                        Image(systemName: "externaldrive.badge.exclamationmark").font(.largeTitle)
+                        Text("暂时无法打开本机数据").font(.headline)
+                        Text("已有稿件会保留。请重试，或检查设备剩余空间。")
+                            .font(.subheadline).multilineTextAlignment(.center)
+                        Text(storageError).font(.caption).foregroundStyle(.textSecondary)
+                        Button("重试", action: openStore).buttonStyle(.borderedProminent).tint(.accentGold)
+                    }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.canvas)
+                } else {
+                    ProgressView("正在打开稿件…").frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.canvas)
+                }
+            }
+            .environmentObject(settings).preferredColorScheme(.dark).tint(.accentGold)
+            .task { if container == nil { openStore() } }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { settings.flush() } }
+        }
+    }
+
+    private func openStore() {
+        do {
+            let modelContainer = try ModelContainer(for: Script.self)
+            #if DEBUG
+            try seedDemo(in: modelContainer)
+            #endif
+            container = modelContainer; storageError = nil
+        } catch { storageError = error.localizedDescription }
+    }
+
+    #if DEBUG
+    private func seedDemo(in modelContainer: ModelContainer) throws {
+        // DEBUG-only simulator fixtures.
         // UI 测试用：-resetDemo 清空全部数据并重置播种标记（每批次干净起点，防跨轮污染）
         if ProcessInfo.processInfo.arguments.contains("-resetDemo") {
             let context = ModelContext(modelContainer)
-            try? context.delete(model: Script.self) // iOS 17 批量删除（erase 要 18）
-            try? context.save()
+            try context.delete(model: Script.self) // iOS 17 批量删除（erase 要 18）
+            try context.save()
             UserDefaults.standard.set(false, forKey: "demo_seeded")
         }
         // 模拟器演示：launch argument -seedDemo 插入示例数据（真机不受影响）
@@ -29,18 +65,17 @@ struct PrompterApp: App {
             for (title, content, folder, starred, filmed) in demo {
                 context.insert(Script(title: title, content: content, folder: folder, starred: starred, isFilmed: filmed))
             }
-            try? context.save()
+            if ProcessInfo.processInfo.arguments.contains("-seedMany") {
+                for i in 1...40 {
+                    context.insert(Script(title: String(format: "滚动测试稿件 %02d", i),
+                        content: "这是一篇用于验证纵向滚动的演示稿件。轻拖正文、图标旁或卡片间隙都应及时开始滚动。",
+                        createdAt: Date(timeIntervalSince1970: Double(1_000 - i)),
+                        updatedAt: Date(timeIntervalSince1970: Double(1_000 - i))))
+                }
+            }
+            try context.save()
             UserDefaults.standard.set(true, forKey: "demo_seeded")
         }
     }
-
-    var body: some Scene {
-        WindowGroup {
-            ScriptListView()
-                .environmentObject(settings)
-                .preferredColorScheme(.dark)
-                .tint(.accentGold)
-        }
-        .modelContainer(container)
-    }
+    #endif
 }

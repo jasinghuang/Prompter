@@ -1,311 +1,480 @@
 import XCTest
+import UIKit
 
-/// 播放页自动截图验证（横屏）：暂停/播放/设置抽屉/拖拽回看
-/// 附件导出：xcrun xcresulttool export attachments --path <xcresult> --output-path <dir>
 final class PlayerUITests: XCTestCase {
     private var app: XCUIApplication!
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
+    override func setUpWithError() throws { continueAfterFailure = false; app = XCUIApplication() }
+    private func launch(player: Bool = false, landscape: Bool = false, extra: [String] = []) {
+        XCUIDevice.shared.orientation = landscape ? .landscapeLeft : .portrait
+        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
+            + (player ? ["-openPlayer"] : []) + extra
+        app.launch()
+        XCTAssertTrue(app.buttons[player ? "返回" : "新建稿件"].waitForExistence(timeout: 10))
     }
-
     private func snapshot(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
+        let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
     }
-
-    private func tapScreenCenter() {
-        app.windows.firstMatch
-            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .tap()
+    private func waitForCount(_ count: Int) {
+        XCTAssertTrue(app.buttons["全部 \(count)"].waitForExistence(timeout: 5), "应有 \(count) 篇活跃稿件")
     }
-
-    func testPlayerLandscape() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-resetSettings"]
-        app.launch()
-        sleep(2) // 等首次排版稳定
-        snapshot("01-landscape-paused")
-
-        // 轻点播放：右侧胶囊与底部控件应隐藏，红点亮起
-        tapScreenCenter()
-        sleep(4)
-        snapshot("02-landscape-playing")
-
-        // 再轻点暂停：控件回来，计时应走字
-        tapScreenCenter()
-        sleep(1)
-        snapshot("03-landscape-paused-elapsed")
-
-        // 拖拽回看上文：手指按住时中央提示应隐藏
-        app.windows.firstMatch
-            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
-            .press(forDuration: 0.6, thenDragTo: app.windows.firstMatch
-                .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
-        sleep(1)
-        snapshot("04-landscape-dragged")
+    private func deleteFirst() {
+        app.buttons.matching(identifier: "card").firstMatch.swipeLeft()
+        app.buttons["删除"].tap()
     }
+    private func revealInEditor(_ element: XCUIElement) {
+        for _ in 0..<4 {
+            if element.isHittable { return }
+            app.scrollViews["editor.form"].swipeUp()
+        }
+        XCTAssertTrue(element.isHittable)
+    }
+    private func assertPlayerToolbarOrder() {
+        let elements = [app.buttons["返回"], app.buttons["player.returnToTop"], app.buttons["player.mirror"],
+                        app.buttons["player.filmed"], app.buttons["player.settings"]]
+        for pair in zip(elements, elements.dropFirst()) {
+            XCTAssertLessThanOrEqual(pair.0.frame.maxX, pair.1.frame.minX)
+            XCTAssertEqual(pair.0.frame.midY, pair.1.frame.midY, accuracy: 1)
+        }
+    }
+    private func assertParameterTrackWidths(landscape: Bool) {
+        let font = app.sliders["player.slider.字号"]
+        let speed = app.sliders["player.slider.速度"]
+        if landscape {
+            XCTAssertGreaterThan(speed.frame.width, font.frame.width * 1.4,
+                                 "横屏时速度滑杆应更长")
+        } else {
+            XCTAssertEqual(speed.frame.width, font.frame.width, accuracy: 1,
+                           "竖屏两行滑杆应等长")
+            XCTAssertEqual(speed.frame.minX, font.frame.minX, accuracy: 1)
+        }
+    }
+    private func play() { app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
 
-    func testSettingsDrawerLandscape() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-openSettings"]
-        app.launch()
+    func testPlayerLandscape() {
+        launch(player: true, landscape: true)
+        assertPlayerToolbarOrder()
+        assertParameterTrackWidths(landscape: true)
+        snapshot("player-landscape-paused")
+        play()
+        XCTAssertTrue(app.sliders["字号"].waitForNonExistence(timeout: 3), "播放时底部参数栏应隐藏")
+        snapshot("player-landscape-playing")
         sleep(2)
-        snapshot("05-landscape-settings")
+        app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.sliders["字号"].waitForExistence(timeout: 3))
+        snapshot("player-landscape-paused-again")
     }
-
-    /// 设置抽屉右拨收起：滑杆上的横向拖动归滑杆（抽屉不关、值变化），左缘把手右拨收起
-    func testSettingsDrawerDragToDismiss() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-openSettings", "-resetSettings"]
-        app.launch()
+    func testPlayerPortrait() {
+        launch(player: true)
+        XCTAssertTrue(app.sliders["字号"].isHittable)
+        assertPlayerToolbarOrder()
+        assertParameterTrackWidths(landscape: false)
+        XCTAssertFalse(app.buttons["player.play"].exists)
+        XCTAssertTrue(app.buttons["前置镜子"].isHittable)
+        XCTAssertTrue(app.buttons["player.filmed"].isHittable)
+        XCTAssertFalse(app.buttons["更多播放操作"].exists)
+        XCTAssertFalse(app.buttons["编辑稿件"].exists)
+        XCTAssertFalse(app.buttons["操作提示"].exists)
+        snapshot("player-portrait")
+        play()
+        XCTAssertTrue(app.sliders["字号"].waitForNonExistence(timeout: 3))
+        snapshot("player-portrait-playing")
+        play()
+        XCTAssertTrue(app.sliders["字号"].waitForExistence(timeout: 3))
+    }
+    func testSettingsDrawerLandscape() {
+        launch(player: true, landscape: true, extra: ["-openSettings"])
+        XCTAssertTrue(app.buttons["关闭设置"].waitForExistence(timeout: 5))
+        snapshot("settings-landscape")
+    }
+    func testSettingsDrawerDragToDismiss() {
+        launch(player: true, landscape: true, extra: ["-openSettings"])
         let close = app.buttons["关闭设置"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10))
-
-        // ① 点关闭按钮 → 抽屉收起
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let slider = app.sliders["slider.字号"], before = slider.value as? String
+        slider.adjust(toNormalizedSliderPosition: 0.7)
+        XCTAssertTrue(close.exists, "调节滑杆不能收起抽屉")
+        XCTAssertNotEqual(before, slider.value as? String)
         close.tap()
-        XCTAssertFalse(close.waitForExistence(timeout: 3), "点关闭应收起抽屉")
-
-        // ② 顶栏设置胶囊 → 重新打开（先等元素出现，避免高负载下竞态）
-        let settingsButton = app.buttons["设置"]
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "顶栏设置按钮应可见")
-        settingsButton.tap()
-        XCTAssertTrue(close.waitForExistence(timeout: 3), "胶囊应重新打开抽屉")
-
-        // ③ 从面板左缘把手区快速右拨（终点离屏幕右缘 130pt，避开 Home 条系统手势区）
-        let window = app.windows.firstMatch
-        let header = app.staticTexts["设置"].firstMatch
-        XCTAssertTrue(header.waitForExistence(timeout: 5))
-        let windowFrame = window.frame
-        let headerFrame = header.frame
-        let stripX = headerFrame.minX - windowFrame.minX - 34 // 标题左移 34pt ≈ 面板左缘内 14pt
-        let y = headerFrame.midY - windowFrame.minY
-        window.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-            .withOffset(CGVector(dx: stripX, dy: y))
-            .press(forDuration: 0.05,
-                   thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-                       .withOffset(CGVector(dx: windowFrame.width - windowFrame.minX - 130, dy: y)),
-                   withVelocity: .fast,
-                   thenHoldForDuration: 0.02)
-        XCTAssertFalse(close.waitForExistence(timeout: 3), "右拨应关闭抽屉")
+        app.buttons["设置"].tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let title = app.staticTexts["设置"].firstMatch.frame
+        let origin = app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
+        origin.withOffset(CGVector(dx: title.minX - 34, dy: title.midY))
+            .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: title.minX + 170, dy: title.midY)),
+                   withVelocity: .fast, thenHoldForDuration: 0.02)
+        XCTAssertTrue(app.buttons["设置"].waitForExistence(timeout: 3))
+        XCTAssertFalse(close.exists)
+    }
+    func testSettingsPortraitUsesSheet() {
+        launch(player: true)
+        app.buttons["设置"].tap()
+        XCTAssertTrue(app.buttons["关闭设置"].waitForExistence(timeout: 5))
+        let slider = app.sliders["slider.字号"]
+        slider.adjust(toNormalizedSliderPosition: 0.4)
+        XCTAssertTrue(app.buttons["关闭设置"].exists)
+        snapshot("settings-portrait")
+        app.buttons["关闭设置"].tap()
+        XCTAssertTrue(app.sliders["字号"].isHittable)
+    }
+    func testDirectPlayerFilmedActionPersists() {
+        launch(player: true)
+        let filmed = app.buttons["player.filmed"]
+        XCTAssertEqual(filmed.value as? String, "待拍摄")
+        snapshot("player-filmed-inactive")
+        let frame = filmed.frame
+        filmed.tap()
+        XCTAssertEqual(filmed.value as? String, "已拍摄")
+        XCTAssertEqual(filmed.frame, frame, "绿色状态不能改变按钮布局")
+        assertPlayerToolbarOrder()
+        snapshot("player-filmed-direct")
+        filmed.tap()
+        XCTAssertEqual(filmed.value as? String, "待拍摄")
+        filmed.tap()
+        app.buttons["返回"].tap()
+        let card = app.buttons.matching(identifier: "card")
+            .matching(NSPredicate(format: "label CONTAINS %@", "脚本1-广发新客开户")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        XCTAssertEqual(card.value as? String, "已拍摄")
+    }
+    func testCompletionChoicesAreInlineAndKeepSelection() {
+        for landscape in [false, true] {
+            launch(player: true, landscape: landscape, extra: ["-openSettings"])
+            let choices = app.segmentedControls["settings.completion"]
+            let scroll = app.scrollViews["settings.scroll"]
+            for _ in 0..<5 {
+                if choices.buttons["标记并返回"].isHittable { break }
+                scroll.swipeUp()
+            }
+            XCTAssertTrue(choices.buttons["标记并返回"].isHittable)
+            for label in ["回到开头", "标记并返回", "停在末尾", "标记并返回"] {
+                choices.buttons[label].tap()
+                XCTAssertTrue(choices.buttons[label].isSelected)
+            }
+            XCTAssertTrue(app.staticTexts["读完后标记为已拍摄，并返回稿件列表。"].exists)
+            snapshot(landscape ? "completion-landscape" : "completion-portrait")
+            app.buttons["关闭设置"].tap()
+            app.buttons["设置"].tap()
+            for _ in 0..<5 {
+                if choices.buttons["标记并返回"].isHittable { break }
+                scroll.swipeUp()
+            }
+            XCTAssertTrue(choices.buttons["标记并返回"].isSelected)
+            app.buttons["关闭设置"].tap()
+        }
+    }
+    func testCardSwipeFilmed() {
+        launch()
+        let cards = app.buttons.matching(identifier: "card")
+        XCTAssertTrue(cards.firstMatch.label.contains("脚本1"))
+        cards.firstMatch.swipeRight()
+        if app.buttons["已拍摄"].isHittable { app.buttons["已拍摄"].tap() }
+        XCTAssertFalse(app.buttons["返回"].exists)
+        XCTAssertFalse(cards.firstMatch.label.contains("脚本1"), "已拍稿件应沉入已拍分层")
+        snapshot("card-mark-filmed")
+    }
+    func testRepeatedFilmedSwipesKeepRowsAndHeadersSeparate() {
+        launch()
+        let list = app.collectionViews["script.list"]
+        XCTAssertTrue(list.exists)
+        func target(_ title: String) -> XCUIElement {
+            app.buttons.matching(identifier: "card").matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
+        }
+        func reveal(_ title: String) -> XCUIElement {
+            let card = target(title)
+            if !card.isHittable { list.swipeUp() }
+            if !card.isHittable { list.swipeDown() }
+            XCTAssertTrue(card.isHittable)
+            return card
+        }
+        for cycle in 0..<3 {
+            for title in ["脚本1-广发新客开户", "脚本2-佣金优惠"] {
+                for filmed in [true, false] {
+                    let swiped = reveal(title)
+                    if cycle == 1 {
+                        swiped.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5))
+                            .press(forDuration: 0.05,
+                                   thenDragTo: swiped.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)),
+                                   withVelocity: .fast, thenHoldForDuration: 0.02)
+                    } else { swiped.swipeRight() }
+                    let action = app.buttons[filmed ? "已拍摄" : "取消已拍"]
+                    if action.isHittable { action.tap() }
+                    let card = reveal(title)
+                    XCTAssertEqual(card.value as? String, filmed ? "已拍摄" : "待拍摄", "滑动应只切换目标稿件状态")
+                    XCTAssertEqual(app.buttons.matching(identifier: "card").matching(NSPredicate(format: "label CONTAINS %@", title)).count, 1)
+                    let frames = list.cells.allElementsBoundByIndex.map(\.frame).filter { $0.height > 0 }
+                        .sorted { $0.minY < $1.minY }
+                    for pair in zip(frames, frames.dropFirst()) {
+                        XCTAssertLessThanOrEqual(pair.0.maxY, pair.1.minY + 1, "分区标题与卡片不能重叠")
+                    }
+                    waitForCount(4)
+                    XCTAssertFalse(app.buttons["返回"].exists)
+                    snapshot("filmed-cycle-\(cycle)-\(title)-\(filmed)")
+                }
+            }
+        }
     }
 
-    /// 卡片右滑 → 标记已拍 → 沉到已拍层
-    func testCardSwipeFilmed() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
-        app.launch()
-        let cards = app.buttons.matching(identifier: "card")
-        XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 10))
-        let firstBefore = cards.firstMatch.label
-        XCTAssertTrue(firstBefore.contains("脚本1"), "演示数据第一张应为脚本1，实际：\(firstBefore)")
-
-        let c = cards.firstMatch
-        c.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
-            .press(forDuration: 0.1, thenDragTo: c.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
-        sleep(1)
-        XCTAssertFalse(app.buttons["返回"].exists, "右滑不应误开播放页")
-        let firstAfter = app.buttons.matching(identifier: "card").firstMatch
-        XCTAssertTrue(firstAfter.exists)
-        XCTAssertFalse(firstAfter.label.contains("脚本1"), "右滑标记已拍后脚本1应沉底，实际首卡：\(firstAfter.label)")
-        let third = app.buttons.matching(identifier: "card").element(boundBy: 2)
-        XCTAssertTrue(third.exists && third.label.contains("脚本1"), "脚本1 应沉到已拍层（第 3 位），实际：\(third.label)")
+    func testCardSwipeDelete() {
+        launch()
+        app.buttons.matching(identifier: "card").firstMatch.swipeLeft()
+        XCTAssertTrue(app.buttons["删除"].waitForExistence(timeout: 3), "先揭示删除操作")
+        snapshot("delete-action-gold")
+        app.buttons["删除"].tap()
+        XCTAssertTrue(app.buttons["undo.pill"].waitForExistence(timeout: 3))
+        waitForCount(3)
+        snapshot("delete-bottom-undo")
     }
-
-    /// 卡片左滑越阈值松手 → 删除 + 撤销胶囊 + 卡片数减一
-    func testCardSwipeDelete() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
-        app.launch()
+    func testMultiSelectBatchDelete() {
+        launch()
         let cards = app.buttons.matching(identifier: "card")
-        XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 10))
-        let beforeCount = cards.count
-
-        let c = cards.firstMatch
-        c.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
-            .press(forDuration: 0.15, thenDragTo: c.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)),
-                   withVelocity: .slow, thenHoldForDuration: 0.05)
-        XCTAssertTrue(app.buttons["undo.pill"].waitForExistence(timeout: 5), "左滑删除后应出现撤销胶囊")
-        sleep(1)
-        XCTAssertEqual(app.buttons.matching(identifier: "card").count, beforeCount - 1, "删除后卡片数应减一")
-        snapshot("15-swipe-delete-undo")
-    }
-
-    /// 长按多选 → 点选 → 批量删除（确认）→ 撤销胶囊整批恢复
-    func testMultiSelectBatchDelete() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
-        app.launch()
-        let cards = app.buttons.matching(identifier: "card")
-        XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 10))
-        let before = cards.count
-
-        // 长按第一张进入多选（且不应误开播放页）
-        cards.firstMatch.press(forDuration: 1.2)
-        XCTAssertTrue(app.staticTexts["已选 1 篇"].waitForExistence(timeout: 5), "长按应进入多选")
-        XCTAssertFalse(app.buttons["返回"].exists, "长按不应误开播放页")
-
-        // 点第二张 → 已选 2 篇
-        app.buttons.matching(identifier: "card").element(boundBy: 1).tap()
-        XCTAssertTrue(app.staticTexts["已选 2 篇"].waitForExistence(timeout: 3), "点第二张应变为已选 2 篇")
-
-        // 批量删除（系统确认框）
+        cards.firstMatch.press(forDuration: 0.8)
+        XCTAssertTrue(app.staticTexts["已选 1 篇"].waitForExistence(timeout: 3))
+        cards.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["已选 0 篇"].waitForExistence(timeout: 3), "长按结束后再次点选不能被吞掉")
+        cards.firstMatch.tap()
+        cards.element(boundBy: 1).tap()
+        XCTAssertTrue(app.staticTexts["已选 2 篇"].waitForExistence(timeout: 3))
+        snapshot("batch-actions-red")
         app.buttons["batch.delete"].tap()
-        let confirm = app.buttons["删除 2 篇"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 3), "应弹出批量删除确认")
-        confirm.tap()
-        XCTAssertTrue(app.buttons["undo.pill"].waitForExistence(timeout: 5), "批量删除后应出现撤销胶囊")
-        XCTAssertTrue(app.staticTexts["已删除 2 篇"].exists)
-        XCTAssertEqual(app.buttons.matching(identifier: "card").count, before - 2, "批量删除后卡片数应减二")
-
-        // 撤销（2 秒窗口内立即点）→ 整批恢复
+        app.buttons["删除 2 篇"].tap()
+        XCTAssertTrue(app.buttons["undo.pill"].waitForExistence(timeout: 3))
+        waitForCount(2)
         app.buttons["undo.pill"].tap()
-        sleep(1)
-        XCTAssertEqual(app.buttons.matching(identifier: "card").count, before, "撤销应整批恢复")
-        snapshot("17-multiselect-undo-restored")
+        waitForCount(4)
+        snapshot("batch-delete-restored")
     }
-
-    /// 化妆镜：顶栏相机按钮 → 镜面卡片（模拟器无摄像头走错误态）→ 关闭
-    func testCameraMirrorOverlay() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-resetSettings"]
-        app.launch()
-        let mirrorButton = app.buttons["前置镜子"]
-        XCTAssertTrue(mirrorButton.waitForExistence(timeout: 10))
-        mirrorButton.tap()
+    func testCameraMirrorOverlay() {
+        launch(player: true, landscape: true)
+        app.buttons["前置镜子"].tap()
         let close = app.buttons["mirror.close"]
-        XCTAssertTrue(close.waitForExistence(timeout: 5), "镜子卡片应出现")
-        sleep(1) // 等错误态文案稳定（模拟器无摄像头）
-        snapshot("18-mirror-simulator")
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        snapshot("mirror-simulator")
         close.tap()
-        XCTAssertFalse(close.waitForExistence(timeout: 3), "点关闭应收起镜子")
+        XCTAssertTrue(app.sliders["字号"].isHittable)
     }
-
-    /// 返回列表后，刚打开的卡片金边高亮 + 光晕呼吸（Web: card-hello）
-    func testReturnHighlight() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
-        app.launch()
-        let card = app.buttons.matching(identifier: "card").firstMatch
-        XCTAssertTrue(card.waitForExistence(timeout: 10))
-        card.tap()
-        let back = app.buttons["返回"]
-        XCTAssertTrue(back.waitForExistence(timeout: 10), "应已进入播放页")
-        back.tap()
-        XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5), "应返回列表")
-        sleep(1) // 光晕呼吸中段
-        snapshot("19-return-highlight")
+    func testReturnHighlight() {
+        launch()
+        app.buttons.matching(identifier: "card").firstMatch.tap()
+        XCTAssertTrue(app.buttons["返回"].waitForExistence(timeout: 5))
+        app.buttons["返回"].tap()
+        XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5))
+        snapshot("return-highlight")
     }
-
-    /// 播放页左缘右滑 → 返回列表页（对齐系统返回手势习惯）
-    func testEdgeSwipeBackToList() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-resetSettings"]
-        app.launch()
-        XCTAssertTrue(app.buttons["返回"].waitForExistence(timeout: 10), "播放页应已打开")
+    func testEdgeSwipeBackToList() {
+        launch(player: true, landscape: true)
         let window = app.windows.firstMatch
         window.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
             .press(forDuration: 0.12, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)))
-        XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5), "左缘右滑应返回列表页")
+        XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5))
     }
-
-    /// 高速滚到底自动停止 → 出现「回到顶部」胶囊
-    func testReachBottomBackToTop() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-fastEnd", "-resetSettings"]
-        app.launch()
-        let backToTop = app.buttons["回到顶部"]
-        XCTAssertTrue(backToTop.waitForExistence(timeout: 40), "读完自动停止后应出现回到顶部按钮")
-        sleep(1)
-        // 自动停止后计时应冻结（用户反馈：播完时间还在跑）
-        let elapsed = app.staticTexts["player.elapsed"]
-        XCTAssertTrue(elapsed.waitForExistence(timeout: 3), "计时应可读")
-        let t1 = elapsed.label
-        sleep(3)
-        let t2 = app.staticTexts["player.elapsed"].label
-        XCTAssertEqual(t1, t2, "自动停止后计时应冻结：\(t1) → \(t2)")
-        snapshot("08-landscape-atbottom-backtotop")
-    }
-
-    /// 列表删除动画：点删除 → 卡片数 -1（退场动画由 cardsGrid 的 animation 驱动）
-    func testListDeleteAnimation() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
-        app.launch()
-        let deletes = app.buttons.matching(identifier: "card.delete")
-        XCTAssertTrue(deletes.firstMatch.waitForExistence(timeout: 10))
-        let before = deletes.count
-        XCTAssertGreaterThanOrEqual(before, 2)
-        deletes.firstMatch.tap()
-        usleep(120_000) // 抓退场动画中的一帧
-        snapshot("09-list-delete-mid")
-        sleep(1)
-        XCTAssertEqual(deletes.count, before - 1, "删除后卡片数应减一")
-        snapshot("10-list-delete-after")
-    }
-
-    /// 卡片文件夹按钮 → 新建文件夹 → 目标稿件应移入新文件夹（此前 alert 读不到目标而静默丢失）
-    func testCreateFolderFromCard() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-skipOnboard", "-resetSettings", "-resetDemo"]
-        app.launch()
-        let folderButtons = app.buttons.matching(identifier: "card.folder")
-        XCTAssertTrue(folderButtons.firstMatch.waitForExistence(timeout: 10))
-        snapshot("14-card-before-folder")
-        // 演示数据：脚本1/2/4 在「口播」，脚本3 无文件夹——动态找未分组卡走"无→有"链路
-        // （顺序随分层/日期排序变化，写死下标会点错卡）
-        var targetIndex = -1
-        for i in 0..<folderButtons.count {
-            if !folderButtons.element(boundBy: i).label.contains("口播") {
-                targetIndex = i
-                break
-            }
-        }
-        XCTAssertNotEqual(targetIndex, -1, "应存在未分组的演示卡片")
-        folderButtons.element(boundBy: targetIndex).tap()
-
-        let newFolder = app.buttons["folder.new"]
-        XCTAssertTrue(newFolder.waitForExistence(timeout: 5))
-        newFolder.tap()
-
-        let alert = app.alerts.firstMatch
-        XCTAssertTrue(alert.waitForExistence(timeout: 5), "点新建应弹出命名 alert")
-        let field = alert.textFields.firstMatch
-        field.tap()
-        field.typeText("测试分组")
-        field.typeText("\n") // 回车=默认按钮（创建）；横屏下键盘可能挡住按钮点击
-        if alert.waitForExistence(timeout: 2) {
-            alert.buttons["创建"].tap() // 回车没提交时兜底再点一次
-        }
-        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2), "alert 应已提交关闭")
-
-        sleep(1)
-        // SwiftUI 会把按钮内文字吞进 a11y label，断言派生文件夹 chip 的显式 identifier
-        XCTAssertTrue(
-            app.buttons["chip.测试分组"].waitForExistence(timeout: 5),
-            "创建后筛选 chips 应出现新文件夹 chip"
-        )
-        snapshot("13-card-with-folder")
-    }
-
-    func testPlayerPortrait() throws {
-        XCUIDevice.shared.orientation = .portrait
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-resetSettings"]
-        app.launch()
+    func testReachBottomBackToTop() {
+        launch(player: true, landscape: true, extra: ["-fastEnd"])
+        let hint = app.staticTexts["player.returnHint"]
+        XCTAssertTrue(hint.waitForExistence(timeout: 40))
+        let time = app.buttons["player.returnToTop"]
+        XCTAssertEqual(app.buttons.matching(identifier: "player.returnToTop").count, 1)
+        let before = time.value as? String
         sleep(2)
-        snapshot("06-portrait-paused")
+        XCTAssertEqual(before, time.value as? String, "读完后计时应暂停")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "回到顶部")).count, 1, "回顶入口只保留时间按钮")
+        snapshot("at-bottom-time-hint")
+        time.tap()
+        XCTAssertTrue(hint.waitForNonExistence(timeout: 3))
+        XCTAssertTrue((time.value as? String ?? "").contains("已暂停，00:00"))
+        snapshot("time-returned-to-top")
+        play()
+        XCTAssertTrue(app.sliders["字号"].waitForNonExistence(timeout: 3))
+        sleep(2)
+        XCTAssertFalse(hint.exists, "回顶后应从开头重新播放，而不是立即再次结束")
+    }
+    func testTimeCanRestartFromMidPlayback() {
+        launch(player: true)
+        play(); sleep(2)
+        let time = app.buttons["player.returnToTop"]
+        XCTAssertTrue((time.value as? String ?? "").contains("提词中"))
+        time.tap()
+        XCTAssertTrue(app.sliders["字号"].waitForExistence(timeout: 3))
+        XCTAssertTrue((time.value as? String ?? "").contains("已暂停，00:00"))
+        XCTAssertFalse(app.staticTexts["player.returnHint"].exists)
+        snapshot("time-reset-during-playback")
+    }
+    func testListDeleteAnimation() {
+        launch()
+        deleteFirst()
+        XCTAssertTrue(app.buttons["undo.pill"].waitForExistence(timeout: 3))
+        waitForCount(3)
+        app.buttons["undo.pill"].tap()
+        waitForCount(4)
+    }
+    func testCreateFolderFromCard() {
+        launch()
+        app.buttons.matching(identifier: "card.folder").firstMatch.tap()
+        XCTAssertTrue(app.buttons["folder.new"].waitForExistence(timeout: 5))
+        app.buttons["folder.new"].tap()
+        let field = app.textFields["folder.name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        field.tap(); field.typeText("测试分组\n")
+        XCTAssertTrue(app.buttons["chip.测试分组"].waitForExistence(timeout: 5))
+        snapshot("folder-created")
+    }
+    func testFooterShortcutsAreDirectAndDoNotOpenPlayer() {
+        launch()
+        XCTAssertFalse(app.buttons["card.more"].exists)
+        let star = app.buttons.matching(identifier: "card.star").firstMatch
+        XCTAssertEqual(star.label, "取消星标")
+        star.tap()
+        XCTAssertEqual(app.buttons.matching(identifier: "card.star").firstMatch.label, "添加星标")
+        app.buttons.matching(identifier: "card.star").firstMatch.tap()
+        XCTAssertEqual(app.buttons.matching(identifier: "card.star").firstMatch.label, "取消星标")
+        XCTAssertFalse(app.buttons["返回"].exists)
+        let folder = app.buttons.matching(identifier: "card.folder").firstMatch
+        XCTAssertEqual(folder.value as? String, "口播")
+        folder.tap()
+        XCTAssertTrue(app.buttons["关闭移动到文件夹"].waitForExistence(timeout: 5))
+        app.buttons["关闭移动到文件夹"].tap()
+        snapshot("card-footer-shortcuts")
     }
 
-    /// 段落自动暂停端到端：高速播放滚到第二段起点行时应自动暂停并出现提示
-    func testParagraphAutoPause() throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
-        app.launchArguments = ["-seedDemo", "-openPlayer", "-skipOnboard", "-pauseParagraph", "-resetSettings"]
+    func testParagraphAutoPause() {
+        launch(player: true, landscape: true, extra: ["-pauseParagraph"])
+        XCTAssertTrue(app.staticTexts["已暂停：段落分隔"].waitForExistence(timeout: 25))
+        snapshot("paragraph-pause")
+    }
+    func testNativeListStartsScrollingFromBodyDiagonalAndSelection() {
+        for mode in ["body", "diagonal", "selection"] {
+            launch(extra: ["-seedMany"])
+            let cards = app.buttons.matching(identifier: "card")
+            if mode == "selection" {
+                cards.firstMatch.press(forDuration: 0.8)
+                XCTAssertTrue(app.staticTexts["已选 1 篇"].waitForExistence(timeout: 3))
+            }
+            let anchor = app.staticTexts["脚本2-佣金优惠"].firstMatch
+            XCTAssertTrue(anchor.exists)
+            let before = anchor.frame.minY
+            let origin = app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
+            let y = min(anchor.frame.midY + 35, app.windows.firstMatch.frame.height - 140)
+            origin.withOffset(CGVector(dx: 105, dy: y)).press(forDuration: 0.05,
+                thenDragTo: origin.withOffset(CGVector(dx: mode == "diagonal" ? 129 : 105, dy: y - 200)),
+                withVelocity: .slow, thenHoldForDuration: 0.02)
+            let moved = before - anchor.frame.minY
+            print("NATIVE_SCROLL mode=\(mode) moved=\(moved)")
+            XCTAssertGreaterThan(moved, 120, "200pt 轻拖应及时带动原生列表")
+            XCTAssertFalse(app.buttons["返回"].exists, "滑动不能误开提词页")
+            snapshot("native-scroll-\(mode)")
+        }
+    }
+    func testDeletionStaysDeletedAfterRelaunchWithoutRecoveryMenu() {
+        launch()
+        XCTAssertFalse(app.buttons["导入稿件"].exists)
+        XCTAssertFalse(app.buttons["导出备份"].exists)
+        XCTAssertFalse(app.buttons["最近删除"].exists)
+        snapshot("list-without-bottom-menu")
+        deleteFirst(); waitForCount(3)
+        app.terminate()
+        app.launchArguments = ["-seedDemo", "-skipOnboard"]
         app.launch()
-        let toast = app.staticTexts["已暂停：段落分隔"]
-        XCTAssertTrue(toast.waitForExistence(timeout: 20), "滚到段落起点应自动暂停并提示")
-        snapshot("07-landscape-paragraph-pause")
+        waitForCount(3)
+        XCTAssertFalse(app.buttons["最近删除"].exists)
+        XCTAssertFalse(app.buttons["undo.pill"].exists)
+        XCTAssertFalse(app.staticTexts["脚本1-广发新客开户"].exists)
+        snapshot("deleted-after-relaunch")
+    }
+    func testEditorAutosaveAndSafeSplit() {
+        launch()
+        app.buttons.matching(identifier: "card.edit").firstMatch.tap()
+        XCTAssertTrue(app.buttons["editor.done"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["拆分后替换原稿，原稿可在最近删除中恢复。"].exists)
+        snapshot("editor-original-style")
+        XCTAssertTrue(app.segmentedControls["editor.splitMode"].isHittable)
+        revealInEditor(app.segmentedControls["editor.autoPause"])
+        XCTAssertFalse(app.buttons["editor.tools"].exists)
+        let split = app.buttons["editor.split"]
+        XCTAssertEqual(split.label, "智能拆分")
+        revealInEditor(split); split.tap()
+        waitForCount(6)
+        XCTAssertFalse(app.buttons["editor.done"].exists)
+        XCTAssertFalse(app.staticTexts["脚本1-广发新客开户"].exists)
+        snapshot("split-replaced-source")
+        XCTAssertFalse(app.buttons["最近删除"].exists)
+    }
+    func testDirectKeywordSplitReplacesCurrentDraft() {
+        launch()
+        app.buttons["新建稿件"].tap()
+        XCTAssertFalse(app.buttons["editor.split"].isEnabled)
+        let title = app.textFields["稿件标题"]
+        title.tap(); title.typeText("Keyword draft")
+        let content = app.textViews["editor.content"]
+        content.tap(); content.typeText("Part A#Part B")
+        revealInEditor(app.segmentedControls["editor.splitMode"])
+        app.segmentedControls["editor.splitMode"].buttons["关键词"].tap()
+        let keyword = app.textFields["editor.splitKeyword"]
+        keyword.tap(); keyword.typeText("#")
+        snapshot("editor-keyword-keyboard")
+        let split = app.buttons["editor.split"]
+        XCTAssertTrue(split.isEnabled)
+        revealInEditor(split); split.tap()
+        waitForCount(6)
+        XCTAssertFalse(app.buttons["editor.done"].exists)
+        snapshot("editor-keyword-direct-split")
+        XCTAssertFalse(app.staticTexts["Keyword draft"].exists)
+        XCTAssertTrue(app.staticTexts["Part A"].exists)
+        XCTAssertTrue(app.staticTexts["#Part B"].exists)
+    }
+    func testPasteIntoBodyAppendsAndAutosaves() {
+        launch()
+        let previous = UIPasteboard.general.items
+        defer { UIPasteboard.general.items = previous }
+        UIPasteboard.general.string = "First pasted paragraph"
+        app.buttons["新建稿件"].tap()
+        let paste = app.buttons["editor.paste"]
+        XCTAssertTrue(paste.waitForExistence(timeout: 5))
+        snapshot("new-editor-layout")
+        paste.tap()
+        let content = app.textViews["editor.content"]
+        XCTAssertEqual(content.value as? String, "First pasted paragraph")
+        UIPasteboard.general.string = "Second pasted paragraph"
+        paste.tap()
+        XCTAssertEqual(content.value as? String, "First pasted paragraph\n\nSecond pasted paragraph")
+        snapshot("editor-pasted-body")
+        app.buttons["editor.done"].tap(); waitForCount(5)
+        app.buttons.matching(identifier: "card.edit").element(boundBy: 1).tap()
+        XCTAssertEqual(app.textViews["editor.content"].value as? String, "First pasted paragraph\n\nSecond pasted paragraph")
+    }
+    func testClearAllIsDirectAndCanBeCancelledOrUndone() {
+        launch()
+        XCTAssertFalse(app.buttons["稿件管理"].exists)
+        app.buttons["library.clear"].tap()
+        XCTAssertTrue(app.buttons["删除 4 篇"].waitForExistence(timeout: 5))
+        snapshot("delete-confirmation-red")
+        if app.buttons["取消"].exists { app.buttons["取消"].tap() }
+        else { app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap() }
+        XCTAssertTrue(app.buttons["删除 4 篇"].waitForNonExistence(timeout: 3))
+        waitForCount(4)
+        app.buttons["library.clear"].tap(); app.buttons["删除 4 篇"].tap()
+        XCTAssertTrue(app.buttons["undo.pill"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["还没有稿件"].exists)
+        snapshot("clear-all-undo")
+        app.buttons["undo.pill"].tap(); waitForCount(4)
+        snapshot("list-direct-actions")
+    }
+    func testNewEditorSavesOneDraft() {
+        launch()
+        app.buttons["新建稿件"].tap()
+        let title = app.textFields["稿件标题"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap(); title.typeText("自动保存测试")
+        let content = app.textViews["editor.content"]
+        content.tap(); content.typeText("第一行内容")
+        app.buttons["editor.done"].tap()
+        waitForCount(5)
+        snapshot("new-draft-saved")
+    }
+    func testNoOpEditorKeepsListUsableAfterDismissal() {
+        launch()
+        app.buttons.matching(identifier: "card.edit").firstMatch.tap()
+        app.buttons["editor.done"].tap()
+        XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5))
+        app.buttons.matching(identifier: "card").firstMatch.tap()
+        XCTAssertTrue(app.buttons["返回"].waitForExistence(timeout: 5), "弹层结束后不能有残留遮罩")
     }
 }

@@ -1,55 +1,45 @@
 import SwiftUI
 
-/// 播放页设置抽屉（对应 Web 版 SettingsPanel）：右侧滑入 320pt，可从左往右拨回收起。
-/// 遮罩透明不模糊——调参数时正文可实时预览。横屏下系统 sheet 会全屏，故用自绘抽屉。
+/// Portrait uses a system sheet; landscape keeps the original dark side panel.
+/// Only the dedicated handle owns the dismissal drag, leaving sliders and scrolling alone.
 struct PlayerSettingsDrawer: View {
     @Binding var open: Bool
     @EnvironmentObject private var settings: AppSettings
-    @State private var pauseMode: EditorView.PauseMode = .off
+    var onShowHelp: () -> Void = {}
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dragOffset: CGFloat = 0 // onEnded 接住的位置（动画衔接用）
     @GestureState private var dragAmount: CGFloat = 0 // 手势期间跟手；取消/结束自动归零，杜绝卡在半路
 
     var body: some View {
         GeometryReader { geo in
-            let panelWidth = min(320, geo.size.width * 0.85)
-            ZStack(alignment: .trailing) {
-                if open {
-                    Color.black.opacity(0.35)
-                        .ignoresSafeArea()
-                        .contentShape(Rectangle())
-                        .onTapGesture { open = false }
-                        .transition(.opacity)
-                    panel(width: panelWidth)
-                        // 拖拽跟手：手势期间 offset 变化不经 animation（open 未变）
-                        .offset(x: max(0, dragOffset + dragAmount))
-                        .transition(.move(edge: .trailing))
-                        .gesture(dismissDrag(panelWidth: panelWidth))
-                        .overlay(alignment: .leading) {
-                            // 左缘拖拽把手（指示条所在区）：滑杆/滚动归控件，这里是干净的手势区
-                            Color.clear
-                                .contentShape(Rectangle())
-                                .frame(width: 28)
-                                .gesture(dismissDrag(panelWidth: panelWidth))
-                                .accessibilityHidden(true)
-                        }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .animation(.easeOut(duration: 0.25), value: open)
-        .onAppear { pauseMode = EditorView.derivePauseMode(settings.data) }
-        .onChange(of: open) { _, isOpen in
-            if !isOpen {
-                // 收起动画结束后归位，下次打开从 0 开始
-                Task {
-                    try? await Task.sleep(for: .seconds(0.3))
-                    dragOffset = 0
+            if geo.size.width > geo.size.height {
+                ZStack(alignment: .trailing) {
+                    if open {
+                        Color.black.opacity(0.35).ignoresSafeArea()
+                            .onTapGesture { open = false }.transition(.opacity)
+                        panel(width: min(340, geo.size.width * 0.85), showsHandle: true)
+                            .offset(x: max(0, dragOffset + dragAmount))
+                            .transition(.move(edge: .trailing))
+                            .overlay(alignment: .leading) {
+                                Color.clear.contentShape(Rectangle()).frame(width: 28)
+                                    .gesture(dismissDrag(panelWidth: min(340, geo.size.width * 0.85)))
+                                    .accessibilityHidden(true)
+                            }
+                    }
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Color.clear.sheet(isPresented: $open) {
+                    panel(width: nil, showsHandle: false)
+                        .presentationDetents([.fraction(0.75), .large])
+                        .presentationDragIndicator(.visible).presentationBackground(Color.surface)
                 }
             }
         }
-        .onChange(of: pauseMode) { _, mode in
-            settings.data.pauseOnParagraph = mode == .paragraph
-            if mode != .keyword { settings.data.pauseKeyword = "" }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: open)
+        .task(id: open) {
+            guard !open else { dragOffset = 0; return }
+            do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+            dragOffset = 0
         }
     }
 
@@ -69,16 +59,16 @@ struct PlayerSettingsDrawer: View {
                 let dismiss = final > panelWidth * 0.3
                     || value.predictedEndTranslation.width > panelWidth * 0.6
                 if dismiss {
-                    withAnimation(.easeOut(duration: 0.22)) { open = false }
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { open = false }
                 } else {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragOffset = 0 }
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85)) { dragOffset = 0 }
                 }
             }
     }
 
     // MARK: 面板
 
-    private func panel(width: CGFloat) -> some View {
+    private func panel(width: CGFloat?, showsHandle: Bool) -> some View {
         VStack(spacing: 0) {
             header
             ScrollView(showsIndicators: false) {
@@ -86,7 +76,7 @@ struct PlayerSettingsDrawer: View {
                     SettingSlider(icon: "textformat.size", label: "字号",
                                   value: Double(settings.data.fontSize),
                                   range: Double(PrompterCore.fontSizeMin)...Double(PrompterCore.fontSizeMax),
-                                  step: 2, suffix: "px") { settings.data.fontSize = Int($0) }
+                                  step: 2, suffix: " pt") { settings.data.fontSize = Int($0) }
                     SettingSlider(icon: "arrow.left.and.right", label: "字间距",
                                   value: settings.data.letterSpacing,
                                   range: PrompterCore.letterSpacingMin...PrompterCore.letterSpacingMax,
@@ -106,24 +96,37 @@ struct PlayerSettingsDrawer: View {
                     alignmentRow
                     mirrorRow
                     autoPauseRow
+                    VStack(alignment: .leading, spacing: 10) {
+                        sectionLabel(icon: "checkmark.circle", "读完以后")
+                        Picker("读完以后", selection: $settings.data.completion) {
+                            Text("停在末尾").tag(CompletionAction.none)
+                            Text("回到开头").tag(CompletionAction.restart)
+                            Text("标记并返回").tag(CompletionAction.list)
+                        }.pickerStyle(.segmented).frame(minHeight: 44)
+                            .accessibilityIdentifier("settings.completion")
+                        if settings.data.completion == .list {
+                            Text("读完后标记为已拍摄，并返回稿件列表。")
+                                .font(.caption).foregroundStyle(.textSecondary)
+                        }
+                    }
+                    Button { onShowHelp() } label: { Label("查看操作提示", systemImage: "questionmark.circle").frame(minHeight: 44) }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
-            }
+            }.accessibilityIdentifier("settings.scroll")
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
-        .background(Color.surface.opacity(0.96).ignoresSafeArea()) // 近实底：正文已模糊，不再透字
+        .background(Color.surface.ignoresSafeArea()) // 实底保证控制面板可读，正文保留实时排版预览
         .overlay(alignment: .leading) {
             Rectangle().fill(Color.white.opacity(0.05)).frame(width: 1).ignoresSafeArea()
         }
         // 左缘竖向指示条（规范同编辑/文件夹弹窗：5pt 粗、60pt 长、距边缘 10pt）
         .overlay(alignment: .leading) {
-            Capsule()
-                .fill(Color.white.opacity(0.3))
-                .frame(width: 5, height: 60)
-                .padding(.leading, 10)
-                .accessibilityHidden(true)
+            if showsHandle {
+                Capsule().fill(Color.textSecondary).frame(width: 5, height: 60)
+                    .padding(.leading, 10).accessibilityHidden(true)
+            }
         }
     }
 
@@ -132,7 +135,7 @@ struct PlayerSettingsDrawer: View {
             HStack(spacing: 8) {
                 Image(systemName: "gearshape")
                     .font(.system(size: 20))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Color.textSecondary)
                 Text("设置")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
@@ -141,9 +144,9 @@ struct PlayerSettingsDrawer: View {
             Button {
                 open = false
             } label: {
-                Image(systemName: "arrow.down.right.and.arrow.up.left")
+                Image(systemName: "xmark")
                     .font(.system(size: 20))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(Color.textSecondary)
                     .frame(width: CTL.t1, height: CTL.t1)
                     .contentShape(Circle())
             }
@@ -175,23 +178,23 @@ struct PlayerSettingsDrawer: View {
         } label: {
             Image(systemName: icon)
                 .font(.system(size: 18))
-                .foregroundStyle(active ? Color.accentGold : Color.white.opacity(0.5))
+                .foregroundStyle(active ? Color.accentGold : Color.textSecondary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 40)
+                .frame(minHeight: 44)
                 .background(
                     active ? Color.accentGold.opacity(0.15) : Color.white.opacity(0.05),
                     in: RoundedRectangle(cornerRadius: 8)
                 )
         }
         .buttonStyle(PressableStyle())
-        .accessibilityLabel(label)
+        .accessibilityLabel(label).accessibilityAddTraits(active ? .isSelected : [])
     }
 
     // MARK: 镜像
 
     private var mirrorRow: some View {
         Toggle(isOn: $settings.data.mirror) {
-            sectionLabel(icon: "flip.horizontal", "镜像翻转")
+            sectionLabel(icon: "arrow.left.and.right.righttriangle.left.righttriangle.right", "镜像翻转")
         }
         .tint(.accentGold)
         .padding(.top, 20)
@@ -203,27 +206,17 @@ struct PlayerSettingsDrawer: View {
     private var autoPauseRow: some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel(icon: "pause.circle", "自动暂停")
-            Picker("", selection: $pauseMode) {
-                ForEach(EditorView.PauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
+            Picker("", selection: $settings.data.automaticPause) {
+                ForEach(AutoPauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
             }
             .pickerStyle(.segmented)
             .frame(height: 32)
-            // 关键词框常驻：未选关键词时灰色，位置大小不变（与编辑页一致）
-            TextField("输入关键词", text: $settings.data.pauseKeyword)
-                .font(.system(size: 14))
-                .foregroundStyle(pauseMode == .keyword ? .white : .white.opacity(0.3))
-                .padding(.horizontal, 12)
-                .frame(height: 36)
-                .background(
-                    Color.white.opacity(pauseMode == .keyword ? 0.05 : 0.03),
-                    in: RoundedRectangle(cornerRadius: 8)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.white.opacity(pauseMode == .keyword ? 0.08 : 0.03))
-                )
-                .autocorrectionDisabled()
-                .disabled(pauseMode != .keyword)
+            if settings.data.automaticPause == .keyword {
+                TextField("输入关键词", text: $settings.data.pauseKeyword)
+                    .font(.body).foregroundStyle(.textPrimary).padding(12)
+                    .background(Color.canvas, in: RoundedRectangle(cornerRadius: 10))
+                    .autocorrectionDisabled()
+            }
         }
         .padding(.top, 20)
         .overlay(alignment: .top) { hairline }
@@ -235,9 +228,9 @@ struct PlayerSettingsDrawer: View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.system(size: 16))
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(Color.textSecondary)
             Text(text)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
         }
     }
@@ -264,9 +257,9 @@ struct SettingSlider: View {
                 HStack(spacing: 8) {
                     Image(systemName: icon)
                         .font(.system(size: 16))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(Color.textSecondary)
                     Text(label)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                 }
                 Spacer()
@@ -279,7 +272,7 @@ struct SettingSlider: View {
                 stepButton("minus", label: "减小\(label)") { commit(value - step) }
                 Slider(value: sliderValue, in: range, step: step)
                     .tint(.accentGold)
-                    .accessibilityIdentifier("slider.\(label)")
+                    .accessibilityIdentifier("slider.\(label)").accessibilityLabel(label)
                 stepButton("plus", label: "增大\(label)") { commit(value + step) }
             }
         }
@@ -304,8 +297,8 @@ struct SettingSlider: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.5))
-                .frame(width: 32, height: 32)
+                .foregroundStyle(Color.textSecondary)
+                .frame(width: 44, height: 44)
                 .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(PressableStyle())

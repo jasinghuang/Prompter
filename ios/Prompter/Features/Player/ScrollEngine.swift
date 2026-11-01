@@ -163,9 +163,9 @@ struct PrompterScrollView: UIViewRepresentable {
             let centering = max(0, (size.width - 896) / 2)
             let horizontal = max(percent, centering)
             tv.textContainerInset = UIEdgeInsets(
-                top: (size.height * 0.16).rounded(),
+                top: max(76, (size.height * 0.16).rounded()),
                 left: max(horizontal, safe.left),
-                bottom: (size.height * 0.18).rounded(),
+                bottom: max(160, (size.height * 0.18).rounded()),
                 right: max(horizontal, safe.right)
             )
         }

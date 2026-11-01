@@ -1,322 +1,205 @@
 import SwiftUI
 import SwiftData
 
-/// 编辑页（M2）：标题 / 分组 / 拆分 / 暂停 / 正文——自定义深色视觉 + 常驻关键词框
 struct EditorView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var settings: AppSettings
-    @Query private var allScripts: [Script]
-
-    let script: Script? // nil = 新建
-
-    @State private var title: String = ""
-    @State private var content: String = ""
-    @State private var folder: String?
-    @State private var loaded = false
-
-    // 分组行内联新建
-    @State private var newFolderOpen = false
-    @State private var newFolderName = ""
-    @FocusState private var newFolderFocused: Bool
-
-    // 拆分/暂停：本地 state
+    @Query(filter: #Predicate<Script> { $0.deletedAt == nil }) private var allScripts: [Script]
+    let script: Script?
+    @StateObject private var draft = EditorDraft()
+    @State private var choosingFolder = false
+    @State private var splitError: String?
     @State private var splitMode: SplitMode = .paragraph
-    @State private var pauseMode: PauseMode = .off
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // 自定义拖拽指示条
-            Capsule()
-                .fill(Color.white.opacity(0.3))
-                .frame(width: 60, height: 5)
-                .padding(.top, 10)
-                .padding(.bottom, 14)
-            titleRow
-            folderRow
-            splitRow
-            pauseRow
-            textEditor
-        }
-        .background(.clear)
-        .onAppear {
-            guard !loaded else { return }
-            loaded = true
-            title = script?.title ?? ""
-            content = script?.content ?? ""
-            folder = script?.folder
-            splitMode = SplitMode(rawValue: settings.data.splitMode) ?? .paragraph
-            pauseMode = Self.derivePauseMode(settings.data)
-        }
-        .onDisappear {
-            // 弹窗以任何方式关闭（下拉/点外部）都自动保存
-            persistScript()
-        }
-    }
-
-    // MARK: 标题行
-
-    private var titleRow: some View {
-        HStack(spacing: 8) {
-            TextField("稿件标题", text: $title)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.vertical, 12)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
-                }
-        }
-        .padding(.horizontal, 16)
-    }
-
-    // MARK: 分组行
+    private enum Field: Hashable { case title, content, splitKeyword, pauseKeyword }
+    @FocusState private var focusedField: Field?
 
     private var folders: [String] {
-        var set = Set(allScripts.compactMap(\.folder))
-        if let f = folder { set.insert(f) }
-        return set.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        var names = Set(allScripts.compactMap(\.folder))
+        if let folder = draft.value.folder { names.insert(folder) }
+        return names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+    private var folderCounts: [String: Int] {
+        Dictionary(grouping: allScripts.compactMap(\.folder), by: { $0 }).mapValues(\.count)
+    }
+    private var segments: [String] {
+        splitMode == .keyword ? Splitter.byKeyword(draft.value.content, keyword: settings.data.splitKeyword)
+            : Splitter.byParagraphs(draft.value.content)
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                header
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        TextField("稿件标题（选填）", text: $draft.value.title, axis: .vertical)
+                            .font(.title2.weight(.semibold)).foregroundStyle(.textPrimary).lineLimit(1...3)
+                            .focused($focusedField, equals: .title)
+                            .accessibilityLabel("稿件标题").accessibilityIdentifier("editor.title")
+                        contentEditor(height: max(180, min(320, geometry.size.height * 0.4)))
+                        tools
+                        folderRow
+                    }.padding(.horizontal, 20).padding(.vertical, 14)
+                }.scrollDismissesKeyboard(.interactively)
+                    .accessibilityIdentifier("editor.form")
+                saveStatus
+            }
+        }
+        .background(Color.canvas)
+        .onAppear { draft.load(script); splitMode = SplitMode(rawValue: settings.data.splitMode) ?? .paragraph }
+        .task(id: draft.value) {
+            guard draft.loaded, draft.hasChanges else { return }
+            do { try await Task.sleep(for: .milliseconds(500)) } catch { return }
+            _ = save()
+        }
+        .onChange(of: scenePhase) { _, phase in if phase != .active { _ = save(); settings.flush() } }
+        .onDisappear { _ = save(); settings.flush() }
+        .interactiveDismissDisabled(draft.hasChanges)
+        .sheet(isPresented: $choosingFolder) {
+            FolderPickerSheet(targets: [], folders: folders, counts: folderCounts, initialFolder: draft.value.folder) { folder in
+                draft.value.folder = folder; choosingFolder = false
+            }
+            .presentationDetents([.medium, .large]).presentationDragIndicator(.visible).presentationBackground(Color.canvas)
+        }
+        .alert("未能拆分", isPresented: Binding(get: { splitError != nil }, set: { if !$0 { splitError = nil } })) {
+            Button("知道了", role: .cancel) { splitError = nil }
+        } message: { Text(splitError ?? "") }
+    }
+
+    private var header: some View {
+        HStack {
+            Text(script == nil ? "新建稿件" : "编辑稿件").font(.headline).foregroundStyle(.textPrimary)
+            Spacer()
+            Button("完成") { if save() { settings.flush(); dismiss() } }
+                .font(.body.weight(.semibold)).frame(minWidth: 44, minHeight: 44)
+                .buttonStyle(PressableStyle()).accessibilityIdentifier("editor.done")
+        }.padding(.leading, 20).padding(.trailing, 16).padding(.top, 10)
+    }
+
+    private func contentEditor(height: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("正文").font(.subheadline.weight(.medium)).foregroundStyle(.textSecondary)
+                Spacer()
+                PasteButton(payloadType: String.self) { strings in
+                    draft.paste(strings.joined(separator: "\n\n"))
+                    focusedField = nil
+                }
+                .labelStyle(.titleAndIcon).buttonBorderShape(.capsule).tint(.accentGold)
+                .accessibilityLabel("粘贴正文").accessibilityIdentifier("editor.paste")
+            }.padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 4)
+            ZStack(alignment: .topLeading) {
+                if draft.value.content.isEmpty {
+                    Text("粘贴或输入稿件正文…")
+                        .font(.body).foregroundStyle(.textMuted).padding(.horizontal, 13).padding(.top, 8)
+                        .allowsHitTesting(false).accessibilityHidden(true)
+                }
+                TextEditor(text: $draft.value.content)
+                    .font(.body).lineSpacing(5).foregroundStyle(.textPrimary)
+                    .scrollContentBackground(.hidden).padding(.horizontal, 8).padding(.bottom, 8)
+                    .focused($focusedField, equals: .content).accessibilityIdentifier("editor.content")
+            }
+        }
+        .frame(height: height)
+        .background(Color.surface, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.08)))
+    }
+
+    private var tools: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text("拆分方式").font(.subheadline).foregroundStyle(.textSecondary).fixedSize()
+                Picker("拆分方式", selection: $splitMode) {
+                    ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                }.pickerStyle(.segmented).frame(minWidth: 104)
+                    .accessibilityIdentifier("editor.splitMode")
+                splitButton
+            }.frame(minHeight: 44)
+            if splitMode == .keyword {
+                keywordField("拆分关键词", text: $settings.data.splitKeyword, field: .splitKeyword)
+            }
+            Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1).padding(.vertical, 2)
+            HStack(spacing: 10) {
+                Text("自动暂停").font(.subheadline).foregroundStyle(.textSecondary).fixedSize()
+                Picker("自动暂停", selection: $settings.data.automaticPause) {
+                    ForEach(AutoPauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                }.pickerStyle(.segmented).accessibilityIdentifier("editor.autoPause")
+            }.frame(minHeight: 44)
+            if settings.data.automaticPause == .keyword {
+                keywordField("暂停关键词", text: $settings.data.pauseKeyword, field: .pauseKeyword)
+            }
+        }.foregroundStyle(.textPrimary)
+            .onChange(of: splitMode) { _, value in settings.data.splitMode = value.rawValue }
+    }
+
+    private var splitButton: some View {
+        let enabled = segments.count >= 2
+        return Button(action: split) {
+            Text("智能拆分")
+                .font(.subheadline.weight(.semibold)).fixedSize()
+                .foregroundStyle(enabled ? Color.canvas : .textMuted)
+                .padding(.horizontal, 12).frame(height: 32)
+                .background(enabled ? Color.accentGold : .surface, in: Capsule())
+                .overlay(Capsule().strokeBorder(enabled ? Color.clear : Color.white.opacity(0.08)))
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }.buttonStyle(.plain).disabled(!enabled)
+            .accessibilityLabel("智能拆分").accessibilityIdentifier("editor.split")
+    }
+
+    private func keywordField(_ title: String, text: Binding<String>, field: Field) -> some View {
+        TextField(title, text: text)
+            .font(.body).foregroundStyle(.textPrimary)
+            .padding(.horizontal, 12).frame(minHeight: 44)
+            .background(Color.surface, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.08)))
+            .textInputAutocapitalization(.never).autocorrectionDisabled()
+            .focused($focusedField, equals: field)
+            .accessibilityIdentifier(field == .splitKeyword ? "editor.splitKeyword" : "editor.pauseKeyword")
     }
 
     private var folderRow: some View {
-        HStack(spacing: 10) {
-            Label("分组", systemImage: "folder")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.leading, 16)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    folderChip("未分组", active: folder == nil) { folder = nil }
-                    ForEach(folders, id: \.self) { name in
-                        folderChip(name, active: folder == name) { folder = name }
-                    }
-                    if newFolderOpen {
-                        TextField("新分组名", text: $newFolderName)
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 12)
-                            .frame(width: 110, height: 32)
-                            .background(Color.accentGold.opacity(0.1), in: Capsule())
-                            .overlay(Capsule().strokeBorder(Color.accentGold.opacity(0.4)))
-                            .focused($newFolderFocused)
-                            .submitLabel(.done)
-                            .onSubmit { commitNewFolder() }
-                            .onChange(of: newFolderFocused) { _, focused in
-                                if !focused { commitNewFolder() }
-                            }
-                    } else {
-                        Button {
-                            newFolderName = ""
-                            newFolderOpen = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                newFolderFocused = true
-                            }
-                        } label: {
-                            Label("新建", systemImage: "plus")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.45))
-                                .padding(.horizontal, 10)
-                                .frame(height: 32)
-                                .background(Color.white.opacity(0.08), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.trailing, 16)
+        Button { focusedField = nil; choosingFolder = true } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "folder")
+                Text("分组")
+                Spacer()
+                Text(draft.value.folder ?? "未分组").lineLimit(1)
+                Image(systemName: "chevron.right").font(.caption2)
+            }.font(.subheadline).foregroundStyle(.textSecondary).frame(minHeight: 44)
+        }.buttonStyle(.plain).accessibilityLabel("选择文件夹")
+            .accessibilityValue(draft.value.folder ?? "未分组")
+    }
+
+    private var saveStatus: some View {
+        HStack(spacing: 8) {
+            if let error = draft.saveError {
+                Text(error).font(.caption).foregroundStyle(.dangerRed)
+                Button("重试") { _ = save() }.font(.subheadline).frame(minWidth: 44, minHeight: 44)
+            } else {
+                Text(draft.hasChanges ? "正在保存…" : "已自动保存 · 仅存于本机")
+                    .font(.caption).foregroundStyle(.textSecondary)
             }
-        }
-        .frame(minHeight: 48)
-        .overlay(alignment: .bottom) { hairline }
+        }.frame(maxWidth: .infinity).padding(.horizontal, 16).padding(.vertical, 8)
+            .accessibilityIdentifier("editor.saveStatus")
     }
 
-    private func folderChip(_ label: String, active: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(active ? .white : .white.opacity(0.45))
-                .padding(.horizontal, 14)
-                .frame(height: 36)
-                .background(active ? Color.white.opacity(0.15) : Color.white.opacity(0.08), in: Capsule())
-        }
-        .buttonStyle(.plain)
+    @discardableResult private func save() -> Bool {
+        do { try draft.save(in: context); return true } catch { return false }
     }
 
-    private func commitNewFolder() {
-        let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
-        newFolderOpen = false
-        guard !name.isEmpty else { return }
-        folder = name
-    }
-
-    // MARK: 拆分行
-
-    private var splitRow: some View {
-        HStack(spacing: 10) {
-            Label("拆分", systemImage: "scissors")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.leading, 16)
-            Picker("", selection: $splitMode) {
-                ForEach(SplitMode.allCases, id: \.self) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 100, height: 32)
-            // 关键词框常驻：未选关键词时灰色，位置大小不变
-            keyField("关键词", text: $settings.data.splitKeyword, enabled: splitMode == .keyword)
-                .frame(maxWidth: 110)
-            Spacer(minLength: 8)
-                Button(action: performSplit) {
-                    Text("智能拆分")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.canvas)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .padding(.horizontal, 12)
-                        .frame(height: 32)
-                        .background(splitDisabled ? Color.accentGold.opacity(0.3) : Color.accentGold, in: Capsule())
-                }
-            .buttonStyle(.plain)
-            .disabled(splitDisabled)
-            .padding(.trailing, 16)
-        }
-        .frame(minHeight: 48)
-        .overlay(alignment: .bottom) { hairline }
-    }
-
-    // MARK: 暂停行
-
-    private var pauseRow: some View {
-        HStack(spacing: 10) {
-            Label("暂停", systemImage: "pause.circle")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.leading, 16)
-            Picker("", selection: $pauseMode) {
-                ForEach(PauseMode.allCases, id: \.self) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 140, height: 32)
-            // 关键词框常驻：未选关键词时灰色
-            keyField("关键词", text: $settings.data.pauseKeyword, enabled: pauseMode == .keyword)
-            Spacer(minLength: 0)
-        }
-        .frame(minHeight: 48)
-        .overlay(alignment: .bottom) { hairline }
-    }
-
-    /// 常驻关键词输入框：enabled 时可输入（白色边框），disabled 时灰色（不可输入但占位不变）
-    private func keyField(_ placeholder: String, text: Binding<String>, enabled: Bool) -> some View {
-        TextField(placeholder, text: text)
-            .font(.system(size: 13))
-            .foregroundStyle(enabled ? .white : .white.opacity(0.3))
-            .padding(.horizontal, 10)
-            .frame(height: 32)
-            .background(
-                Color.white.opacity(enabled ? 0.05 : 0.03),
-                in: RoundedRectangle(cornerRadius: 8)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(enabled ? Color.white.opacity(0.08) : Color.white.opacity(0.03))
-            )
-            .autocorrectionDisabled()
-            .disabled(!enabled)
-    }
-
-    // MARK: 拆分
-
-    private var splitDisabled: Bool {
-        if splitMode == .keyword {
-            return settings.data.splitKeyword.isEmpty || !content.contains(settings.data.splitKeyword)
-        }
-        return !content.contains("\n\n")
-    }
-
-    private func performSplit() {
-        let segments = splitMode == .keyword
-            ? Splitter.byKeyword(content, keyword: settings.data.splitKeyword)
-            : Splitter.byParagraphs(content)
-        guard segments.count >= 2 else { return }
-        for segment in segments {
-            let segTitle = Splitter.titleOfSegment(segment)
-            context.insert(Script(title: segTitle.isEmpty ? "未命名稿件" : segTitle, content: segment, folder: folder))
-        }
-        if let script { context.delete(script) }
-        dismiss()
-    }
-
-    // MARK: 暂停
-
-    enum PauseMode: String, CaseIterable {
-        case off, paragraph, keyword
-        var label: String {
-            switch self {
-            case .off: return "关闭"
-            case .paragraph: return "空行"
-            case .keyword: return "关键词"
-            }
-        }
-    }
-
-    static func derivePauseMode(_ data: SettingsData) -> PauseMode {
-        if !data.pauseKeyword.isEmpty { return .keyword }
-        return data.pauseOnParagraph ? .paragraph : .off
-    }
-
-    // MARK: 正文
-
-    private var textEditor: some View {
-        TextEditor(text: $content)
-            .font(.system(size: 17))
-            .foregroundStyle(.white)
-            .scrollContentBackground(.hidden)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-    }
-
-    private var hairline: some View {
-        Rectangle().fill(Color.white.opacity(0.05)).frame(height: 1).padding(.horizontal, 16)
-    }
-
-    // MARK: 保存
-
-    /// 弹窗关闭时自动保存（下拉/点外部/程序化 dismiss 均触发）
-    private func persistScript() {
-        // 同步拆分/暂停设置
-        settings.data.splitMode = splitMode.rawValue
-        settings.data.pauseOnParagraph = pauseMode == .paragraph
-        if pauseMode != .keyword { settings.data.pauseKeyword = "" }
-
-        let finalTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let script {
-            guard !script.isDeleted else { return } // 智能拆分已删原稿，不再回写
-            script.title = finalTitle.isEmpty ? "未命名稿件" : finalTitle
-            script.content = content
-            script.folder = folder
-            script.updatedAt = Date()
-        } else if !finalTitle.isEmpty || !content.isEmpty {
-            // 只有输入了内容才创建，避免弹一下就多一篇空稿件
-            context.insert(Script(
-                title: finalTitle.isEmpty ? "未命名稿件" : finalTitle,
-                content: content,
-                folder: folder
-            ))
-        }
+    private func split() {
+        focusedField = nil
+        let parts = segments
+        guard parts.count >= 2 else { return }
+        do {
+            let created = try draft.split(parts, in: context)
+            guard !created.isEmpty else { splitError = "稿件已无法拆分，请关闭后重试。"; return }
+            settings.flush()
+            UIAccessibility.post(notification: .announcement, argument: "已拆分为 \(created.count) 篇稿件")
+            dismiss()
+        } catch { splitError = "未能创建拆分稿件：\(error.localizedDescription)" }
     }
 }
-
-#if DEBUG
-#Preview {
-    let container: ModelContainer = {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let c = try! ModelContainer(for: Script.self, configurations: config)
-        let context = ModelContext(c)
-        context.insert(Script(title: "已有稿件", content: "内容", folder: "口播"))
-        try? context.save()
-        return c
-    }()
-    return EditorView(script: nil)
-        .modelContainer(container)
-        .environmentObject(AppSettings())
-}
-#endif

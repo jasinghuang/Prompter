@@ -11,8 +11,11 @@ final class Script {
     var starred: Bool
     var folder: String?
     var isFilmed: Bool
+    // Optional additive field: existing stores migrate with every script still active.
+    var deletedAt: Date? = nil
 
     init(
+        id: UUID = UUID(),
         title: String = "未命名稿件",
         content: String = "",
         folder: String? = nil,
@@ -21,7 +24,7 @@ final class Script {
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
-        self.id = UUID()
+        self.id = id
         self.title = title
         self.content = content
         self.createdAt = createdAt

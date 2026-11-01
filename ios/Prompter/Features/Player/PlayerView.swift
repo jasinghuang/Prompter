@@ -1,10 +1,13 @@
 import SwiftUI
 import SwiftData
 
-/// 播放页（M3）：TextKit 2 滚动引擎 + 双胶囊顶栏 + 中央播放提示 + 引导线 + 底部字号/速度 + 设置抽屉
-/// 交互与 Web 版 Teleprompter.tsx 一一对应：轻点开始/暂停、拖动回看、双指捏合调字号、播放中非必要控件自动隐藏
+/// Black/gold controls appear while paused; tapping the text toggles playback.
 struct PlayerView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @StateObject private var operations = ScriptOperations()
     @EnvironmentObject private var settings: AppSettings
     let script: Script
 
@@ -13,8 +16,7 @@ struct PlayerView: View {
     @State private var engine = ScrollEngineController()
     @State private var isPlaying = false
     @State private var activeIndex = 0
-    @State private var atBottom = false
-    @State private var pointerDown = false // 手指按住屏幕（拖拽浏览）时隐藏中央提示
+    @State private var showReturnHint = false
     @State private var elapsed = 0
     @State private var paragraphStarts: Set<Int> = []
     @State private var keywordTracker = KeywordPauseTracker()
@@ -22,13 +24,11 @@ struct PlayerView: View {
 
     @State private var showSettings = false
     @State private var showMirror = false
-    @State private var editing = false
-    @State private var showBlur = false
     @State private var showOnboarding = !UserDefaults.standard.bool(forKey: PlayerView.onboardKey)
     @State private var completed = false
     @State private var toast: Toast?
     @State private var toastTask: Task<Void, Never>?
-    @State private var hintPulse = false
+    @State private var returnTask: Task<Void, Never>?
 
     struct Toast: Equatable {
         var text: String
@@ -51,23 +51,13 @@ struct PlayerView: View {
             Color.canvas.ignoresSafeArea()
             reader
             guideLines
-            centerHint
             topBar
-            bottomControls
-            backToTop
+            if !isPlaying { bottomControls }
             toastView
             onboarding
-            // 弹窗打开时：透明遮罩拦截背景交互，点击空白即刻关弹窗+模糊（三层触发的第一层）
-            if showBlur {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if editing { editing = false }
-                        showBlur = false
-                    }
-                    .ignoresSafeArea()
+            PlayerSettingsDrawer(open: $showSettings) {
+                showSettings = false; showOnboarding = true
             }
-            PlayerSettingsDrawer(open: $showSettings)
             // 前置化妆镜（最顶层；打开才取流，关闭即释放）
             if showMirror {
                 CameraMirrorView(open: $showMirror)
@@ -75,10 +65,7 @@ struct PlayerView: View {
                     .zIndex(10)
             }
         }
-        .blur(radius: showBlur ? 8 : 0)
-        // 出现=淡入；消失=瞬时（收起动画后不再拖 0.25s 淡出尾巴）
-        .animation(showBlur ? .easeOut(duration: 0.25) : nil, value: showBlur)
-        .animation(.easeOut(duration: 0.22), value: showMirror)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: showMirror)
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .onAppear {
@@ -86,7 +73,7 @@ struct PlayerView: View {
             paragraphStarts = PrompterCore.paragraphStarts(script.content)
             #if DEBUG
             // 自动化截图验证用：-skipOnboard 跳过引导 / -autoPlay 直接播放 / -openSettings 打开设置抽屉
-            // -pauseParagraph=段落暂停+高速（验证自动暂停）；-fastEnd=仅高速（快速滚到底验证回顶按钮）
+            // -pauseParagraph=段落暂停+高速；-fastEnd=仅高速（验证读完提示和点击时间回顶）
             let args = ProcessInfo.processInfo.arguments
             let testRun = args.contains("-pauseParagraph") || args.contains("-fastEnd")
             if args.contains("-skipOnboard") || testRun { showOnboarding = false }
@@ -95,10 +82,10 @@ struct PlayerView: View {
             if testRun {
                 UserDefaults.standard.set(true, forKey: "debug_player_test_ran")
                 settings.data.scrollSpeed = 700
-                if args.contains("-pauseParagraph") { settings.data.pauseOnParagraph = true }
+                if args.contains("-pauseParagraph") { settings.data.automaticPause = .paragraph }
             } else if UserDefaults.standard.bool(forKey: "debug_player_test_ran") {
                 // 上次是验证运行，还原设置
-                settings.data.pauseOnParagraph = false
+                settings.data.automaticPause = .off
                 settings.data.scrollSpeed = SettingsData.defaults.scrollSpeed
                 UserDefaults.standard.set(false, forKey: "debug_player_test_ran")
             }
@@ -106,32 +93,29 @@ struct PlayerView: View {
         }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
-            toastTask?.cancel()
+            toastTask?.cancel(); returnTask?.cancel(); settings.flush()
         }
         .onChange(of: script.content) { _, content in
             paragraphStarts = PrompterCore.paragraphStarts(content)
+            keywordTracker.reset(); paragraphTracker.reset(); cancelCompletionReturn()
         }
         .onChange(of: activeIndex) { _, _ in checkAutoPause() }
         .onChange(of: isPlaying) { _, playing in
             if playing { checkAutoPause() }
         }
         .onChange(of: settings.data.pauseKeyword) { _, _ in keywordTracker.reset() }
-        .onChange(of: editing) { _, value in
-            if !value { showBlur = false }
+        .onChange(of: settings.data.automaticPause) { _, _ in keywordTracker.reset(); paragraphTracker.reset() }
+        .onChange(of: showSettings) { _, open in if open { isPlaying = false; cancelCompletionReturn() } }
+        .onChange(of: showMirror) { _, open in if open { isPlaying = false; cancelCompletionReturn() } }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { isPlaying = false; settings.flush() }
+            if phase == .background { showMirror = false }
+            UIApplication.shared.isIdleTimerDisabled = phase == .active
         }
         .task(id: isPlaying) { await runTimer() }
-        .sheet(isPresented: $editing) {
-            EditorView(script: script)
-                .presentationDetents([.fraction(0.80), .large])
-                .presentationDragIndicator(.hidden)
-                .presentationBackground(Color.canvas)
-                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.80))) // 让空白点击直达遮罩层
-                .onAppear { showBlur = true }
-                .onDisappear {
-                    showBlur = false
-                    if script.isDeleted { dismiss() } // 编辑页做了智能拆分，原稿已不存在
-                }
-        }
+        .alert("操作未完成", isPresented: Binding(get: { operations.errorMessage != nil }, set: { if !$0 { operations.errorMessage = nil } })) {
+            Button("知道了", role: .cancel) { operations.errorMessage = nil }
+        } message: { Text(operations.errorMessage ?? "") }
     }
 
     // MARK: 正文
@@ -145,19 +129,13 @@ struct PlayerView: View {
             controller: engine,
             onActiveIndex: { activeIndex = $0 },
             onReachEnd: handleReachEnd,
-            onAtBottom: { atBottom = $0 },
-            onPointerDown: { pointerDown = $0 },
-            onTap: {
-                if !isPlaying && engine.isAtTop {
-                    elapsed = 0 // 从头开拍一条新计时；暂停续播不清零（与 Web 一致）
-                }
-                isPlaying.toggle()
-            },
+            onAtBottom: { if !$0 { showReturnHint = false } },
+            onTap: togglePlayback,
             onPinch: { size in
                 settings.data.fontSize = size
-                showToast("字号 \(size)px", duration: nil)
+                showToast("字号 \(size) pt", duration: nil)
             },
-            onPinchEnd: { size in showToast("字号 \(size)px", duration: 0.6) },
+            onPinchEnd: { size in showToast("字号 \(size) pt", duration: 0.6) },
             onEdgeBack: { dismiss() }, // 左缘右滑返回列表，对齐系统返回手势
             onUserDragPause: {
                 if isPlaying { isPlaying = false } // 播放中拖动正文=回看，自动暂停并停表
@@ -165,117 +143,64 @@ struct PlayerView: View {
         )
         .scaleEffect(x: settings.data.mirror ? -1 : 1, y: 1)
         .ignoresSafeArea()
-        // 设置抽屉打开时正文做模糊处理，避免抽屉文字与脚本文案叠在一起看不清
-        .blur(radius: showSettings ? 8 : 0)
-        .animation(.easeOut(duration: 0.25), value: showSettings)
+        .accessibilityAction(named: isPlaying ? "暂停提词" : "开始提词", togglePlayback)
+
     }
 
     // MARK: 顶栏——双胶囊（左：导航/状态，右：操作，播放中自动隐藏）
 
     private var topBar: some View {
-        HStack(spacing: 10) {
-            CapsuleBar {
-                CapsuleButton(icon: "chevron.left", label: "返回") { dismiss() }
-                CapsuleDivider()
-                HStack(spacing: 7) {
-                    // 播放/暂停状态位：两态同占 12pt 盒，切换时数字不横移
-                    ZStack {
-                        if isPlaying {
-                            Circle()
-                                .fill(Color.dangerRed)
-                                .overlay(
-                                    Circle().strokeBorder(
-                                        LinearGradient(colors: [.white.opacity(0.3), .clear], startPoint: .top, endPoint: .center),
-                                        lineWidth: 1
-                                    )
-                                )
-                                .shadow(color: Color(red: 239 / 255, green: 68 / 255, blue: 68 / 255).opacity(0.5), radius: 3)
-                        } else {
-                            Image(systemName: "pause.circle")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.white.opacity(0.35))
-                        }
-                    }
-                    .frame(width: 12, height: 12)
-                    Text(PrompterCore.formatTime(elapsed))
-                        .font(.system(size: 13, design: .monospaced))
-                        .monospacedDigit()
-                        .tracking(0.5)
-                        .fixedSize() // 防止被挤成两行
-                        .foregroundStyle(.white.opacity(0.6))
-                        .accessibilityIdentifier("player.elapsed")
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                CapsuleBar {
+                    CapsuleButton(icon: "chevron.left", label: "返回") { dismiss() }
+                    CapsuleDivider()
+                    Button(action: returnToTop) {
+                        HStack(spacing: 7) {
+                            Image(systemName: isPlaying ? "play.fill" : "pause.fill")
+                                .font(.system(size: 10)).foregroundStyle(isPlaying ? Color.accentGold : .textSecondary)
+                            Text(PrompterCore.formatTime(elapsed))
+                                .font(.system(.caption, design: .monospaced)).monospacedDigit()
+                                .foregroundStyle(.textSecondary).fixedSize()
+                                .accessibilityIdentifier("player.elapsed")
+                        }.padding(.horizontal, 8).frame(minWidth: 44, minHeight: 44)
+                    }.buttonStyle(PressableStyle())
+                        .accessibilityIdentifier("player.returnToTop")
+                        .accessibilityLabel("回到顶部")
+                        .accessibilityValue("\(isPlaying ? "提词中" : "已暂停")，\(PrompterCore.formatTime(elapsed))")
+                        .accessibilityHint("回到正文开头，暂停并将计时归零")
+                    CapsuleDivider()
+                    CapsuleButton(icon: "camera", label: "前置镜子") { isPlaying = false; showMirror = true }
+                        .accessibilityIdentifier("player.mirror")
                 }
-                .padding(.horizontal, 11)
-                .frame(height: 34)
-                .accessibilityLabel(isPlaying ? "播放中" : "已暂停")
-                CapsuleDivider()
-                CapsuleButton(icon: "camera", label: "前置镜子") { showMirror = true }
-            }
-
-            Spacer(minLength: 0)
-
-            CapsuleBar {
-                CapsuleButton(
-                    icon: "checkmark.circle",
-                    label: script.isFilmed ? "取消已拍摄标记" : "标记为已拍摄",
-                    active: script.isFilmed
-                ) { toggleFilmed() }
-                CapsuleDivider()
-                CapsuleButton(icon: "pencil.line", label: "编辑") {
-                    isPlaying = false
-                    editing = true
+                Spacer(minLength: 0)
+                CapsuleBar {
+                    CapsuleButton(icon: script.isFilmed ? "checkmark.circle.fill" : "checkmark.circle",
+                                  label: script.isFilmed ? "取消已拍摄标记" : "标记为已拍摄",
+                                  active: script.isFilmed, action: toggleFilmed)
+                        .accessibilityIdentifier("player.filmed")
+                        .accessibilityValue(script.isFilmed ? "已拍摄" : "待拍摄")
+                    CapsuleDivider()
+                    CapsuleButton(icon: "slider.horizontal.3", label: "设置") { isPlaying = false; showSettings = true }
+                        .accessibilityIdentifier("player.settings")
                 }
-                CapsuleDivider()
-                CapsuleButton(icon: "slider.horizontal.3", label: "设置") { showSettings = true }
+                .opacity(isPlaying ? 0 : 1).allowsHitTesting(!isPlaying)
+                .accessibilityHidden(isPlaying)
             }
-            .opacity(isPlaying ? 0 : 1)
-            .offset(y: isPlaying ? -8 : 0)
-            .allowsHitTesting(!isPlaying)
+            if showReturnHint && !isPlaying {
+                Text("已读完，点击时间回到顶部")
+                    .font(.caption).foregroundStyle(.textSecondary)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Color.surface, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.07)))
+                    .accessibilityIdentifier("player.returnHint")
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
         }
-        .animation(.easeInOut(duration: 0.3), value: isPlaying)
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: isPlaying)
+        .padding(.horizontal, 16).padding(.top, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-
-    // MARK: 中央播放提示（暂停时；穿透不拦截，瞄准图标点也能播放）
-
-    @ViewBuilder
-    private var centerHint: some View {
-        if !isPlaying && !pointerDown && !showOnboarding && !showSettings {
-            VStack(spacing: 14) {
-                ZStack {
-                    Circle()
-                        .fill(Color.black.opacity(0.55))
-                        .frame(width: 88, height: 88)
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                        .frame(width: 88, height: 88)
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 34))
-                        .foregroundStyle(Color.accentGold)
-                        .offset(x: 2)
-                }
-                .shadow(color: .black.opacity(0.45), radius: 22, y: 8) // 托底，把提示从正文上“抬”出来
-                .shadow(color: Color.accentGold.opacity(0.35), radius: 16) // 金色微光，与引导线同族
-                Text("点击屏幕任意位置播放")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.55))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(Color.black.opacity(0.45), in: Capsule()) // 垫底，避免被大字正文穿透
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
-            }
-            .opacity(hintPulse ? 1 : 0.72)
-            .scaleEffect(hintPulse ? 1.03 : 1)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                    hintPulse = true
-                }
-            }
-            .onDisappear { hintPulse = false }
-            .allowsHitTesting(false)
-        }
     }
 
     // MARK: 阅读引导线（金色辉光竖条，左右各一）
@@ -288,7 +213,7 @@ struct PlayerView: View {
         }
         .padding(.horizontal, 12)
         .opacity(isPlaying ? 1 : 0) // 暂停时让位正文，播放时才亮起
-        .animation(.easeInOut(duration: 0.3), value: isPlaying)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: isPlaying)
         .allowsHitTesting(false)
     }
 
@@ -302,57 +227,50 @@ struct PlayerView: View {
     // MARK: 底部控件（字号 / 速度，播放中自动隐藏）
 
     private var bottomControls: some View {
-        HStack(spacing: 12) {
-            ParamGroup(label: "字号", value: settings.data.fontSize,
-                       range: PrompterCore.fontSizeMin...PrompterCore.fontSizeMax, step: 2) {
-                settings.data.fontSize = $0
+        GeometryReader { geometry in
+            // Outer margins and inner padding total 60pt; each label/value pair uses 84pt.
+            // After both pairs and the 16pt gap, split the remaining track width 1:2.
+            let available = max(0, geometry.size.width - 60)
+            let horizontal = available >= 394
+            let speedTrack = horizontal ? (available - 184) * 2 / 3 : max(70, available - 84)
+            let fontTrack = horizontal ? speedTrack / 2 : speedTrack
+            Group {
+                if horizontal {
+                    HStack(spacing: 16) { parameters(fontTrack: fontTrack, speedTrack: speedTrack) }
+                } else {
+                    VStack(alignment: .leading, spacing: 0) { parameters(fontTrack: fontTrack, speedTrack: speedTrack) }
+                }
             }
-            ParamGroup(label: "速度", value: settings.data.scrollSpeed,
-                       range: PrompterCore.speedMin...PrompterCore.speedMax, step: 10) {
-                settings.data.scrollSpeed = $0
-            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background(Color.surface, in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.white.opacity(0.1)))
+            .padding(.horizontal, 16).padding(.bottom, 16)
+            .background(Color.canvas.ignoresSafeArea(edges: .bottom))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.canvas.opacity(0.85), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
-        .opacity(isPlaying ? 0 : 1)
-        .offset(y: isPlaying ? 8 : 0)
-        .allowsHitTesting(!isPlaying)
-        .animation(.easeInOut(duration: 0.3), value: isPlaying)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 
-    // MARK: 回到顶部（停在最底部且暂停时出现）——胶囊体系，与底部控制条对齐呼吸
+    @ViewBuilder private func parameters(fontTrack: CGFloat, speedTrack: CGFloat) -> some View {
+        ParamGroup(label: "字号", value: settings.data.fontSize,
+            range: PrompterCore.fontSizeMin...PrompterCore.fontSizeMax, step: 2, trackWidth: fontTrack) { settings.data.fontSize = $0 }
+        ParamGroup(label: "速度", value: settings.data.scrollSpeed,
+            range: PrompterCore.speedMin...PrompterCore.speedMax, step: 1, trackWidth: speedTrack) { settings.data.scrollSpeed = $0 }
+    }
 
-    @ViewBuilder
-    private var backToTop: some View {
-        if atBottom && !isPlaying {
-            Button {
-                isPlaying = false
-                elapsed = 0
-                engine.scrollToIndex(0)
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 13, weight: .semibold))
-                    Text("回到顶部")
-                        .font(.system(size: 13, weight: .medium))
-                }
-                .foregroundStyle(.white.opacity(0.65))
-                .padding(.horizontal, 14)
-                .frame(height: 34)
-                .background(Color.surface.opacity(0.72), in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.07), lineWidth: 1))
-                .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
-            }
-            .buttonStyle(PressableStyle())
-            .padding(.bottom, 100) // 底部控制条（约 84pt）上方留 16pt 呼吸空间
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .transition(.opacity.combined(with: .offset(y: 8)))
-        }
+    private func togglePlayback() {
+        cancelCompletionReturn()
+        if !isPlaying && engine.isAtTop { elapsed = 0 }
+        isPlaying.toggle()
+    }
+
+    private func returnToTop() {
+        isPlaying = false
+        elapsed = 0
+        cancelCompletionReturn()
+        keywordTracker.reset(); paragraphTracker.reset()
+        toastTask?.cancel(); toast = nil
+        showReturnHint = false
+        engine.scrollToIndex(0)
     }
 
     // MARK: 提示胶囊（暂停原因 / 捏合字号 / 读完）
@@ -361,21 +279,21 @@ struct PlayerView: View {
     private var toastView: some View {
         if let toast {
             Text(toast.text)
-                .font(.system(size: 12))
+                .font(.subheadline)
                 .foregroundStyle(toast.color)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .background(Color.surface.opacity(0.94), in: Capsule())
+                .background(Color.surface, in: Capsule())
                 .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
-                .padding(.top, 80)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.bottom, 148)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 .allowsHitTesting(false)
                 .accessibilityIdentifier("player.toast")
         }
     }
 
-    // MARK: 新手引导（首次进入，5 秒或点击消失）
+    // MARK: 首次操作提示：明确确认后关闭，可从设置再次查看
 
     @ViewBuilder
     private var onboarding: some View {
@@ -391,17 +309,16 @@ struct PlayerView: View {
                         onboardLine("拖动文本", "回看上文")
                         onboardLine("双指捏合", "调整字号")
                     }
-                    Text("点击任意位置开始")
+                    Text("轻点正文开始，再点一下暂停")
                         .font(.system(size: 12))
                         .foregroundStyle(Color.textMuted)
                         .padding(.top, 8)
                 }
             }
-            .contentShape(Rectangle())
-            .onTapGesture { dismissOnboarding() }
-            .task {
-                try? await Task.sleep(for: .seconds(5))
-                dismissOnboarding()
+            .overlay(alignment: .bottom) {
+                Button("知道了") { dismissOnboarding() }
+                    .buttonStyle(.borderedProminent).tint(.accentGold).foregroundStyle(.canvas)
+                    .frame(minHeight: 44).padding(.bottom, 96)
             }
             .transition(.opacity)
         }
@@ -420,39 +337,38 @@ struct PlayerView: View {
     private func handleReachEnd() {
         guard !completed else { return }
         isPlaying = false
-        switch settings.data.completeAction {
-        case "restart":
+        switch settings.data.completion {
+        case .restart:
             // 重读：自动暂停重新生效，回到开头并暂停，计时归零（新一条）
-            keywordTracker.reset()
-            paragraphTracker.reset()
-            elapsed = 0
-            engine.scrollToIndex(0)
-        case "list":
+            returnToTop()
+        case .list:
+            if !script.isFilmed && !operations.update([script], in: context, change: { $0.isFilmed = true; $0.updatedAt = Date() }) { return }
             completed = true
-            if !script.isFilmed {
-                script.isFilmed = true
-                script.updatedAt = Date()
-            }
             showToast("✓ 已读完·已标记拍摄", color: .successGreen, duration: 1.2)
-            Task {
-                try? await Task.sleep(for: .seconds(1.2))
+            returnTask?.cancel()
+            returnTask = Task {
+                do { try await Task.sleep(for: .seconds(1.2)) } catch { return }
                 dismiss()
             }
-        default:
-            break // none：读完即停
+        case .none:
+            showReturnHint = true
         }
+    }
+
+    private func cancelCompletionReturn() {
+        returnTask?.cancel(); returnTask = nil; completed = false
     }
 
     private func checkAutoPause() {
         guard isPlaying else { return }
         let keyword = settings.data.pauseKeyword
-        if !keyword.isEmpty,
+        if settings.data.automaticPause == .keyword, !keyword.isEmpty,
            keywordTracker.shouldPause(content: script.content, keyword: keyword, activeIndex: activeIndex) {
             isPlaying = false
             showToast("已暂停：命中关键词「\(keyword)」")
             return
         }
-        if settings.data.pauseOnParagraph,
+        if settings.data.automaticPause == .paragraph,
            paragraphTracker.shouldPause(paragraphStarts: paragraphStarts, activeIndex: activeIndex) {
             isPlaying = false
             showToast("已暂停：段落分隔")
@@ -460,20 +376,19 @@ struct PlayerView: View {
     }
 
     private func toggleFilmed() {
-        script.isFilmed.toggle()
-        script.updatedAt = Date()
+        operations.update([script], in: context) { $0.isFilmed.toggle(); $0.updatedAt = Date() }
         // 不再弹提示：按钮自身的绿色高亮即状态反馈
     }
 
     /// duration 为 nil 时常驻（捏合过程中），由后续调用接管关闭
     private func showToast(_ text: String, color: Color = .accentGold, duration: Double? = 3) {
         toastTask?.cancel()
-        withAnimation(.easeOut(duration: 0.18)) { toast = Toast(text: text, color: color) }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { toast = Toast(text: text, color: color) }
         guard let duration else { return }
         toastTask = Task {
             try? await Task.sleep(for: .seconds(duration))
             guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.18)) { toast = nil }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { toast = nil }
         }
     }
 
@@ -489,7 +404,7 @@ struct PlayerView: View {
 
     private func dismissOnboarding() {
         guard showOnboarding else { return }
-        withAnimation(.easeOut(duration: 0.2)) { showOnboarding = false }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { showOnboarding = false }
         UserDefaults.standard.set(true, forKey: Self.onboardKey)
     }
 }
@@ -501,6 +416,7 @@ private struct ParamGroup: View {
     let value: Int
     let range: ClosedRange<Int>
     let step: Int
+    let trackWidth: CGFloat
     let onChange: (Int) -> Void
 
     var body: some View {
@@ -508,11 +424,12 @@ private struct ParamGroup: View {
             Text(label)
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.5))
+                .frame(width: 24, alignment: .leading)
             Text("\(value)")
                 .font(.system(size: 14, weight: .semibold, design: .monospaced))
                 .monospacedDigit()
                 .foregroundStyle(.white)
-                .padding(.horizontal, 10)
+                .frame(width: 48)
                 .padding(.vertical, 2)
                 .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
             Slider(
@@ -521,9 +438,10 @@ private struct ParamGroup: View {
                 step: Double(step)
             )
             .tint(.accentGold)
-            .frame(height: CTL.t1)
+            .frame(width: trackWidth, height: CTL.t1)
+            .accessibilityLabel(label)
+            .accessibilityIdentifier("player.slider.\(label)")
         }
-        .frame(maxWidth: .infinity)
     }
 }
 

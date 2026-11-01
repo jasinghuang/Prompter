@@ -11,6 +11,9 @@ import QuartzCore
 struct CameraMirrorView: View {
     @Binding var open: Bool
     @State private var status: Status = .loading
+    @State private var retryID = UUID()
+    @Environment(\.openURL) private var openURL
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Status: Equatable {
         case loading, ready, failed(String)
@@ -31,7 +34,7 @@ struct CameraMirrorView: View {
                                     cardHeight * (landscape ? 1.6 : 1.0))
                 mirrorCard
                     .frame(width: cardWidth, height: cardHeight)
-                    .transition(.scale(scale: 0.94).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.98).combined(with: .opacity))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -48,6 +51,7 @@ struct CameraMirrorView: View {
                     status = .ready
                 }
             })
+            .id(retryID)
             .opacity(status == .ready ? 1 : 0)
             if status != .ready { statusOverlay }
             closeButton
@@ -81,10 +85,18 @@ struct CameraMirrorView: View {
                     .font(.system(size: 22))
                     .foregroundStyle(.white.opacity(0.3))
                 Text(message)
+                if message.contains("权限") {
+                    Button("前往系统设置") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    }.frame(minHeight: 44).foregroundStyle(.accentGold)
+                } else {
+                    Button("重试") { status = .loading; retryID = UUID() }
+                        .frame(minHeight: 44).foregroundStyle(.accentGold)
+                }
             }
         }
-        .font(.system(size: 13))
-        .foregroundStyle(.white.opacity(0.5))
+        .font(.subheadline)
+        .foregroundStyle(.textSecondary)
         .multilineTextAlignment(.center)
         .padding(24)
     }
@@ -99,11 +111,12 @@ struct CameraMirrorView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.white)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                         .background(Color.black.opacity(0.45), in: Circle())
                         .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
                 }
                 .buttonStyle(PressableStyle())
+                .accessibilityLabel("关闭前置镜子")
                 .accessibilityIdentifier("mirror.close")
             }
             Spacer()
@@ -143,6 +156,8 @@ final class MirrorCameraUIView: UIView {
     private let queue = DispatchQueue(label: "prompter.camera")
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var rotationObservation: NSKeyValueObservation?
+    private var generation = 0
+    private var requested = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -156,40 +171,57 @@ final class MirrorCameraUIView: UIView {
     }
 
     func start() {
+        guard window != nil, !requested else { return }
+        requested = true; generation += 1
+        let expectedGeneration = generation
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .denied, .restricted:
             onStatus?("摄像头权限被拒绝，可在系统设置中允许后重试")
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 DispatchQueue.main.async {
-                    granted ? self?.configure() : self?.onStatus?("摄像头权限被拒绝，可在系统设置中允许后重试")
+                    guard let self, self.window != nil, self.generation == expectedGeneration else { return }
+                    granted ? self.configure(generation: expectedGeneration) : self.onStatus?("摄像头权限被拒绝，可在系统设置中允许后重试")
                 }
             }
         default:
-            configure()
+            configure(generation: expectedGeneration)
         }
     }
 
-    private func configure() {
+    private func configure(generation expectedGeneration: Int) {
         queue.async { [weak self] in
             guard let self else { return }
             guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
-                DispatchQueue.main.async { self.onStatus?("未检测到可用的摄像头") }
+                DispatchQueue.main.async {
+                    guard self.window != nil, self.generation == expectedGeneration else { return }
+                    self.onStatus?("未检测到可用的摄像头")
+                }
                 return
             }
             guard let input = try? AVCaptureDeviceInput(device: device) else {
-                DispatchQueue.main.async { self.onStatus?("摄像头暂时不可用（可能被其他应用占用）") }
+                DispatchQueue.main.async {
+                    guard self.window != nil, self.generation == expectedGeneration else { return }
+                    self.onStatus?("摄像头暂时不可用（可能被其他应用占用）")
+                }
                 return
             }
             session.beginConfiguration()
             session.inputs.forEach(session.removeInput)
             session.sessionPreset = .hd1280x720
-            if session.canAddInput(input) {
-                session.addInput(input)
+            guard session.canAddInput(input) else {
+                session.commitConfiguration()
+                DispatchQueue.main.async {
+                    guard self.window != nil, self.generation == expectedGeneration else { return }
+                    self.onStatus?("摄像头暂时不可用，请稍后重试")
+                }
+                return
             }
+            session.addInput(input)
             session.commitConfiguration()
             session.startRunning()
             DispatchQueue.main.async {
+                guard self.window != nil, self.generation == expectedGeneration else { return }
                 self.setupRotationCoordinator(device: device)
                 self.onStatus?(nil) // 就绪
             }
@@ -197,6 +229,7 @@ final class MirrorCameraUIView: UIView {
     }
 
     func stop() {
+        requested = false; generation += 1
         rotationObservation?.invalidate()
         rotationObservation = nil
         rotationCoordinator = nil

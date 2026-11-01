@@ -1,8 +1,5 @@
 import Foundation
 import SwiftData
-#if canImport(UIKit)
-import UIKit
-#endif
 
 // MARK: - PWA 导出 JSON 的形状
 
@@ -29,6 +26,7 @@ struct ExportedSettings: Codable {
     var completeAction: String?
     var splitMode: String?
     var splitKeyword: String?
+    var pauseMode: AutoPauseMode? = nil
 }
 
 struct ExportPayload: Codable {
@@ -44,40 +42,63 @@ struct ExportPayload: Codable {
 enum MigrationService {
     static let payloadType = "prompter-export"
 
+    static let maximumBytes = 10 * 1024 * 1024
     static func decode(_ json: String) -> ExportPayload? {
-        guard let data = json.data(using: .utf8),
+        guard json.utf8.count <= maximumBytes, let data = json.data(using: .utf8),
               let payload = try? JSONDecoder().decode(ExportPayload.self, from: data),
-              payload.type == payloadType || payload.scripts != nil else { return nil }
+              payload.type == nil || payload.type == payloadType,
+              payload.v == nil || payload.v == 1,
+              let scripts = payload.scripts, !scripts.isEmpty, scripts.count <= 10_000 else { return nil }
         return payload
     }
 
-    /// 导入到数据上下文，返回导入的稿件数
-    @discardableResult
-    static func importPayload(_ payload: ExportPayload, into context: ModelContext) -> Int {
-        let filmed = Set(payload.filmedIds ?? [])
-        var count = 0
+    static func duplicateCount(_ payload: ExportPayload, existing: [Script]) -> Int {
+        let ids = Set(existing.map { $0.id.uuidString.lowercased() })
+        var contentKeys = Set(existing.map { $0.title + "\u{0}" + $0.content })
+        var importedIDs = ids
+        var duplicates = 0
         for item in payload.scripts ?? [] {
-            let script = Script(
-                title: (item.title?.isEmpty == false) ? item.title! : "未命名稿件",
-                content: item.content ?? "",
-                folder: item.folder,
-                starred: item.starred ?? false,
-                isFilmed: filmed.contains(item.id ?? "")
-            )
-            if let created = item.createdAt {
-                script.createdAt = Date(timeIntervalSince1970: created / 1000)
-            }
-            if let updated = item.updatedAt {
-                script.updatedAt = Date(timeIntervalSince1970: updated / 1000)
-            }
-            context.insert(script)
-            count += 1
+            let key = normalizedTitle(item.title) + "\u{0}" + (item.content ?? "")
+            let id = item.id?.lowercased()
+            if id.map({ importedIDs.contains($0) }) == true || contentKeys.contains(key) { duplicates += 1 }
+            contentKeys.insert(key)
+            if let id { importedIDs.insert(id) }
         }
-        return count
+        return duplicates
+    }
+
+    @MainActor
+    @discardableResult
+    static func importPayload(_ payload: ExportPayload, into context: ModelContext) throws -> Int {
+        let existing = try context.fetch(FetchDescriptor<Script>())
+        var ids = Set(existing.map { $0.id.uuidString.lowercased() })
+        var keys = Set(existing.map { $0.title + "\u{0}" + $0.content })
+        let filmed = Set(payload.filmedIds ?? [])
+        var inserted: [Script] = []
+        for item in payload.scripts ?? [] {
+            let title = normalizedTitle(item.title), content = item.content ?? ""
+            let key = title + "\u{0}" + content
+            let incomingID = item.id?.lowercased()
+            if incomingID.map({ ids.contains($0) }) == true || keys.contains(key) { continue }
+            let script = Script(id: item.id.flatMap(UUID.init(uuidString:)) ?? UUID(),
+                title: title, content: content, folder: item.folder,
+                starred: item.starred ?? false, isFilmed: filmed.contains(item.id ?? ""))
+            if let created = item.createdAt, created.isFinite { script.createdAt = Date(timeIntervalSince1970: created / 1000) }
+            if let updated = item.updatedAt, updated.isFinite { script.updatedAt = Date(timeIntervalSince1970: updated / 1000) }
+            context.insert(script); inserted.append(script); keys.insert(key)
+            if let incomingID { ids.insert(incomingID) }
+        }
+        do { try context.save(); return inserted.count }
+        catch { inserted.forEach(context.delete); throw error }
+    }
+
+    private static func normalizedTitle(_ title: String?) -> String {
+        let cleaned = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return cleaned.isEmpty ? "未命名稿件" : cleaned
     }
 
     /// 把当前数据导出成与 PWA 同形状的 JSON（用于备份/反向迁移）
-    static func exportJSON(scripts: [Script], settings: SettingsData) -> String {
+    static func exportJSON(scripts: [Script], settings: SettingsData) throws -> String {
         struct EncodableExport: Codable {
             let type: String
             let v: Int
@@ -90,7 +111,7 @@ enum MigrationService {
         let payload = EncodableExport(
             type: payloadType,
             v: 1,
-            scripts: scripts.map {
+            scripts: scripts.filter { $0.deletedAt == nil }.map {
                 ExportedScript(
                     id: $0.id.uuidString,
                     title: $0.title,
@@ -101,7 +122,7 @@ enum MigrationService {
                     folder: $0.folder
                 )
             },
-            filmedIds: scripts.filter(\.isFilmed).map(\.id.uuidString),
+            filmedIds: scripts.filter { $0.deletedAt == nil && $0.isFilmed }.map { $0.id.uuidString },
             settings: ExportedSettings(
                 fontSize: settings.fontSize,
                 letterSpacing: settings.letterSpacing,
@@ -114,26 +135,11 @@ enum MigrationService {
                 pauseOnParagraph: settings.pauseOnParagraph,
                 completeAction: settings.completeAction,
                 splitMode: settings.splitMode,
-                splitKeyword: settings.splitKeyword
+                splitKeyword: settings.splitKeyword,
+                pauseMode: settings.automaticPause
             )
         )
-        return (try? encoder.encode(payload)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-    }
-
-    // MARK: 剪贴板（仅 iOS）
-
-    static func pasteboardString() -> String? {
-        #if canImport(UIKit)
-        return UIPasteboard.general.string
-        #else
-        return nil
-        #endif
-    }
-
-    static func copyToPasteboard(_ text: String) {
-        #if canImport(UIKit)
-        UIPasteboard.general.string = text
-        #endif
+        return String(decoding: try encoder.encode(payload), as: UTF8.self)
     }
 
     /// 从 Web 设置片段合并进当前设置（只覆盖有值字段）
@@ -151,5 +157,10 @@ enum MigrationService {
         if let v = s.completeAction { data.completeAction = v }
         if let v = s.splitMode { data.splitMode = v }
         if let v = s.splitKeyword { data.splitKeyword = v }
+        if let mode = s.pauseMode { data.automaticPause = mode }
+        else if s.pauseKeyword != nil || s.pauseOnParagraph != nil {
+            data.pauseMode = !data.pauseKeyword.isEmpty ? .keyword : data.pauseOnParagraph ? .paragraph : .off
+        }
+        data = data.normalized
     }
 }

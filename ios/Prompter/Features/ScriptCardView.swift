@@ -1,283 +1,155 @@
 import SwiftUI
 
-/// 稿件卡片 —— 逐项对齐 Web 版 SwipeableCard 的间距/字号/颜色/布局
+/// Black/gold card with direct footer shortcuts; the List owns row swipes.
 struct ScriptCardView: View {
-    enum Action {
-        case open, edit, delete, toggleStar, toggleFilmed, showFolderPicker
-        case longPress, toggleSelect // 长按进入多选 / 多选中点选
-    }
-
+    enum Action { case open, edit, delete, toggleStar, toggleFilmed, showFolderPicker, longPress, toggleSelect }
     let script: Script
     let wordsPerMinute: Int
-    let folders: [String]
+    var summary: ScriptLibraryState.Summary?
     var selectMode = false
     var isSelected = false
-    var highlighted = false // 最近打开：返回列表时金边常亮 + 光晕呼吸两次（Web: highlighted）
+    var highlighted = false
     let onAction: (Action) -> Void
-
-    private var charCount: Int { PrompterCore.readableCharCount(script.content) }
-
-    @State private var longPressFired = false // 长按刚触发时吞掉随后的 click（Web: longPressFiredRef）
-    @State private var swipeArbiter = SwipeArbiter() // 滑动期间吞掉松手误触
-    @State private var helloGlow: Double = 0
-    @State private var isPressed = false // 整卡按压缩放（外层统一施加） // 高亮光晕强度：常亮 0.14，呼吸峰值 0.32
-
-    /// 呼吸相位 0..1（静止 0，峰值 1）
-    /// 内容层常驻底色：与"半透明叠 canvas"的静止观感等效的不透明色（遮盖式揭示的关键）
-    private var contentBackground: Color {
-        if script.isFilmed {
-            // green 6% over canvas(#0A0A0B) 的等效实色
-            Color(red: 11 / 255, green: 21 / 255, blue: 16 / 255)
-        } else {
-            // surface 70% over canvas 的等效实色
-            Color(red: 16 / 255, green: 16 / 255, blue: 19 / 255)
-        }
-    }
-
-    private var cardBorderColor: Color {
-        if selectMode && isSelected { return Color.accentGold.opacity(0.6) } // Web 多选选中
-        if highlighted { return Color.accentGold.opacity(0.45) } // Web: border-[#D4A432]/45
-        return script.isFilmed
-            ? Color.successGreen.opacity(0.3)
-            : Color.accentGold.opacity(0.15)
-    }
+    @State private var suppressNextTap = false
 
     var body: some View {
-        SwipeableCard(
-            isFilmed: script.isFilmed,
-            swipeEnabled: !selectMode, // 多选中禁用滑动（Web: bind 移除）
-            contentBackground: contentBackground,
-            cardBorderColor: cardBorderColor,
-            arbiter: swipeArbiter,
-            onCommitFilmed: { onAction(.toggleFilmed) }, // 右滑提交
-            onDelete: { onAction(.delete) }               // 左滑阶段2提交
-        ) {
-            Button {
-                if swipeArbiter.didSwipe { return } // 刚发生过滑动，吞掉松手误触
-                if longPressFired {
-                    longPressFired = false // 长按刚触发，吞掉这次点击
-                    return
-                }
-                onAction(selectMode ? .toggleSelect : .open)
-            } label: {
-                cardContent
-                    .overlay(alignment: .topTrailing) {
-                        if selectMode { selectCircle.padding(12) } // 占编辑/删除按钮的同一位置
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 4) {
+                Button {
+                    guard !suppressNextTap else { suppressNextTap = false; return }
+                    onAction(selectMode ? .toggleSelect : .open)
+                } label: {
+                    VStack(alignment: .leading, spacing: 9) {
+                        HStack(spacing: 6) {
+                            if script.isFilmed {
+                                Image(systemName: "checkmark.circle.fill").foregroundStyle(.successGreen).accessibilityHidden(true)
+                            }
+                            Text(script.title).font(.headline).foregroundStyle(.textPrimary).lineLimit(2)
+                        }
+                        if !script.content.isEmpty {
+                            Text(summary?.excerpt ?? String(script.content.prefix(240)))
+                                .font(.subheadline).foregroundStyle(.textSecondary).lineLimit(2).lineSpacing(3)
+                        }
                     }
-                    // 底色已移到静态外壳，内容层透明区域需显式 contentShape 才可点
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 14).padding(.bottom, 4).padding(.leading, 16)
                     .contentShape(Rectangle())
-            }
-            .buttonStyle(CardPressTracker(isPressed: $isPressed)) // 同步按压态到外层
-            // 长按与点按共存（挂 Button 上）；>10pt 移动取消，对齐 Web slop
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.5, maximumDistance: 10)
-                    .onEnded { _ in
-                        guard !selectMode else { return }
-                        longPressFired = true
-                        onAction(.longPress)
+                }
+                .buttonStyle(ScriptOpenButtonStyle(suppressTap: $suppressNextTap))
+                .simultaneousGesture(LongPressGesture(minimumDuration: 0.5, maximumDistance: 10).onEnded { _ in
+                    guard !selectMode else { return }
+                    suppressNextTap = true
+                    onAction(.longPress)
+                })
+                .accessibilityIdentifier("card")
+                .accessibilityValue(script.isFilmed ? "已拍摄" : "待拍摄")
+                .accessibilityHint(selectMode ? "轻点切换选择" : "打开提词，长按选择稿件")
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityAction(named: "编辑") { onAction(.edit) }
+                .accessibilityAction(named: "删除") { onAction(.delete) }
+
+                if selectMode {
+                    Button { onAction(.toggleSelect) } label: {
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .font(.title3).foregroundStyle(isSelected ? Color.accentGold : .textMuted)
+                            .frame(width: 44, height: 44).contentShape(Rectangle())
                     }
-            )
-            .accessibilityIdentifier("card")
-        }
-        .scaleEffect(isPressed ? 0.98 : 1) // 整卡缩放（含底色+描边，PWA 同款 active:scale-0.98）
-        .animation(.easeOut(duration: 0.15), value: isPressed)
-        // 返回高亮（Web card-hello：box-shadow 带 spread，最亮处贴边一圈）。
-        // SwiftUI 无 spread → 双层复刻：边缘亮环（描边+轻模糊）+ 环境光晕（shadow）
-        // 只在有高亮时挂 shadow/overlay（opacity 0 的合成滤镜仍耗 GPU，多卡列表点击卡顿帮凶）
-        .shadow(color: Color.accentGold.opacity(helloGlow), radius: 18) // 柔和外发光（Web: 0 0 22px 0.14）
-        .onChange(of: highlighted) { _, isOn in
-            if isOn {
-                // 静态光晕：亮起后保持不消失；打开下一张时前一张自动灭（列表只传一张 true）
-                withAnimation(.easeOut(duration: 0.4)) { helloGlow = 0.25 }
-            } else {
-                withAnimation(.easeOut(duration: 0.3)) { helloGlow = 0 }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isSelected ? "取消选择\(script.title)" : "选择\(script.title)")
+                } else {
+                    Button { onAction(.edit) } label: {
+                        Image(systemName: "square.and.pencil").font(.system(size: 17))
+                            .foregroundStyle(.textSecondary).frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel("编辑\(script.title)").accessibilityIdentifier("card.edit")
+                }
             }
-        }
-        .onAppear {
-            // Lazy 网格中卡片若在返回后才滚入视口，change 已错过 → 出场即亮
-            if highlighted && helloGlow == 0 {
-                helloGlow = 0.25
+            .padding(.trailing, 6)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 4) {
+                    metadata
+                    Spacer(minLength: 4)
+                    shortcuts
+                }
+                // Keep every field available at larger text sizes instead of hiding the date.
+                VStack(alignment: .leading, spacing: 0) {
+                    metadata
+                    HStack { Spacer(minLength: 0); shortcuts }
+                }
             }
+            .padding(.leading, 16).padding(.trailing, 6).padding(.bottom, 4)
         }
+        .background(script.isFilmed ? Color.successGreen.opacity(0.045) : Color.cardSurface,
+                    in: RoundedRectangle(cornerRadius: CTL.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: CTL.cardRadius, style: .continuous)
+            .strokeBorder(borderColor, lineWidth: highlighted || isSelected ? 1.5 : 1))
+    }
+
+    private var borderColor: Color {
+        if isSelected || highlighted { return .accentGold.opacity(0.65) }
+        return script.isFilmed ? .successGreen.opacity(0.25) : .accentGold.opacity(0.16)
+    }
+
+    private var metadata: some View {
+        let count = summary?.characterCount ?? PrompterCore.readableCharCount(script.content)
+        let duration = PrompterCore.estimateDurationSeconds(charCount: count, wordsPerMinute: wordsPerMinute)
+        return HStack(spacing: 7) {
+            Text(script.updatedAt, format: .dateTime.month().day())
+            Text("|").accessibilityHidden(true)
+            Text("\(count)字")
+            Text("|").accessibilityHidden(true)
+            Text("约\(PrompterCore.formatTime(duration))")
+        }
+        .font(.caption).foregroundStyle(.textMuted).lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var shortcuts: some View {
+        HStack(spacing: 0) {
+            Button { onAction(.showFolderPicker) } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "folder").font(.system(size: 15))
+                        .foregroundStyle(script.folder == nil ? Color.textMuted : .accentGold)
+                    if let folder = script.folder {
+                        Text(folder).font(.caption).foregroundStyle(.textSecondary)
+                            .lineLimit(1).truncationMode(.tail)
+                    }
+                }
+                .padding(.horizontal, 8).frame(minWidth: 44, minHeight: 44)
+                .frame(maxWidth: 108).contentShape(Rectangle())
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("移动到文件夹")
+            .accessibilityValue(script.folder ?? "未分组")
+            .accessibilityIdentifier("card.folder")
+
+            Button { onAction(.toggleStar) } label: {
+                Image(systemName: script.starred ? "star.fill" : "star")
+                    .font(.system(size: 17))
+                    .foregroundStyle(script.starred ? Color.accentGold : .textMuted)
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel(script.starred ? "取消星标" : "添加星标")
+            .accessibilityValue(script.starred ? "已星标" : "未星标")
+            .accessibilityIdentifier("card.star")
+        }
+        .disabled(selectMode).opacity(selectMode ? 0.4 : 1)
     }
 }
 
-private extension ScriptCardView {
-    /// 多选圈（Web: 22pt 圆——选中=金底深色勾；未选=白30描边）
-    var selectCircle: some View {
-        ZStack {
-            Circle()
-                .fill(isSelected ? Color.accentGold : Color.black.opacity(0.4))
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color.canvas)
+private struct ScriptOpenButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Binding var suppressTap: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.8 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.99 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if !pressed { DispatchQueue.main.async { suppressTap = false } }
             }
-        }
-        .frame(width: 22, height: 22)
-        .overlay(Circle().strokeBorder(isSelected ? .clear : Color.white.opacity(0.3), lineWidth: 1))
-        .allowsHitTesting(false)
-    }
-
-    private var cardContent: some View {
-        VStack(alignment: .leading, spacing: 6) {  // Web: mb-1.5 = 6pt
-            // ── 标题行 ──
-            titleRow
-
-            // ── 正文摘要（Web: text-sm text-white/25 line-clamp-2） ──
-            if !script.content.isEmpty {
-                Text(script.content)
-                    .font(.system(size: 14))                       // Web: text-sm = 14pt
-                    .foregroundStyle(.white.opacity(script.isFilmed ? 0.15 : 0.25))
-                    .lineLimit(2)
-                    .lineSpacing(4)                                 // Web: leading-relaxed ≈ 1.6
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            // ── 元信息行（Web: text-xs text-white/50） ──
-            metaRow
-        }
-        .padding(.horizontal, 16)   // Web: px-4 = 16pt
-        .padding(.top, 12)          // Web: pt-3 = 12pt
-        .padding(.bottom, 10)       // Web: pb-2.5 = 10pt
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // 底色/描边由 SwipeableCard 的静态外壳承担（不随拖动滑动）
-    }
-
-    // MARK: 标题行（Web: items-start justify-between，标题截断，按钮在右侧）
-
-    private var titleRow: some View {
-        HStack(alignment: .top, spacing: 8) {
-            // 左侧：已拍勾 + 标题（Web: items-center gap-2 min-w-0）
-            HStack(spacing: 6) {
-                if script.isFilmed {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.successGreen)
-                }
-                Text(script.title)
-                    .font(.system(size: 16, weight: .semibold))    // Web: text-base font-semibold
-                    .foregroundStyle(script.isFilmed ? .white.opacity(0.5) : .white)
-                    .strikethrough(script.isFilmed)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // 右侧：操作按钮（Web: ghost 样式 32pt 高、rounded-lg、无底色；多选中 invisible 保占位）
-            HStack(spacing: 4) {                                   // Web: gap-1 = 4pt
-                ghostButton(icon: "pencil", tint: .white.opacity(0.40)) {
-                    onAction(.edit)
-                }
-                .accessibilityIdentifier("card.edit")
-                .opacity(selectMode ? 0 : 1)
-                .allowsHitTesting(!selectMode) // 隐形仍会吞点击，必须整体摘出命中测试
-                ghostButton(icon: "trash", tint: .accentGold.opacity(0.70)) {
-                    onAction(.delete)
-                }
-                .accessibilityIdentifier("card.delete")
-                .opacity(selectMode ? 0 : 1)
-                .allowsHitTesting(!selectMode)
-            }
-        }
-    }
-
-    /// 幽灵按钮（Web: 无底色，hover 才现淡底；h-[ctl-3] 32pt 高，rounded-lg，px-2.5）
-    private func ghostButton(icon: String, tint: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 13))                            // Web: size={13}
-                .foregroundStyle(tint)
-                .frame(width: 32, height: 32)                      // Web: h-[var(--ctl-3-h)] = 32pt
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: 元信息行
-
-    private var metaRow: some View {
-        HStack(spacing: 10) {                                       // Web: gap-2.5 = 10pt
-            // 左侧：日期 | 字数 | 时长
-            HStack(spacing: 10) {
-                Text(script.updatedAt, format: mdyFormat)
-                separator
-                Text("\(charCount)字")
-                separator
-                Text("约\(durationText)")
-            }
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // 右侧：文件夹 + 星标（Web: ml-auto gap-1.5；多选中禁用降透明度）
-            HStack(spacing: 6) {
-                folderButton
-                starButton
-            }
-            .opacity(selectMode ? 0.3 : 1)
-            .allowsHitTesting(!selectMode)
-        }
-        .font(.system(size: 12))                                    // Web: text-xs = 12pt
-        .foregroundStyle(.white.opacity(script.isFilmed ? 0.35 : 0.50))
-    }
-
-    private var separator: some View {
-        Text("|").foregroundStyle(.white.opacity(0.15))
-    }
-
-    // MARK: 文件夹按钮
-
-    /// Web 版对齐：图标恒为轮廓 Folder（形状不随有无文件夹变化），有文件夹=金色+名字
-    private var folderButton: some View {
-        Button {
-            onAction(.showFolderPicker)
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "folder")
-                    .font(.system(size: 14))                        // Web: size={14}
-                if let folder = script.folder {
-                    Text(folder)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.50))      // Web: text-white/50
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .fixedSize(horizontal: false, vertical: true) // 理想宽=文本宽，空间不足时尾部截断
-                }
-            }
-            .foregroundStyle(script.folder != nil ? .accentGold : .white.opacity(0.35))
-            .frame(height: 32)
-            .padding(.horizontal, 8)                                // Web: px-2
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("card.folder")
-    }
-
-    // MARK: 星标按钮
-
-    private var starButton: some View {
-        Button {
-            onAction(.toggleStar)
-        } label: {
-            Image(systemName: script.starred ? "star.fill" : "star")
-                .font(.system(size: 15))                            // Web: size={15}
-                .foregroundStyle(script.starred ? .accentGold : .white.opacity(0.35))
-                .frame(width: 32, height: 32)                       // Web: p-1.5 + 15pt icon
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("card.star")
-    }
-
-    // MARK: 工具
-
-    private var durationText: String {
-        PrompterCore.formatTime(
-            PrompterCore.estimateDurationSeconds(charCount: charCount, wordsPerMinute: wordsPerMinute)
-        )
-    }
-
-    private var mdyFormat: Date.FormatStyle {
-        .dateTime.year().month().day()
     }
 }
