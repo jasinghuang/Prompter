@@ -30,6 +30,36 @@ struct SettingsData: Codable, Equatable {
     var splitMode: String = "paragraph"
     var splitKeyword: String = ""
     var pauseMode: AutoPauseMode? = nil
+    var airPodsNodEnabled = false
+    var headGestureCalibration: HeadGestureCalibration? = nil
+
+    init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case fontSize, letterSpacing, lineHeight, scrollSpeed, mirror, horizontalPadding, textAlign
+        case pauseKeyword, pauseOnParagraph, completeAction, splitMode, splitKeyword, pauseMode
+        case airPodsNodEnabled, headGestureCalibration
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        fontSize = try c.decodeIfPresent(Int.self, forKey: .fontSize) ?? 64
+        letterSpacing = try c.decodeIfPresent(Double.self, forKey: .letterSpacing) ?? 0.05
+        lineHeight = try c.decodeIfPresent(Double.self, forKey: .lineHeight) ?? 1.6
+        scrollSpeed = try c.decodeIfPresent(Int.self, forKey: .scrollSpeed) ?? 160
+        mirror = try c.decodeIfPresent(Bool.self, forKey: .mirror) ?? false
+        horizontalPadding = try c.decodeIfPresent(Int.self, forKey: .horizontalPadding) ?? 8
+        textAlign = try c.decodeIfPresent(String.self, forKey: .textAlign) ?? "left"
+        pauseKeyword = try c.decodeIfPresent(String.self, forKey: .pauseKeyword) ?? ""
+        pauseOnParagraph = try c.decodeIfPresent(Bool.self, forKey: .pauseOnParagraph) ?? false
+        completeAction = try c.decodeIfPresent(String.self, forKey: .completeAction) ?? "none"
+        splitMode = try c.decodeIfPresent(String.self, forKey: .splitMode) ?? "paragraph"
+        splitKeyword = try c.decodeIfPresent(String.self, forKey: .splitKeyword) ?? ""
+        pauseMode = try c.decodeIfPresent(AutoPauseMode.self, forKey: .pauseMode)
+        airPodsNodEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .airPodsNodEnabled)) ?? false
+        // A damaged/future calibration must not erase unrelated reader preferences.
+        headGestureCalibration = try? c.decodeIfPresent(HeadGestureCalibration.self, forKey: .headGestureCalibration)
+    }
 
     static let defaults = SettingsData()
     var automaticPause: AutoPauseMode {
@@ -55,6 +85,10 @@ struct SettingsData: Codable, Equatable {
         if !["left", "center", "right"].contains(textAlign) { copy.textAlign = "left" }
         if SplitMode(rawValue: splitMode) == nil { copy.splitMode = "paragraph" }
         if CompletionAction(rawValue: completeAction) == nil { copy.completeAction = "none" }
+        if headGestureCalibration?.valid != true {
+            copy.headGestureCalibration = nil
+            copy.airPodsNodEnabled = false
+        }
         return copy
     }
 }

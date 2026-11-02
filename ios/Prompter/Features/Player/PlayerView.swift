@@ -8,6 +8,7 @@ struct PlayerView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var operations = ScriptOperations()
+    @StateObject private var nodController = AirPodsNodController()
     @EnvironmentObject private var settings: AppSettings
     let script: Script
 
@@ -55,7 +56,7 @@ struct PlayerView: View {
             if !isPlaying { bottomControls }
             toastView
             onboarding
-            PlayerSettingsDrawer(open: $showSettings) {
+            PlayerSettingsDrawer(open: $showSettings, nodController: nodController) {
                 showSettings = false; showOnboarding = true
             }
             // 前置化妆镜（最顶层；打开才取流，关闭即释放）
@@ -92,6 +93,7 @@ struct PlayerView: View {
             #endif
         }
         .onDisappear {
+            nodController.shutdown()
             UIApplication.shared.isIdleTimerDisabled = false
             toastTask?.cancel(); returnTask?.cancel(); settings.flush()
         }
@@ -108,17 +110,40 @@ struct PlayerView: View {
         .onChange(of: showSettings) { _, open in if open { isPlaying = false; cancelCompletionReturn() } }
         .onChange(of: showMirror) { _, open in if open { isPlaying = false; cancelCompletionReturn() } }
         .onChange(of: scenePhase) { _, phase in
+            if phase == .background { nodController.interruptCalibration() }
             if phase != .active { isPlaying = false; settings.flush() }
             if phase == .background { showMirror = false }
             UIApplication.shared.isIdleTimerDisabled = phase == .active
         }
         .task(id: isPlaying) { await runTimer() }
+        .task(id: nodConfiguration) {
+            nodController.configure(profile: nodConfiguration.profile, suspended: nodConfiguration.suspended)
+        }
+        .onReceive(nodController.nods) { trigger in
+            guard settings.data.airPodsNodEnabled, !nodConfiguration.suspended else { nodController.discardNod(trigger); return }
+            applyPlaybackToggle()
+            nodController.confirmNodApplied(trigger, playing: isPlaying)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+        .onReceive(nodController.notices) { message in
+            guard settings.data.airPodsNodEnabled, !nodConfiguration.suspended else { return }
+            showToast(message)
+        }
         .alert("操作未完成", isPresented: Binding(get: { operations.errorMessage != nil }, set: { if !$0 { operations.errorMessage = nil } })) {
             Button("知道了", role: .cancel) { operations.errorMessage = nil }
         } message: { Text(operations.errorMessage ?? "") }
     }
 
     // MARK: 正文
+
+    private struct NodConfiguration: Equatable {
+        var profile: HeadGestureCalibration?
+        var suspended: Bool
+    }
+    private var nodConfiguration: NodConfiguration {
+        .init(profile: settings.data.airPodsNodEnabled ? settings.data.headGestureCalibration : nil,
+              suspended: scenePhase != .active || showSettings || showMirror || showOnboarding)
+    }
 
     private var reader: some View {
         PrompterScrollView(
@@ -138,6 +163,7 @@ struct PlayerView: View {
             onPinchEnd: { size in showToast("字号 \(size) pt", duration: 0.6) },
             onEdgeBack: { dismiss() }, // 左缘右滑返回列表，对齐系统返回手势
             onUserDragPause: {
+                nodController.rearm()
                 if isPlaying { isPlaying = false } // 播放中拖动正文=回看，自动暂停并停表
             }
         )
@@ -196,6 +222,18 @@ struct PlayerView: View {
                     .accessibilityIdentifier("player.returnHint")
                     .transition(.opacity)
                     .allowsHitTesting(false)
+            }
+            if settings.data.airPodsNodEnabled && !nodConfiguration.suspended && !isPlaying {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "airpodspro").foregroundStyle(Color.accentGold)
+                    Text(nodController.status).foregroundStyle(.textSecondary)
+                        .accessibilityIdentifier("player.nodStatus")
+                }
+                .font(.caption).padding(.horizontal, 12).padding(.vertical, 8)
+                .frame(maxWidth: 280, alignment: .leading)
+                .background(Color.surface, in: RoundedRectangle(cornerRadius: 12))
+                .fixedSize(horizontal: false, vertical: true)
+                .allowsHitTesting(false)
             }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: isPlaying)
@@ -258,12 +296,18 @@ struct PlayerView: View {
     }
 
     private func togglePlayback() {
+        nodController.rearm()
+        applyPlaybackToggle()
+    }
+
+    private func applyPlaybackToggle() {
         cancelCompletionReturn()
         if !isPlaying && engine.isAtTop { elapsed = 0 }
         isPlaying.toggle()
     }
 
     private func returnToTop() {
+        nodController.rearm()
         isPlaying = false
         elapsed = 0
         cancelCompletionReturn()

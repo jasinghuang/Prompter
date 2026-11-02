@@ -15,7 +15,10 @@ final class PlayerUITests: XCTestCase {
         let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
     }
     private func waitForCount(_ count: Int) {
-        XCTAssertTrue(app.buttons["全部 \(count)"].waitForExistence(timeout: 5), "应有 \(count) 篇活跃稿件")
+        let filter = app.buttons["library.filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 5))
+        expectation(for: NSPredicate(format: "value BEGINSWITH %@", "共 \(count) 篇稿件，"), evaluatedWith: filter)
+        waitForExpectations(timeout: 5)
     }
     private func deleteFirst() {
         app.buttons.matching(identifier: "card").firstMatch.swipeLeft()
@@ -49,6 +52,242 @@ final class PlayerUITests: XCTestCase {
         }
     }
     private func play() { app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+
+    private func revealAirPodsSettings() {
+        let toggle = app.switches["settings.airPodsNod"]
+        let calibrate = app.buttons["settings.calibrateNod"]
+        for _ in 0..<14 {
+            if toggle.isHittable && calibrate.isHittable { return }
+            let scroll = app.scrollViews["settings.scroll"]
+            scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.85))
+                .press(forDuration: 0.05, thenDragTo: scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.60)),
+                       withVelocity: .slow, thenHoldForDuration: 0.05)
+        }
+    }
+
+    func testAirPodsNodDefaultsOffAndCalibrationCanCancel() {
+        launch(player: true, extra: ["-openSettings"])
+        let toggle = app.switches["settings.airPodsNod"]
+        revealAirPodsSettings()
+        XCTAssertTrue(toggle.isHittable)
+        XCTAssertEqual(toggle.value as? String, "0")
+        XCTAssertFalse(XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch.exists,
+                       "默认关闭时不得提前弹出运动权限请求")
+        snapshot("airpods-settings-default-off")
+        toggle.tap()
+        XCTAssertTrue(app.buttons["nod.cancelCalibration"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["轻轻低头"].exists)
+        snapshot("airpods-six-action-guide")
+        app.buttons["nod.startCalibration"].tap()
+        // Simulator has no headphone motion; the guide must remain truthful and cancellable.
+        XCTAssertTrue(app.staticTexts["nod.calibrationError"].waitForExistence(timeout: 5))
+        snapshot("airpods-hardware-unavailable")
+        app.buttons["nod.cancelCalibration"].tap()
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.value as? String, "0", "取消首次校准不得悄悄开启")
+        app.buttons["关闭设置"].tap()
+        play()
+        XCTAssertTrue(app.sliders["字号"].waitForNonExistence(timeout: 3))
+        play()
+        XCTAssertTrue(app.sliders["字号"].waitForExistence(timeout: 3))
+    }
+
+    func testAirPodsSettingsLandscape() {
+        launch(player: true, landscape: true, extra: ["-openSettings"])
+        let toggle = app.switches["settings.airPodsNod"]
+        revealAirPodsSettings()
+        XCTAssertTrue(toggle.isHittable)
+        XCTAssertEqual(toggle.value as? String, "0")
+        snapshot("airpods-settings-landscape")
+        app.buttons["settings.calibrateNod"].tap()
+        XCTAssertTrue(app.buttons["nod.cancelCalibration"].waitForExistence(timeout: 5))
+        snapshot("airpods-guide-landscape")
+        app.buttons["nod.cancelCalibration"].tap()
+        XCTAssertTrue(app.buttons["关闭设置"].waitForExistence(timeout: 5))
+    }
+
+    private func openCalibrationDemo(landscape: Bool = false, extra: [String] = []) {
+        launch(player: true, landscape: landscape, extra: ["-openSettings", "-simulateNodCalibration"] + extra)
+        revealAirPodsSettings()
+        app.buttons["settings.calibrateNod"].tap()
+        XCTAssertTrue(app.buttons["nod.cancelCalibration"].waitForExistence(timeout: 5))
+    }
+    private func completeCalibrationAction() {
+        let start = app.buttons["nod.startCalibration"]
+        start.tap()
+        let ready = NSPredicate(format: "isEnabled == true")
+        expectation(for: ready, evaluatedWith: start)
+        waitForExpectations(timeout: 12)
+    }
+
+    private func completePersonalCalibration() {
+        snapshot("calibration-habit-ready")
+        for index in 0..<3 {
+            XCTAssertTrue(app.buttons["nod.startCalibration"].label.contains("自然点头 \(index + 1)/3"))
+            completeCalibrationAction()
+            XCTAssertFalse(app.staticTexts["nod.calibrationError"].exists)
+        }
+        XCTAssertEqual(app.buttons["nod.startCalibration"].label, "试一次点头")
+        snapshot("calibration-habit-independent-verification")
+        completeCalibrationAction()
+        XCTAssertEqual(app.buttons["nod.startCalibration"].label, "完成并开启")
+    }
+
+    private func openNodDiagnostics() {
+        let entry = app.buttons["settings.nodDiagnostics"]
+        let scroll = app.scrollViews["settings.scroll"]
+        for _ in 0..<16 {
+            if entry.isHittable { break }
+            // Short drags avoid jumping past the row in the shallow landscape panel.
+            let towardTop = entry.exists && entry.frame.midY < scroll.frame.midY
+            scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: towardTop ? 0.35 : 0.80))
+                .press(forDuration: 0.05, thenDragTo: scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: towardTop ? 0.65 : 0.50)),
+                       withVelocity: .slow, thenHoldForDuration: 0.05)
+        }
+        XCTAssertTrue(entry.isHittable); entry.tap()
+        XCTAssertTrue(app.switches["nod.diagnosticsRecording"].waitForExistence(timeout: 5))
+    }
+
+    private func revealInDiagnostics(_ element: XCUIElement) {
+        for _ in 0..<5 {
+            if element.isHittable { return }
+            app.scrollViews["nod.diagnosticsScroll"].swipeUp()
+        }
+        XCTAssertTrue(element.isHittable)
+    }
+
+    func testGuidedCalibrationAllSixActionsAndVerification() {
+        openCalibrationDemo()
+        snapshot("calibration-redesign-ready-synthetic")
+        for index in 0..<6 {
+            completeCalibrationAction()
+            XCTAssertFalse(app.staticTexts["nod.calibrationError"].exists)
+            XCTAssertTrue(app.buttons["nod.step.\(index)"].label.contains("已记录"))
+            if index == 0 {
+                XCTAssertEqual(app.staticTexts["nod.action"].label, "轻轻抬头")
+                XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "nod.stepNumber").firstMatch.label, "动作 2，共 6 个")
+                XCTAssertFalse(app.staticTexts["这个动作已完成"].exists)
+                snapshot("calibration-redesign-step-done-synthetic")
+            }
+        }
+        XCTAssertEqual(app.buttons["nod.startCalibration"].label, "开始：自然点头 1/3")
+        snapshot("calibration-redesign-final-test-synthetic")
+        completePersonalCalibration()
+        XCTAssertEqual(app.buttons["nod.startCalibration"].label, "完成并开启")
+        snapshot("calibration-redesign-verified-synthetic")
+        app.buttons["nod.startCalibration"].tap()
+        XCTAssertTrue(app.switches["settings.airPodsNod"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.switches["settings.airPodsNod"].value as? String, "1")
+    }
+
+    func testGuidedCalibrationRetriesOnlyIncorrectAction() {
+        openCalibrationDemo(extra: ["-calibrationBadUpOnce"])
+        completeCalibrationAction()
+        completeCalibrationAction()
+        XCTAssertTrue(app.staticTexts["nod.calibrationError"].exists)
+        XCTAssertEqual(app.buttons["nod.startCalibration"].label, "只重试抬头")
+        XCTAssertTrue(app.buttons["nod.step.0"].label.contains("已记录"))
+        XCTAssertFalse(app.buttons["nod.step.1"].label.contains("已记录"))
+        snapshot("calibration-redesign-specific-retry-synthetic")
+        completeCalibrationAction()
+        XCTAssertFalse(app.staticTexts["nod.calibrationError"].exists)
+        XCTAssertEqual(app.buttons["nod.startCalibration"].label, "继续：右歪头")
+        XCTAssertTrue(app.buttons["nod.step.0"].label.contains("已记录"))
+        XCTAssertTrue(app.buttons["nod.step.1"].label.contains("已记录"))
+        snapshot("calibration-redesign-recovered-synthetic")
+        app.buttons["nod.cancelCalibration"].tap()
+        XCTAssertEqual(app.switches["settings.airPodsNod"].value as? String, "0")
+    }
+
+    func testGuidedCalibrationLandscapeLayout() {
+        openCalibrationDemo(landscape: true)
+        XCTAssertTrue(app.buttons["nod.startCalibration"].isHittable)
+        snapshot("calibration-redesign-landscape-ready-synthetic")
+        completeCalibrationAction()
+        XCTAssertTrue(app.buttons["nod.startCalibration"].isHittable)
+        snapshot("calibration-redesign-landscape-done-synthetic")
+        app.buttons["nod.cancelCalibration"].tap()
+    }
+
+    func testNodActuallyStartsAndPausesPlayerAfterSavingCalibration() {
+        openCalibrationDemo(extra: ["-simulateNodPlayback", "-simulateLargeNodCalibration", "-simulateNaturalNodPlayback", "-simulateNodRestShift", "-simulateEarHandoff"])
+        for _ in 0..<6 { completeCalibrationAction() }
+        completePersonalCalibration() // Explicit learning and independent verification, before enabling.
+        XCTAssertEqual(app.buttons["nod.startCalibration"].label, "完成并开启")
+        app.buttons["nod.startCalibration"].tap()
+        XCTAssertTrue(app.switches["settings.airPodsNod"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.switches["settings.airPodsNod"].value as? String, "1")
+        openNodDiagnostics()
+        let recording = app.switches["nod.diagnosticsRecording"]
+        XCTAssertEqual(recording.value as? String, "0")
+        recording.tap()
+        snapshot("nod-diagnostics-recording")
+        app.buttons["nod.closeDiagnostics"].tap()
+        app.buttons["关闭设置"].tap()
+        XCTAssertTrue(app.staticTexts["player.nodStatus"].waitForExistence(timeout: 5))
+        let status = app.buttons["player.returnToTop"]
+        expectation(for: NSPredicate(format: "value CONTAINS %@", "提词中"), evaluatedWith: status)
+        waitForExpectations(timeout: 10)
+        XCTAssertFalse(app.sliders["player.slider.字号"].exists)
+        snapshot("nod-playback-started-from-motion-synthetic")
+        expectation(for: NSPredicate(format: "value CONTAINS %@", "已暂停"), evaluatedWith: status)
+        waitForExpectations(timeout: 10)
+        XCTAssertTrue(app.sliders["player.slider.字号"].exists)
+        XCTAssertNotEqual(app.staticTexts["player.elapsed"].label, "00:00")
+        snapshot("nod-playback-paused-from-motion-synthetic")
+        app.buttons["player.settings"].tap()
+        openNodDiagnostics()
+        XCTAssertEqual(app.staticTexts["nod.count.detected"].label, "2")
+        XCTAssertEqual(app.staticTexts["nod.count.applied"].label, "2")
+        XCTAssertEqual(app.staticTexts["nod.count.sensorChanges"].label, "1")
+        recording.tap() // Stop sampling; manual annotations must still be available.
+        snapshot("nod-diagnostics-two-responses")
+        revealInDiagnostics(app.buttons["nod.markMiss"]); app.buttons["nod.markMiss"].tap()
+        app.buttons["nod.markFalsePositive"].tap()
+        XCTAssertEqual(app.staticTexts["nod.count.misses"].label, "1")
+        XCTAssertEqual(app.staticTexts["nod.count.falsePositives"].label, "1")
+        XCTAssertFalse(app.buttons["nod.markFalsePositive"].isEnabled)
+        revealInDiagnostics(app.buttons["nod.undoMark"]); app.buttons["nod.undoMark"].tap()
+        XCTAssertEqual(app.staticTexts["nod.count.falsePositives"].label, "0")
+        app.buttons["nod.undoMark"].tap()
+        XCTAssertEqual(app.staticTexts["nod.count.misses"].label, "0")
+        revealInDiagnostics(app.buttons["nod.exportDiagnostics"])
+        snapshot("nod-diagnostics-events-and-export")
+        app.buttons["nod.clearDiagnostics"].tap()
+        XCTAssertEqual(app.staticTexts["nod.count.applied"].label, "0")
+        app.buttons["nod.closeDiagnostics"].tap()
+        app.buttons["关闭设置"].tap()
+    }
+
+    func testNodDiagnosticsLandscapeUsesReadableNativeSheet() {
+        openCalibrationDemo(landscape: true)
+        for _ in 0..<6 { completeCalibrationAction() }
+        completePersonalCalibration()
+        XCTAssertEqual(app.buttons["nod.startCalibration"].label, "完成并开启")
+        app.buttons["nod.startCalibration"].tap()
+        XCTAssertTrue(app.buttons["nod.cancelCalibration"].waitForNonExistence(timeout: 5))
+        openNodDiagnostics()
+        let recording = app.switches["nod.diagnosticsRecording"]
+        XCTAssertTrue(recording.isHittable); recording.tap()
+        snapshot("nod-diagnostics-landscape")
+        revealInDiagnostics(app.buttons["nod.markMiss"])
+        XCTAssertTrue(app.buttons["nod.markMiss"].isHittable)
+        app.buttons["nod.closeDiagnostics"].tap()
+        XCTAssertTrue(app.buttons["关闭设置"].waitForExistence(timeout: 5))
+    }
+
+    func testFinalCalibrationCanSkipHabitsAndKeepTheSixRecordedActions() {
+        openCalibrationDemo()
+        for _ in 0..<6 { completeCalibrationAction() }
+        app.buttons["nod.skipHabit"].tap()
+        let save = app.buttons["nod.startCalibration"]
+        expectation(for: NSPredicate(format: "label == %@ AND isEnabled == true", "完成并开启"), evaluatedWith: save)
+        waitForExpectations(timeout: 12)
+        snapshot("calibration-default-skipped-habit")
+        for index in 0..<6 { XCTAssertTrue(app.buttons["nod.step.\(index)"].label.contains("已记录")) }
+        save.tap()
+        XCTAssertEqual(app.switches["settings.airPodsNod"].value as? String, "1")
+    }
 
     func testPlayerLandscape() {
         launch(player: true, landscape: true)
@@ -95,6 +334,7 @@ final class PlayerUITests: XCTestCase {
         XCTAssertTrue(close.exists, "调节滑杆不能收起抽屉")
         XCTAssertNotEqual(before, slider.value as? String)
         close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 3), "等待面板关闭，避免重开点击落在退出动画上")
         app.buttons["设置"].tap()
         XCTAssertTrue(close.waitForExistence(timeout: 5))
         let title = app.staticTexts["设置"].firstMatch.frame
@@ -314,8 +554,59 @@ final class PlayerUITests: XCTestCase {
         let field = app.textFields["folder.name"]
         XCTAssertTrue(field.waitForExistence(timeout: 3))
         field.tap(); field.typeText("测试分组\n")
-        XCTAssertTrue(app.buttons["chip.测试分组"].waitForExistence(timeout: 5))
+        app.buttons["library.filter"].tap()
+        let folder = app.buttons["测试分组"]
+        XCTAssertTrue(folder.waitForExistence(timeout: 5))
+        folder.tap()
+        XCTAssertEqual(app.buttons["library.filter"].label, "测试分组")
         snapshot("folder-created")
+    }
+
+    func testLibraryScopeAndAllSixSortCombinations() {
+        launch()
+        waitForCount(4)
+        snapshot("library-menu-pill-portrait")
+        let scope = app.buttons["library.filter"], sort = app.buttons["library.sort"]
+        scope.tap()
+        XCTAssertTrue(app.buttons["星标稿件"].waitForExistence(timeout: 3))
+        snapshot("library-scope-menu")
+        app.buttons["星标稿件"].tap()
+        XCTAssertEqual(app.buttons.matching(identifier: "card").count, 1)
+        scope.tap(); app.buttons["全部稿件"].tap()
+        for (dimension, ascendingTitle, descendingTitle) in [
+            ("时间", "脚本2-佣金优惠", "脚本3-新客福利包"),
+            ("标题", "脚本2-佣金优惠", "脚本3-新客福利包"),
+            ("字数", "脚本3-新客福利包", "脚本2-佣金优惠")
+        ] {
+            sort.tap()
+            XCTAssertTrue(app.buttons[dimension].waitForExistence(timeout: 3))
+            if dimension == "字数" { snapshot("library-sort-three-dimensions") }
+            app.buttons[dimension].tap()
+            for (order, expected) in [("升序", ascendingTitle), ("降序", descendingTitle)] {
+                sort.tap(); app.buttons[order].tap()
+                XCTAssertEqual(sort.value as? String, "\(dimension)，\(order)")
+                let second = app.buttons.matching(identifier: "card").element(boundBy: 1)
+                expectation(for: NSPredicate(format: "label CONTAINS %@", expected), evaluatedWith: second)
+                waitForExpectations(timeout: 5)
+            }
+        }
+        scope.tap(); app.buttons["口播"].tap()
+        XCTAssertEqual(scope.label, "口播")
+        XCTAssertEqual(app.buttons.matching(identifier: "card").count, 3)
+        snapshot("library-folder-menu-selected")
+    }
+
+    func testLibraryMenusInLandscape() {
+        launch(landscape: true)
+        XCTAssertTrue(app.buttons["新建稿件"].isHittable)
+        let filter = app.buttons["library.filter"], sort = app.buttons["library.sort"]
+        XCTAssertLessThanOrEqual(filter.frame.maxX, sort.frame.minX)
+        snapshot("library-menu-pill-landscape")
+        sort.tap()
+        XCTAssertTrue(app.buttons["字数"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["升序"].isHittable)
+        XCTAssertTrue(app.buttons["降序"].isHittable)
+        snapshot("library-sort-landscape")
     }
     func testFooterShortcutsAreDirectAndDoNotOpenPlayer() {
         launch()

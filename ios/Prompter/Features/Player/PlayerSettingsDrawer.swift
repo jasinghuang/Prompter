@@ -4,6 +4,7 @@ import SwiftUI
 /// Only the dedicated handle owns the dismissal drag, leaving sliders and scrolling alone.
 struct PlayerSettingsDrawer: View {
     @Binding var open: Bool
+    @ObservedObject var nodController: AirPodsNodController
     @EnvironmentObject private var settings: AppSettings
     var onShowHelp: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -93,6 +94,7 @@ struct PlayerSettingsDrawer: View {
                                   value: Double(settings.data.scrollSpeed),
                                   range: Double(PrompterCore.speedMin)...Double(PrompterCore.speedMax),
                                   step: 10, suffix: " 字/分") { settings.data.scrollSpeed = Int($0) }
+                    AirPodsNodSettings(controller: nodController)
                     alignmentRow
                     mirrorRow
                     autoPauseRow

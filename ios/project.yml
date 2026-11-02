@@ -29,6 +29,7 @@ targets:
       properties:
         CFBundleDisplayName: 提词器
         NSCameraUsageDescription: 用于拍摄前的化妆镜预览，仅本地显示，不录制、不上传。
+        NSMotionUsageDescription: 开启 AirPods 点头控制后，读取耳机头部运动以识别点头，用于开始或暂停提词。运动数据仅在本机处理。
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationLandscapeLeft

@@ -107,11 +107,12 @@ struct ScriptListView: View {
 
     private var header: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Image("Logo").resizable().frame(width: 28, height: 28)
                     .clipShape(RoundedRectangle(cornerRadius: 7)).accessibilityHidden(true)
                 Text(library.selecting ? "已选 \(library.selected.count) 篇" : "我的稿件")
                     .font(.title2.bold()).foregroundStyle(.textPrimary)
+                    .lineLimit(1).minimumScaleFactor(0.85)
                 Spacer(minLength: 4)
                 if library.selecting {
                     Button("完成") { library.exitSelection() }.frame(minWidth: 44, minHeight: 44)
@@ -122,9 +123,10 @@ struct ScriptListView: View {
                     }.buttonStyle(PressableStyle()).disabled(scripts.isEmpty)
                         .accessibilityLabel("清空全部稿件").accessibilityIdentifier("library.clear")
                     Button { searchFocused = false; sheet = .editor(nil) } label: {
-                        Image(systemName: "plus").font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(Color.canvas).frame(width: 44, height: 44)
-                            .background(Color.accentGold, in: Circle())
+                        Text("新建稿件").font(.body.weight(.semibold))
+                            .foregroundStyle(Color.canvas)
+                            .fixedSize().padding(.horizontal, 16).frame(minHeight: 44)
+                            .background(Color.accentGold, in: Capsule())
                     }
                     .buttonStyle(PressableStyle()).accessibilityLabel("新建稿件")
                 }
@@ -149,44 +151,58 @@ struct ScriptListView: View {
     }
 
     private var filters: some View {
-        HStack(spacing: 4) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 7) {
-                    filterChip("全部 \(scripts.count)", value: .all)
-                    filterChip("星标", icon: "star", value: .starred)
-                    ForEach(library.folders, id: \.self) { name in
-                        filterChip(name, icon: "folder", value: .folder(name))
-                            .accessibilityIdentifier("chip.\(name)")
-                    }
-                }.padding(.leading, 16)
-            }
+        HStack(spacing: 12) {
             Menu {
-                Picker("排序方式", selection: $library.sortKey) {
-                    ForEach(SortKey.allCases, id: \.self) { key in
-                        Text(key == .date ? "最近修改" : key.label).tag(key)
+                Picker("稿件范围", selection: $library.filter) {
+                    Label("全部稿件", systemImage: "doc.text").tag(ScriptFilter.all)
+                    Label("星标稿件", systemImage: "star").tag(ScriptFilter.starred)
+                    if !library.folders.isEmpty {
+                        Section("文件夹") {
+                            ForEach(library.folders, id: \.self) { name in
+                                Label(name, systemImage: "folder").tag(ScriptFilter.folder(name))
+                                    .accessibilityIdentifier("filter.folder.\(name)")
+                            }
+                        }
                     }
+                }.pickerStyle(.inline)
+            } label: {
+                HStack(spacing: 7) {
+                    Text(filterTitle).font(.headline).lineLimit(1)
+                    Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
+                    Text("\(visible.count)").font(.subheadline).foregroundStyle(.textMuted).monospacedDigit()
                 }
-                Button { library.sortAscending.toggle() } label: {
-                    Label(library.sortAscending ? "改为降序" : "改为升序", systemImage: "arrow.up.arrow.down")
-                }
+                .foregroundStyle(.textPrimary).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .accessibilityLabel(filterTitle)
+            .accessibilityValue("共 \(scripts.count) 篇稿件，当前 \(visible.count) 篇")
+            .accessibilityIdentifier("library.filter")
+            Menu {
+                Picker("排序依据", selection: $library.sortKey) {
+                    ForEach(SortKey.allCases, id: \.self) { key in
+                        Text(key == .date ? "时间" : key.label).tag(key)
+                    }
+                }.pickerStyle(.inline)
+                Picker("排列顺序", selection: $library.sortAscending) {
+                    Text("升序").tag(true)
+                    Text("降序").tag(false)
+                }.pickerStyle(.inline)
             } label: {
                 Image(systemName: "arrow.up.arrow.down").foregroundStyle(.textSecondary).frame(width: 44, height: 44)
-            }.accessibilityLabel("排序方式").padding(.trailing, 8)
-        }.padding(.bottom, 2)
+            }
+            .accessibilityLabel("排序方式")
+            .accessibilityValue("\(library.sortKey == .date ? "时间" : library.sortKey.label)，\(library.sortAscending ? "升序" : "降序")")
+            .accessibilityHint("时间按最近修改时间排序；星标和已拍摄分层保持不变")
+            .accessibilityIdentifier("library.sort")
+        }.padding(.horizontal, 16).padding(.bottom, 2)
     }
 
-    private func filterChip(_ title: String, icon: String? = nil, value: ScriptFilter) -> some View {
-        let active = library.filter == value
-        return Button { library.filter = value } label: {
-            HStack(spacing: 6) {
-                if let icon { Image(systemName: icon).font(.caption) }
-                Text(title).font(.subheadline.weight(.medium)).lineLimit(1)
-            }
-            .foregroundStyle(active ? Color.accentGold : .textSecondary)
-            .padding(.horizontal, 16).frame(minHeight: 44)
-            .background(active ? Color.accentGold.opacity(0.06) : Color.canvas, in: Capsule())
-            .overlay(Capsule().strokeBorder(active ? Color.accentGold.opacity(0.5) : Color.white.opacity(0.16)))
-        }.buttonStyle(PressableStyle()).accessibilityAddTraits(active ? .isSelected : [])
+    private var filterTitle: String {
+        switch library.filter {
+        case .all: return "全部稿件"
+        case .starred: return "星标稿件"
+        case .folder(let name): return name
+        }
     }
 
     private func card(_ script: Script) -> some View {
