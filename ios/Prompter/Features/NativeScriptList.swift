@@ -33,7 +33,7 @@ struct NativeScriptList: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeUIView(context: Context) -> UITableView {
-        let table = UITableView(frame: .zero, style: .plain)
+        let table = MountedTableView(frame: .zero, style: .plain)
         table.accessibilityIdentifier = "script.list"
         table.backgroundColor = UIColor(Color.canvas)
         table.separatorStyle = .none
@@ -51,6 +51,27 @@ struct NativeScriptList: UIViewRepresentable {
     }
     func updateUIView(_ table: UITableView, context: Context) { context.coordinator.update(self) }
 
+    static func dismantleUIView(_ uiView: UITableView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    /// Notify only on mounting/size changes, not for every contentOffset update.
+    @MainActor final class MountedTableView: UITableView {
+        var onLayoutReady: (() -> Void)?
+        private var lastSize = CGSize.zero
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if window != nil { onLayoutReady?() }
+        }
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            if bounds.size != lastSize {
+                lastSize = bounds.size
+                if window != nil { onLayoutReady?() }
+            }
+        }
+    }
+
     @MainActor final class Coordinator: NSObject, UITableViewDelegate {
         private final class DataSource: UITableViewDiffableDataSource<Int, ScriptLibraryState.RowID> {
             var isEditable: (IndexPath) -> Bool = { _ in false }
@@ -63,13 +84,17 @@ struct NativeScriptList: UIViewRepresentable {
         private var rows: [ScriptLibraryState.RowID: ScriptLibraryState.Row] = [:]
         private var pending: State?
         private var applying = false
+        private var attached = false
+        private var flushScheduled = false
         private var swiping = false
         private var swipeAction: (ScriptCardView.Action, UUID)?
 
         init(_ owner: NativeScriptList) { self.owner = owner }
 
         func attach(_ table: UITableView) {
-            self.table = table; table.delegate = self
+            self.table = table; attached = true
+            (table as? MountedTableView)?.onLayoutReady = { [weak self] in self?.scheduleFlush() }
+            table.delegate = self
             dataSource = DataSource(tableView: table) { [weak self] table, indexPath, id in
                 guard let self, let row = self.rows[id], let state = self.current else { return nil }
                 let reuse: String
@@ -86,18 +111,42 @@ struct NativeScriptList: UIViewRepresentable {
             update(owner)
         }
 
+        func detach() {
+            attached = false
+            (table as? MountedTableView)?.onLayoutReady = nil
+            table?.delegate = nil
+            table?.dataSource = nil
+            table = nil; dataSource = nil
+            pending = nil; current = nil; rows.removeAll()
+            swipeAction = nil; swiping = false; applying = false
+        }
+
+        private func scheduleFlush() {
+            guard attached, pending != nil, !applying, !flushScheduled else { return }
+            flushScheduled = true
+            // UIKit may notify from inside a layout pass; do not apply a snapshot reentrantly.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.flushScheduled = false
+                self.flush()
+            }
+        }
+
         func update(_ owner: NativeScriptList) {
             self.owner = owner
             if owner.state == current && pending == nil { return }
             pending = owner.state
             // A filter/sort/edit may arrive while actions are revealed. Close them so
             // the pending revision cannot remain hidden behind an idle editing session.
-            if swiping { table?.setEditing(false, animated: true) }
+            if swiping, table?.window != nil { table?.setEditing(false, animated: true) }
             flush()
         }
 
         private func flush() {
-            guard !swiping, !applying, let next = pending, let table else { return }
+            // makeUIView/updateUIView can run before the list enters a window. Keep only
+            // the latest revision until it has real geometry, traits and safe-area values.
+            guard attached, !swiping, !applying, let next = pending, let table,
+                  table.window != nil, table.bounds.width > 0, table.bounds.height > 0 else { return }
             pending = nil
             let oldRows = rows, old = current
             let oldIDs = dataSource.snapshot().itemIdentifiers
@@ -117,7 +166,10 @@ struct NativeScriptList: UIViewRepresentable {
             var snapshot = NSDiffableDataSourceSnapshot<Int, ScriptLibraryState.RowID>()
             snapshot.appendSections([0]); snapshot.appendItems(newIDs)
             let completion = { [weak self, weak table] in
-                guard let self, let table else { return }
+                guard let self, self.attached, let table, self.table === table else { return }
+                defer { self.applying = false; self.flush() }
+                // A sheet/navigation transition can detach the view before completion.
+                guard table.window != nil else { return }
                 table.layoutIfNeeded()
                 if oldIDs != newIDs, let (id, distance) = anchor, let index = self.dataSource.indexPath(for: id) {
                     let maximum = max(-table.adjustedContentInset.top,
@@ -125,7 +177,6 @@ struct NativeScriptList: UIViewRepresentable {
                     let offset = min(maximum, max(-table.adjustedContentInset.top, table.rectForRow(at: index).minY - distance))
                     table.setContentOffset(CGPoint(x: 0, y: offset), animated: false)
                 }
-                self.applying = false; self.flush()
             }
             UIView.performWithoutAnimation {
                 if oldIDs != newIDs {
