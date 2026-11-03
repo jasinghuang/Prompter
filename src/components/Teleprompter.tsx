@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Camera, ChevronLeft, CircleCheck, CirclePause, SlidersHorizontal } from 'lucide-react';
+import { Camera, ChevronLeft, CircleCheck, CirclePause, Play, SlidersHorizontal } from 'lucide-react';
 import { Script, TeleprompterSettings } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
@@ -66,6 +66,8 @@ export function Teleprompter({
   const [showOnboarding, setShowOnboarding] = useState(() => !hasOnboarded());
   const [wakeLockFailed, showWakeLockFailed] = useTransientFlag(3000);
   const [pauseReason, setPauseReason] = useState<string | null>(null);
+  // 读完停在末尾时的引导提示（对齐 iOS returnHint）：点击顶栏时间回顶后消失
+  const [showReturnHint, setShowReturnHint] = useState(false);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [completed, setCompleted] = useState(false);
   const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -91,6 +93,11 @@ export function Teleprompter({
   const maxOffsetRef = useRef(0);
   const [atBottom, setAtBottom] = useState(false);
 
+  // 离开底部即开始新的浏览回合，读完提示不再成立（对齐 iOS onAtBottom 行为）
+  useEffect(() => {
+    if (!atBottom) setShowReturnHint(false);
+  }, [atBottom]);
+
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const spansRef = useRef<HTMLElement[]>([]);
@@ -108,7 +115,7 @@ export function Teleprompter({
 
   const charCount = useMemo(() => countReadableChars(script.content), [script.content]);
 
-  const { elapsedSeconds, start: startTimer, stop: stopTimer } = useTimer();
+  const { elapsedSeconds, start: startTimer, stop: stopTimer, reset: resetTimer } = useTimer();
   const { request, release } = useWakeLock();
 
   const computeActive = useCallback((scrollTop: number) => {
@@ -197,7 +204,11 @@ export function Teleprompter({
         scrollToIndex(0); // 回到开头并暂停，不标记/不提示/不返回
         return;
       }
-      if (settings.completeAction !== 'list') return; // none：读完即停，不提示/不标记/不返回
+      if (settings.completeAction !== 'list') {
+        // none：读完即停（不标记/不返回），提示条引导点击时间回顶（对齐 iOS）
+        setShowReturnHint(true);
+        return;
+      }
       setCompleted(true);
       onCompleted();
       if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
@@ -337,8 +348,17 @@ export function Teleprompter({
     onIndexChange(activeIndexRef.current);
     onBack();
   };
+  // 点击顶栏时间=回到顶部（对齐 iOS returnToTop）：暂停、计时归零（新一条开拍）、
+  // 重置自动暂停命中、清提示，回正文开头
   const handleBackToTop = () => {
     setIsPlaying(false);
+    resetTimer();
+    resetKeywordPause();
+    resetParagraphPause();
+    setPauseReason(null);
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+    setShowReturnHint(false);
     scrollToIndex(0);
   };
 
@@ -452,23 +472,23 @@ export function Teleprompter({
             <ChevronLeft size={18} />
           </CapsuleButton>
           <CapsuleDivider />
-          <div
-            className="flex h-[34px] items-center gap-[7px] rounded-full px-[11px]"
-            aria-label={isPlaying ? '播放中' : '已暂停'}
+          {/* 点击时间=回到顶部：暂停+计时归零+回正文开头（对齐 iOS）；图标 play 金/pause 灰 */}
+          <button
+            type="button"
+            onClick={handleBackToTop}
+            aria-label="回到顶部"
+            title="回到正文开头（暂停并归零计时）"
+            className="flex h-[34px] items-center gap-[7px] rounded-full px-[11px] transition-colors hover:bg-white/10 active:scale-95"
           >
-            {/* 播放/暂停状态位：两态同占 12px 盒，切换时数字不横移 */}
             {isPlaying ? (
-              <span
-                className="h-3 w-3 shrink-0 rounded-full"
-                style={{ background: 'var(--color-danger)', boxShadow: 'var(--shadow-record)' }}
-              />
+              <Play size={10} className="shrink-0 fill-current text-[#D4A432]" />
             ) : (
               <CirclePause size={12} className="shrink-0 text-white/35" />
             )}
             <span className="font-mono text-[13px] tracking-wide tabular-nums text-white/60">
               {formatTime(elapsedSeconds)}
             </span>
-          </div>
+          </button>
           <CapsuleDivider />
           <CapsuleButton label="前置镜子" onClick={() => setShowMirror(true)}>
             <Camera size={18} strokeWidth={2.4} />
@@ -545,16 +565,11 @@ export function Teleprompter({
         onSpeedChange={(v) => onChangeSettings({ scrollSpeed: v })}
       />
 
-      {/* ── Back To Top（停在最底部且暂停时出现） ── */}
-      {atBottom && !isPlaying && (
-        <button
-          onClick={handleBackToTop}
-          aria-label="回到顶部"
-          className="absolute inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex w-fit items-center gap-1.5 rounded-full border border-white/10 glass-surface px-4 py-2.5 text-xs text-white/80 transition-all hover:text-white active:scale-95"
-        >
-          <ArrowUp size={14} />
-          回到顶部
-        </button>
+      {/* ── 读完提示（停在末尾模式）：引导点击顶栏时间回顶（对齐 iOS returnHint） ── */}
+      {showReturnHint && (
+        <div className="pointer-events-none absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-white/55">
+          已读完，点击时间回到顶部
+        </div>
       )}
 
       {/* ── Wake Lock Failed Toast ── */}

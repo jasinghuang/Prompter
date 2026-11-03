@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
- * 墙钟计时器。start 起算、stop 停（不清零）。
+ * 墙钟计时器。start 起算、stop 停（不清零）、reset 停表并归零（回到顶部=新一条开拍）。
  * elapsedSeconds 每秒更新一次（向下取整显示用）。
  */
 export function useTimer() {
@@ -26,7 +26,12 @@ export function useTimer() {
     clear();
   }, [clear]);
 
+  const reset = useCallback(() => {
+    clear();
+    setElapsedSeconds(0);
+  }, [clear]);
+
   useEffect(() => clear, [clear]);
 
-  return { elapsedSeconds, start, stop };
+  return { elapsedSeconds, start, stop, reset };
 }

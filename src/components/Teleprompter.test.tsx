@@ -84,12 +84,12 @@ describe('Teleprompter 读完动作', () => {
     vi.useRealTimers();
   });
 
-  it('none（默认）：onReachEnd 只停止播放，不标记/不提示/不返回', () => {
+  it('none（默认）：读完停止播放，不标记/不返回，提示条引导点时间回顶（对齐 iOS）', () => {
     const h = renderTel(); // DEFAULT_SETTINGS.completeAction = 'none'
     act(() => reachEnd!());
     expect(h.onCompleted).not.toHaveBeenCalled();
     expect(h.onBack).not.toHaveBeenCalled();
-    expect(screen.queryByText(/已读完/)).toBeNull();
+    expect(screen.getByText('已读完，点击时间回到顶部')).toBeInTheDocument();
   });
 
   it('restart：滚动回到开头，不标记/不提示/不返回', () => {
@@ -101,7 +101,7 @@ describe('Teleprompter 读完动作', () => {
     expect(h.onCompleted).not.toHaveBeenCalled();
     expect(h.onBack).not.toHaveBeenCalled();
     expect(screen.queryByText(/已读完/)).toBeNull();
-    expect(screen.getByLabelText('已暂停')).toBeInTheDocument(); // 暂停在开头
+    expect(screen.getByLabelText('回到顶部')).toBeInTheDocument(); // 暂停在开头
   });
 
   it('restart：可重复触发，第二次读完同样不标记/不返回', () => {
@@ -137,15 +137,15 @@ describe('Teleprompter 读完动作', () => {
 
   it('暂停时计时旁为双竖线暂停图标，播放中右上角操作胶囊自动隐藏', () => {
     renderTel();
-    // 暂停态：状态格内是 CirclePause 图标
-    const statusCell = screen.getByLabelText('已暂停');
-    expect(statusCell.querySelector('svg')).not.toBeNull();
+    // 暂停态：时间格（点击回顶）内是 CirclePause 图标
+    const timeCell = screen.getByLabelText('回到顶部');
+    expect(timeCell.querySelector('svg')).not.toBeNull();
     // 轻点屏幕开始播放（viewport 的 pointer 切换）
     const vp = document.querySelector('.teleprompter-touch')!;
     fireEvent.pointerDown(vp, { clientY: 100 });
     fireEvent.pointerUp(vp, { clientY: 100 });
-    // 播放中：红点态 + 右上角操作胶囊淡出且不可点
-    expect(screen.getByLabelText('播放中')).toBeInTheDocument();
+    // 播放中：时间格切换为 play 图标 + 右上角操作胶囊淡出且不可点
+    expect(screen.getByLabelText('回到顶部').querySelector('svg')).not.toBeNull();
     const settingsWrap = screen.getByLabelText('设置').parentElement!.parentElement!;
     expect(settingsWrap.className).toContain('opacity-0');
     expect(settingsWrap.className).toContain('pointer-events-none');
@@ -165,7 +165,7 @@ describe('Teleprompter 读完动作', () => {
   });
 });
 
-describe('Teleprompter 回到顶部按钮', () => {
+describe('Teleprompter 回到顶部（点击顶栏时间，对齐 iOS）', () => {
   /**
    * jsdom 无真实布局：mock 内容元素 scrollHeight 与视口 clientHeight，
    * 触发 resize 使 measure() 重测，再设 scrollTop 并派发 scroll。
@@ -188,45 +188,38 @@ describe('Teleprompter 回到顶部按钮', () => {
     return document.querySelector('.teleprompter-touch') as HTMLElement;
   }
 
-  it('滚到最底部且暂停时显示回到顶部按钮', () => {
-    renderTel();
-    setScroll(viewport(), { contentHeight: 1000, clientHeight: 500, scrollTop: 500 });
-    expect(screen.getByLabelText('回到顶部')).toBeInTheDocument();
-  });
-
-  it('不在底部时不显示', () => {
-    renderTel();
-    setScroll(viewport(), { contentHeight: 1000, clientHeight: 500, scrollTop: 100 });
-    expect(screen.queryByLabelText('回到顶部')).toBeNull();
-  });
-
-  it('内容不足一屏时不显示', () => {
-    renderTel();
-    setScroll(viewport(), { contentHeight: 400, clientHeight: 500, scrollTop: 0 });
-    expect(screen.queryByLabelText('回到顶部')).toBeNull();
-  });
-
-  it('点击回到顶部滚动归零并隐藏按钮', () => {
+  it('读完（停在末尾）显示提示条；点击时间回顶后滚动归零、提示消失', () => {
     renderTel();
     const vp = viewport();
     setScroll(vp, { contentHeight: 1000, clientHeight: 500, scrollTop: 500 });
+    act(() => reachEnd!());
+    expect(screen.getByText('已读完，点击时间回到顶部')).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('回到顶部'));
     expect(vp.scrollTop).toBe(0);
     act(() => { fireEvent.scroll(vp); });
-    expect(screen.queryByLabelText('回到顶部')).toBeNull();
+    expect(screen.queryByText('已读完，点击时间回到顶部')).toBeNull();
   });
 
-  it('播放中不显示回到顶部按钮', () => {
+  it('未读完时（仅滚到底、暂停）不显示提示条', () => {
     renderTel();
+    setScroll(viewport(), { contentHeight: 1000, clientHeight: 500, scrollTop: 500 });
+    expect(screen.queryByText('已读完，点击时间回到顶部')).toBeNull();
+  });
+
+  it('点击时间回顶：计时归零并暂停', () => {
+    const h = renderTel();
     const vp = viewport();
     setScroll(vp, { contentHeight: 1000, clientHeight: 500, scrollTop: 500 });
-    expect(screen.getByLabelText('回到顶部')).toBeInTheDocument();
-    // 轻点屏幕开始播放
+    // 轻点屏幕开始播放，滚到中途后点时间回顶
     act(() => {
       fireEvent.pointerDown(vp, { clientY: 100 });
       fireEvent.pointerUp(vp, { clientY: 100 });
     });
-    expect(screen.queryByLabelText('回到顶部')).toBeNull();
+    fireEvent.click(screen.getByLabelText('回到顶部'));
+    expect(vp.scrollTop).toBe(0);
+    // 播放被暂停（再轻点恢复播放；归零由 resetTimer 单元行为保证）
+    expect(screen.getByLabelText('设置').parentElement!.parentElement!.className).not.toContain('opacity-0');
+    expect(h.onCompleted).not.toHaveBeenCalled();
   });
 });
 
@@ -297,7 +290,7 @@ describe('Teleprompter 双指捏合调字号', () => {
       fireEvent.touchStart(vp, { touches: [t(1, 300, 200), t(2, 340, 200)] });
       fireEvent.touchEnd(vp, { touches: [], changedTouches: [t(1, 300, 200), t(2, 340, 200)] });
     });
-    expect(screen.getByLabelText('已暂停')).toBeInTheDocument(); // 仍处于暂停态
+    expect(screen.getByLabelText('回到顶部')).toBeInTheDocument(); // 仍处于暂停态（时间格=回顶按钮）
   });
 
   it('一指抬起后剩余手指拖动不再调整字号', () => {
@@ -382,6 +375,6 @@ describe('Teleprompter 双指捏合调字号', () => {
       fireEvent.pointerDown(vp, { pointerId: 1, clientX: 200, clientY: 100 });
       fireEvent.pointerUp(vp, { pointerId: 1, clientX: 200, clientY: 100 });
     });
-    expect(screen.getByLabelText('播放中')).toBeInTheDocument(); // 已开始播放
+    expect(screen.getByLabelText('回到顶部')).toBeInTheDocument(); // 已开始播放
   });
 });
