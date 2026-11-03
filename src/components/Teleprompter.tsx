@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Camera, ChevronLeft, CircleCheck, CirclePause, Play, SlidersHorizontal } from 'lucide-react';
+import { Camera, ChevronLeft, CircleCheck, Pause, Play, SlidersHorizontal } from 'lucide-react';
 import { Script, TeleprompterSettings } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
@@ -480,11 +480,15 @@ export function Teleprompter({
             title="回到正文开头（暂停并归零计时）"
             className="flex h-[34px] items-center gap-[7px] rounded-full px-[11px] transition-colors hover:bg-white/10 active:scale-95"
           >
-            {isPlaying ? (
-              <Play size={10} className="shrink-0 fill-current text-[#D4A432]" />
-            ) : (
-              <CirclePause size={12} className="shrink-0 text-white/35" />
-            )}
+            {/* 播放/暂停状态位：两态同占 12px 盒、icon 居中同尺寸（对齐 iOS play.fill/pause.fill），
+                切换时占位与视觉中心完全一致，时间数字不横移 */}
+            <span className="flex h-3 w-3 shrink-0 items-center justify-center">
+              {isPlaying ? (
+                <Play size={10} className="fill-current text-[#D4A432]" />
+              ) : (
+                <Pause size={10} className="text-white/35" />
+              )}
+            </span>
             <span className="font-mono text-[13px] tracking-wide tabular-nums text-white/60">
               {formatTime(elapsedSeconds)}
             </span>
