@@ -115,7 +115,7 @@ describe('ScriptList', () => {
     render(
       <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
     );
-    fireEvent.change(screen.getByPlaceholderText('搜索稿件...'), { target: { value: '视频' } });
+    fireEvent.change(screen.getByPlaceholderText('搜索标题或正文'), { target: { value: '视频' } });
     expect(screen.getByText('视频脚本')).toBeInTheDocument();
     expect(screen.queryByText('会议发言')).toBeNull();
   });
@@ -183,7 +183,7 @@ describe('ScriptList', () => {
     render(
       <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onDeleteAll={onDeleteAll} />
     );
-    fireEvent.click(screen.getByText('清空全部'));
+    fireEvent.click(screen.getByLabelText('清空全部稿件'));
     fireEvent.click(screen.getByText('确认清空'));
     expect(onDeleteAll).toHaveBeenCalled();
   });
@@ -234,7 +234,8 @@ describe('ScriptList', () => {
     render(
       <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onDeleteAll={() => {}} />
     );
-    fireEvent.click(screen.getByText('标题'));
+    fireEvent.click(screen.getByLabelText('排序方式'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '标题' }));
     const stored = JSON.parse(localStorage.getItem('prompter_sort')!);
     expect(stored.sort).toBe('title');
     expect(stored.asc).toBe(false);
@@ -245,9 +246,10 @@ describe('ScriptList', () => {
     render(
       <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onDeleteAll={() => {}} />
     );
-    // 验证「字数」按钮高亮且带 ↑ 箭头
-    const charsBtn = screen.getByText('字数 ↑');
-    expect(charsBtn.className).toContain('bg-white/15');
+    // 菜单内「字数」与「升序」处于选中态
+    fireEvent.click(screen.getByLabelText('排序方式'));
+    expect(screen.getByRole('menuitemradio', { name: '字数' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menuitemradio', { name: '升序' })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('排序记忆在组件重新挂载后保留（往返测试）', () => {
@@ -255,15 +257,17 @@ describe('ScriptList', () => {
       <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onDeleteAll={() => {}} />
     );
     // 切换到标题排序
-    fireEvent.click(screen.getByText('标题'));
+    fireEvent.click(screen.getByLabelText('排序方式'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '标题' }));
     unmount();
 
     // 重新挂载 — 模拟返回页面
     render(
       <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} onDeleteAll={() => {}} />
     );
-    const titleBtn = screen.getByText('标题 ↓');
-    expect(titleBtn.className).toContain('bg-white/15');
+    fireEvent.click(screen.getByLabelText('排序方式'));
+    expect(screen.getByRole('menuitemradio', { name: '标题' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menuitemradio', { name: '降序' })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('星标稿件稳定置顶（组内保持日期排序）', () => {
@@ -303,7 +307,7 @@ describe('ScriptList', () => {
     expect(order).toEqual(['content-3', 'content-1', 'content-4', 'content-2']);
   });
 
-  it('文件夹 chips 从稿件派生，点选后只显示该文件夹的稿件', () => {
+  it('筛选菜单从稿件派生文件夹，点选后只显示该文件夹的稿件', () => {
     const foldered: Script[] = [
       { ...scripts[0], folder: '口播' },
       { ...scripts[1] },
@@ -311,12 +315,13 @@ describe('ScriptList', () => {
     render(
       <ScriptList scripts={foldered} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
     );
-    // chips 行的「口播」在卡片同名标签之前（DOM 顺序）
-    fireEvent.click(screen.getAllByText('口播')[0]);
+    fireEvent.click(screen.getByLabelText('筛选'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '口播' }));
     expect(screen.getByText('视频脚本')).toBeInTheDocument();
     expect(screen.queryByText('会议发言')).toBeNull();
     // 切回全部恢复
-    fireEvent.click(screen.getByText('全部'));
+    fireEvent.click(screen.getByLabelText('筛选'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '全部稿件' }));
     expect(screen.getByText('会议发言')).toBeInTheDocument();
   });
 
@@ -328,9 +333,57 @@ describe('ScriptList', () => {
     render(
       <ScriptList scripts={starredScripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
     );
-    fireEvent.click(screen.getByText('星标'));
+    fireEvent.click(screen.getByLabelText('筛选'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '星标稿件' }));
     expect(screen.getByText('会议发言')).toBeInTheDocument();
     expect(screen.queryByText('视频脚本')).toBeNull();
+  });
+
+  it('筛选触发器显示当前范围名与可见计数，选择文件夹后同步更新', () => {
+    const foldered: Script[] = [
+      { ...scripts[0], folder: '口播' },
+      { ...scripts[1] },
+    ];
+    render(
+      <ScriptList scripts={foldered} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+    );
+    const trigger = screen.getByLabelText('筛选');
+    expect(trigger).toHaveTextContent('全部稿件');
+    expect(trigger).toHaveTextContent('2');
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '口播' }));
+    const updated = screen.getByLabelText('筛选');
+    expect(updated).toHaveTextContent('口播');
+    expect(updated).toHaveTextContent('1');
+  });
+
+  it('排序菜单：依据与升降序独立切换生效', () => {
+    render(
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+    );
+    const order = () => [...document.querySelectorAll('[data-testid^="content-"]')].map((el) => el.getAttribute('data-testid'));
+    // 标题降序：「视频脚本」在前（拼音 序大于「会议发言」）
+    fireEvent.click(screen.getByLabelText('排序方式'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '标题' }));
+    expect(order()).toEqual(['content-1', 'content-2']);
+    // 升序独立切换（依据不变）
+    fireEvent.click(screen.getByLabelText('排序方式'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '升序' }));
+    expect(order()).toEqual(['content-2', 'content-1']);
+  });
+
+  it('菜单点击外部关闭，选择后自动关闭', () => {
+    render(
+      <ScriptList scripts={scripts} filmedIds={new Set()} onToggleFilmed={() => {}} onOpen={() => {}} onEdit={() => {}} onDelete={() => {}} onCreate={() => {}} />
+    );
+    fireEvent.click(screen.getByLabelText('筛选'));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+    // 选择后也关闭
+    fireEvent.click(screen.getByLabelText('排序方式'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '日期' }));
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('卡片文件夹按钮打开移动弹层并回调 onMoveToFolder', () => {

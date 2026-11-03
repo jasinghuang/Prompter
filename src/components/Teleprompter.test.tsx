@@ -45,7 +45,6 @@ function renderTel(settings: TeleprompterSettings = DEFAULT_SETTINGS) {
     onIndexChange: vi.fn(),
     onChangeSettings: vi.fn(),
     onBack: vi.fn(),
-    onEdit: vi.fn(),
     onCompleted: vi.fn(),
     onToggleFilmed: vi.fn(),
   };
@@ -57,7 +56,6 @@ function renderTel(settings: TeleprompterSettings = DEFAULT_SETTINGS) {
       onIndexChange={handlers.onIndexChange}
       onChangeSettings={handlers.onChangeSettings}
       onBack={handlers.onBack}
-      onEdit={handlers.onEdit}
       onCompleted={handlers.onCompleted}
       isFilmed={false}
       onToggleFilmed={handlers.onToggleFilmed}
@@ -331,7 +329,6 @@ describe('Teleprompter 双指捏合调字号', () => {
           onIndexChange={vi.fn()}
           onChangeSettings={(patch) => setSettings((s) => ({ ...s, ...patch }))}
           onBack={vi.fn()}
-          onEdit={vi.fn()}
           onCompleted={vi.fn()}
           isFilmed={false}
           onToggleFilmed={vi.fn()}
@@ -363,7 +360,6 @@ describe('Teleprompter 双指捏合调字号', () => {
           onIndexChange={vi.fn()}
           onChangeSettings={(patch) => setSettings((s) => ({ ...s, ...patch }))}
           onBack={vi.fn()}
-          onEdit={vi.fn()}
           onCompleted={vi.fn()}
           isFilmed={false}
           onToggleFilmed={vi.fn()}

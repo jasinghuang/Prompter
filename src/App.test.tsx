@@ -71,8 +71,7 @@ describe('App', () => {
       { id: '1', title: '批次', content: '甲段\n\n乙段', createdAt: 1, updatedAt: 1, folder: '带货' },
     ]));
     render(<App />);
-    fireEvent.click(screen.getByText('批次')); // 打开提词页
-    fireEvent.click(screen.getByLabelText('编辑')); // 顶栏编辑进入编辑页
+    fireEvent.click(screen.getAllByLabelText('编辑稿件')[0]); // 列表卡片编辑进入编辑页（播放页编辑入口已对齐 iOS 移除）
     fireEvent.click(screen.getByRole('button', { name: /智能拆分/ }));
     await act(async () => { await new Promise((r) => setTimeout(r, 300)); });
     const scripts = JSON.parse(localStorage.getItem('prompter_scripts')!);
@@ -80,7 +79,7 @@ describe('App', () => {
     expect(scripts.every((s: { folder?: string }) => s.folder === '带货')).toBe(true);
   });
 
-  it('新建稿件 → 编辑页归入新分组 → 返回列表出现文件夹 chip 与卡片标签', async () => {
+  it('新建稿件 → 编辑页归入新分组 → 返回列表卡片带标签且筛选菜单含该文件夹', async () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /新建稿件/ }));
     fireEvent.change(screen.getByPlaceholderText('在此输入或粘贴提词稿件...'), { target: { value: '内容' } });
@@ -88,8 +87,10 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText('新分组名'), { target: { value: '带货' } });
     fireEvent.keyDown(screen.getByLabelText('新分组名'), { key: 'Enter' });
     fireEvent.click(screen.getByTitle('返回'));
-    // chips 行与卡片分组标签都出现（两处「带货」）
-    await waitFor(() => expect(screen.getAllByText('带货').length).toBeGreaterThanOrEqual(2));
+    // 卡片分组标签出现；筛选菜单内出现同名文件夹项
+    await waitFor(() => expect(screen.getByText('带货')).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText('筛选'));
+    expect(screen.getByRole('menuitemradio', { name: '带货' })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem('prompter_scripts')!)[0].folder).toBe('带货');
   });
 
@@ -124,8 +125,9 @@ describe('App', () => {
       { id: '2', title: '乙', content: '内容二', createdAt: 1, updatedAt: 1, folder: '口播' },
     ]));
     render(<App />);
-    // 进入「口播」文件夹（chips 行在前的同名元素）
-    fireEvent.click(screen.getAllByText('口播')[0]);
+    // 通过筛选菜单进入「口播」文件夹
+    fireEvent.click(screen.getByLabelText('筛选'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '口播' }));
     expect(screen.queryByText('甲')).toBeNull(); // 只剩乙
     // 打开乙再返回
     fireEvent.click(screen.getByText('乙'));

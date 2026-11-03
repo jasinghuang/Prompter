@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Undo2 } from 'lucide-react';
-import { useTransientFlag } from './hooks/useTransientFlag';
+
 import { ScriptList, type Filter } from './components/ScriptList';
 import { ScriptEditor } from './components/ScriptEditor';
 import { Teleprompter } from './components/Teleprompter';
@@ -9,7 +9,6 @@ import { useScripts } from './store/useScripts';
 import { useSettings } from './store/useSettings';
 import { useFilmed } from './store/useFilmed';
 import { Script } from './types';
-import { resolveIndexAfterEdit } from './lib/editResolve';
 import { splitByParagraphs, splitByKeyword } from './lib/split';
 
 type View = 'list' | 'prompter' | 'editor';
@@ -49,11 +48,8 @@ export default function App() {
   const [lastOpenedId, setLastOpenedId] = useState<string | null>(null);
   // 列表过滤器提升到 App：进播放页返回后仍停留在原文件夹（会话级）
   const [listFilter, setListFilter] = useState<Filter>('all');
-  // 提词器当前阅读位置（受控，供编辑返回定位使用）
+  // 提词器当前阅读位置（受控，退出播放时保存）
   const [prompterIndex, setPrompterIndex] = useState(0);
-  // 从提词器进入编辑时的快照
-  const [editSnapshot, setEditSnapshot] = useState<{ content: string; index: number } | null>(null);
-  const [resetNotice, showResetNotice] = useTransientFlag(3000);
   // 删除撤销：快照 + 2 秒展示窗口
   const [undoable, setUndoable] = useState<UndoableDelete | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -119,20 +115,12 @@ export default function App() {
     setActiveId(id);
     setLastOpenedId(id);
     setPrompterIndex(loadPosition(id));
-    setEditSnapshot(null);
     setView('prompter');
-  };
-
-  const openEditorFromPrompter = () => {
-    if (!active) return;
-    setEditSnapshot({ content: active.content, index: prompterIndex });
-    setView('editor');
   };
 
   const handleCreate = () => {
     const id = addScript();
     setActiveId(id);
-    setEditSnapshot(null);
     setView('editor');
   };
 
@@ -162,16 +150,10 @@ export default function App() {
           onIndexChange={(i) => { setPrompterIndex(i); savePosition(active.id, i); }}
           onChangeSettings={updateSettings}
           onBack={() => setView('list')}
-          onEdit={openEditorFromPrompter}
           onCompleted={() => markFilmed(active.id)}
           isFilmed={filmedIds.has(active.id)}
           onToggleFilmed={() => toggleFilmed(active.id)}
         />
-        {resetNotice && (
-          <div className="fixed left-1/2 top-20 z-[120] -translate-x-1/2 rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-[#D4A432] shadow-2xl">
-            文案改动已跨越当前位置，已重置到开头
-          </div>
-        )}
       </>
     );
   }
@@ -193,17 +175,8 @@ export default function App() {
         onSplitKeywordChange={(kw) => updateSettings({ splitKeyword: kw })}
         onSave={(id, title, content) => {
           updateScript(id, title, content);
-          // 从提词器进入编辑的情形：判断返回后定位
-          if (editSnapshot) {
-            const newIndex = resolveIndexAfterEdit(editSnapshot.content, content, editSnapshot.index);
-            if (newIndex === 0 && editSnapshot.index !== 0) {
-              showResetNotice();
-            }
-            setPrompterIndex(newIndex);
-            setEditSnapshot({ content, index: newIndex });
-          }
         }}
-        onBack={() => setView(editSnapshot ? 'prompter' : 'list')}
+        onBack={() => setView('list')}
         onSplit={handleSplit}
       />
     );
@@ -219,7 +192,7 @@ export default function App() {
         filter={listFilter}
         onFilterChange={setListFilter}
         onOpen={openPrompter}
-        onEdit={(id) => { setActiveId(id); setEditSnapshot(null); setView('editor'); }}
+        onEdit={(id) => { setActiveId(id); setView('editor'); }}
         onDelete={(id) => handleDeleteScripts([id])}
         onCreate={handleCreate}
         onToggleFilmed={toggleFilmed}

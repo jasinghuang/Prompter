@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Camera, ChevronLeft, CircleCheck, CirclePause, PenLine, Play, SlidersHorizontal } from 'lucide-react';
+import { ArrowUp, Camera, ChevronLeft, CircleCheck, CirclePause, Play, SlidersHorizontal } from 'lucide-react';
 import { Script, TeleprompterSettings } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
@@ -24,7 +24,6 @@ interface Props {
   onIndexChange: (i: number) => void;
   onChangeSettings: (patch: Partial<TeleprompterSettings>) => void;
   onBack: () => void;
-  onEdit: () => void;
   onCompleted: () => void;
   /** 当前稿件是否已标记拍摄 */
   isFilmed: boolean;
@@ -57,7 +56,6 @@ export function Teleprompter({
   onIndexChange,
   onChangeSettings,
   onBack,
-  onEdit,
   onCompleted,
   isFilmed,
   onToggleFilmed,
@@ -345,10 +343,6 @@ export function Teleprompter({
     setIsPlaying(false);
     scrollToIndex(0);
   };
-  const handleEdit = () => {
-    onIndexChange(activeIndexRef.current);
-    onEdit();
-  };
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     setPointerDown(true);
@@ -487,7 +481,7 @@ export function Teleprompter({
 
         <div className="min-w-0 flex-1" />
 
-        {/* 右胶囊：标记已拍摄 / 编辑 / 设置 —— 播放中自动隐藏（防误触/不抢正文视线） */}
+        {/* 右胶囊：标记已拍摄 / 设置 —— 播放中自动隐藏（防误触/不抢正文视线）；编辑回列表页做（对齐 iOS） */}
         <div
           className={`transition-all duration-300 ${
             isPlaying ? 'pointer-events-none -translate-y-2 opacity-0' : 'translate-y-0 opacity-100'
@@ -503,10 +497,6 @@ export function Teleprompter({
               }}
             >
               <CircleCheck size={18} strokeWidth={2.4} />
-            </CapsuleButton>
-            <CapsuleDivider />
-            <CapsuleButton label="编辑" onClick={handleEdit}>
-              <PenLine size={18} />
             </CapsuleButton>
             <CapsuleDivider />
             <CapsuleButton label="设置" onClick={() => setShowSettings(true)}>

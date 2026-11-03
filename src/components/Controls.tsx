@@ -18,13 +18,15 @@ const SLIDER_CLASS = [
   '[&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white',
 ].join(' ');
 
-/** 参数组：暗淡标签 + 数值胶囊 + 滑块，组内间距紧凑 */
+/** 参数组：暗淡标签 + 数值胶囊 + 滑块，组内间距紧凑。
+ *  宽屏两组横排 1:2（字号:速度，对齐 iOS bottomControls 轨道分配）；窄屏竖排各占全宽 */
 function ParamGroup({
   label,
   value,
   min,
   max,
   step,
+  className = '',
   onChange,
 }: {
   label: string;
@@ -32,10 +34,11 @@ function ParamGroup({
   min: number;
   max: number;
   step: number;
+  className?: string;
   onChange: (v: number) => void;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+    <div className={`flex min-w-0 items-center gap-1.5 ${className}`}>
       <span className="shrink-0 text-xs text-white/50">{label}</span>
       <span className="shrink-0 rounded-md bg-white/10 px-2.5 py-0.5 font-mono text-sm font-semibold tabular-nums text-white">
         {value}
@@ -57,7 +60,7 @@ function ParamGroup({
 export function Controls({ fontSize, speed, visible, onFontSizeChange, onSpeedChange }: Props) {
   return (
     <div
-      className={`absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 flex items-center gap-3 rounded-2xl border border-white/10 glass-bar px-4 py-3 transition-all duration-300 ${
+      className={`absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 flex flex-col gap-2.5 rounded-2xl border border-white/10 glass-bar px-4 py-3 transition-all duration-300 sm:flex-row sm:items-center sm:gap-4 ${
         visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'
       }`}
     >
@@ -67,6 +70,7 @@ export function Controls({ fontSize, speed, visible, onFontSizeChange, onSpeedCh
         min={FONT_SIZE_MIN}
         max={FONT_SIZE_MAX}
         step={2}
+        className="sm:flex-1"
         onChange={onFontSizeChange}
       />
       <ParamGroup
@@ -75,6 +79,7 @@ export function Controls({ fontSize, speed, visible, onFontSizeChange, onSpeedCh
         min={SPEED_MIN}
         max={SPEED_MAX}
         step={10}
+        className="sm:flex-[2]"
         onChange={onSpeedChange}
       />
     </div>

@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { Search, Plus, FileText, ArrowUpDown, Trash2, Clock, Star, Folder, FolderPlus, Check, X, FolderInput, Share } from 'lucide-react';
+import { Search, Plus, FileText, ArrowUpDown, Trash2, Clock, Star, Folder, FolderPlus, Check, ChevronDown, X, FolderInput } from 'lucide-react';
 import { Script } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SwipeableCard } from './SwipeableCard';
@@ -84,6 +84,27 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
   const BATCH_MOVE = '__batch__';
+
+  // 筛选/排序下拉菜单（对齐 iOS 双 Menu 形态；同时只开一个）
+  const [menu, setMenu] = useState<'filter' | 'sort' | null>(null);
+  const menuRowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!menuRowRef.current?.contains(e.target as Node)) setMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenu(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menu]);
+
+  const filterTitle = filter === 'all' ? '全部稿件' : filter === 'starred' ? '星标稿件' : filter;
 
   // FLIP：卡片 DOM 引用 + 上一帧页面坐标（页面坐标不受滚动影响）
   const cardEls = useRef(new Map<string, HTMLDivElement>());
@@ -171,24 +192,6 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
     try { localStorage.setItem(SCROLL_KEY, String(window.scrollY)); } catch { /* noop */ }
     onOpen(id);
   }, [onOpen]);
-
-  // 导出全部数据到剪贴板（供原生 App 剪贴板智能导入 / 备份）
-  const handleExport = () => {
-    const payload = {
-      type: 'prompter-export',
-      v: 1,
-      scripts,
-      filmedIds: [...filmedIds],
-      settings: JSON.parse(localStorage.getItem('prompter_settings') ?? '{}'),
-    };
-    const text = JSON.stringify(payload);
-    const done = () => window.alert(`已复制 ${scripts.length} 篇稿件数据到剪贴板，打开 App 即可导入`);
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(text).then(done).catch(() => window.prompt('复制以下数据：', text));
-    } else {
-      window.prompt('复制以下数据：', text);
-    }
-  };
 
   const handleCreateFolder = () => {
     const name = newFolderName.trim();
@@ -284,23 +287,79 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
         }}
       >
         <div className="mx-auto flex max-w-5xl items-center gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <img src={import.meta.env.BASE_URL + 'icon.svg?v=4'} alt="" className="h-7 w-7 rounded-lg" />
-            <h1 className="text-base font-bold text-white">提词器</h1>
+            {/* 多选时标题切换为已选计数（对齐 iOS） */}
+            <h1 className="truncate text-xl font-bold text-white">
+              {selectMode ? `已选 ${selected.size} 篇` : '我的稿件'}
+            </h1>
           </div>
-          <div className="relative ml-auto">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40" size={14} />
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            {selectMode ? (
+              <button
+                onClick={exitSelectMode}
+                className="flex h-[var(--ctl-1-h)] items-center rounded-full px-4 text-sm font-semibold text-white/75 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
+              >
+                完成
+              </button>
+            ) : (
+              <>
+                {onDeleteAll && (
+                  <button
+                    onClick={() => setConfirmClear(true)}
+                    disabled={scripts.length === 0}
+                    aria-label="清空全部稿件"
+                    className="flex h-[var(--ctl-1-h)] w-[var(--ctl-1-h)] items-center justify-center rounded-full text-white/55 transition-colors hover:bg-white/10 hover:text-white active:scale-95 disabled:pointer-events-none disabled:opacity-30"
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    try { localStorage.setItem(SCROLL_KEY, String(window.scrollY)); } catch { /* noop */ }
+                    onCreate();
+                  }}
+                  className="flex h-[var(--ctl-1-h)] shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-4 text-sm font-bold text-[#0A0A0B] transition-all active:scale-95"
+                >
+                  <Plus size={15} />新建稿件
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main
+        className="mx-auto w-full max-w-5xl flex-1 py-8"
+        style={{
+          paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
+          paddingRight: 'calc(1rem + env(safe-area-inset-right))',
+        }}
+      >
+        {/* 搜索行 — 全宽独立一行（对齐 iOS）；多选时让位多选栏 */}
+        {!selectMode && (
+          <div className="relative mb-3">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" size={15} />
             <input
-              placeholder="搜索稿件..."
+              placeholder="搜索标题或正文"
               value={query}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
               onChange={(e) => setQuery(e.target.value)}
-              className="h-10 w-28 rounded-full border border-white/10 bg-white/5 pl-8 pr-2.5 text-sm text-white placeholder-white/30 transition-all focus:w-48 focus:border-[#D4A432]/40 focus:bg-white/10 focus:outline-none sm:w-48"
+              className="h-[var(--ctl-1-h)] w-full rounded-full border border-white/10 bg-white/5 pl-10 pr-11 text-sm text-white placeholder-white/30 transition-colors focus:border-[#D4A432]/40 focus:bg-white/10 focus:outline-none"
             />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                aria-label="清除搜索"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 transition-colors hover:text-white/80"
+              >
+                <X size={15} />
+              </button>
+            )}
             {/* Recent quick-access */}
             {searchFocused && !query && recentScripts.length > 0 && (
-              <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-white/10 glass-surface py-1.5 shadow-xl">
+              <div className="absolute left-0 top-full mt-2 w-72 rounded-xl border border-white/10 glass-surface py-1.5 shadow-xl">
                 <div className="px-3 pb-1.5 pt-0.5 text-[10px] text-white/30">最近使用</div>
                 {recentScripts.map((s) => (
                   <button
@@ -315,36 +374,11 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
               </div>
             )}
           </div>
-          <button
-            onClick={() => {
-              try { localStorage.setItem(SCROLL_KEY, String(window.scrollY)); } catch { /* noop */ }
-              onCreate();
-            }}
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-3.5 text-sm font-bold text-[#0A0A0B] transition-all active:scale-95"
-          >
-            <Plus size={15} />新建稿件
-          </button>
-        </div>
-      </header>
+        )}
 
-      <main
-        className="mx-auto w-full max-w-5xl flex-1 py-8"
-        style={{
-          paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
-          paddingRight: 'calc(1rem + env(safe-area-inset-right))',
-        }}
-      >
-        {/* 多选栏：长按卡片进入；替代筛选 chips + 排序工具行 */}
+        {/* 多选操作栏：长按卡片进入；计数与「完成」在头部（对齐 iOS），此处只保留批量操作 */}
         {selectMode && (
           <div className="mb-5 flex items-center gap-2">
-            <button
-              onClick={exitSelectMode}
-              aria-label="退出多选"
-              className="flex h-[var(--ctl-3-h)] w-[var(--ctl-3-h)] shrink-0 items-center justify-center rounded-full chip-glass text-white/60 transition-colors hover:text-white active:scale-95"
-            >
-              <X size={15} />
-            </button>
-            <span className="shrink-0 text-[13px] text-white/50">已选 {selected.size} 篇</span>
             <button
               onClick={selectAllVisible}
               className="flex h-[var(--ctl-3-h)] shrink-0 items-center rounded-full chip-glass px-3 text-[13px] font-medium text-white/60 transition-colors hover:text-white active:scale-95"
@@ -370,66 +404,93 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
           </div>
         )}
 
-        {/* Filter Chips — 全部 / 星标 / 文件夹（横向滚动）。
-            文件夹由稿件派生（无实体管理），新建入口在卡片的「移动到文件夹」弹层里 */}
+        {/* 筛选/排序双菜单（对齐 iOS）— 左：稿件范围+可见计数（自适应宽）；右端：排序依据+顺序 */}
         {!selectMode && scripts.length > 0 && (
-          <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <FilterChip active={filter === 'all'} onClick={() => setFilter('all')}>
-              全部
-              <span className="rounded-full bg-white/12 px-1.5 text-[11px] font-semibold tabular-nums text-white/55">
-                {scripts.length}
-              </span>
-            </FilterChip>
-            <FilterChip active={filter === 'starred'} onClick={() => setFilter('starred')}>
-              <Star size={13} className={filter === 'starred' ? 'fill-current' : ''} />
-              星标
-            </FilterChip>
-            {folders.map((f) => (
-              <FilterChip key={f} active={filter === f} onClick={() => setFilter(f)}>
-                <Folder size={13} />
-                {f}
-                <span className="rounded-full bg-white/12 px-1.5 text-[11px] font-semibold tabular-nums text-white/55">
-                  {scripts.filter((s) => s.folder === f).length}
-                </span>
-              </FilterChip>
-            ))}
-          </div>
-        )}
-
-        {/* Toolbar — T3 工具操作（32px 玻璃胶囊）；多选模式下由多选栏替代 */}
-        {!selectMode && scripts.length > 0 && onDeleteAll && (
-          <div className="mb-5 flex items-center gap-1.5">
-            <ArrowUpDown size={13} className="mx-1 shrink-0 text-white/25" />
-            {SORT_OPTIONS.map((opt) => (
+          <div ref={menuRowRef} className="mb-4 flex items-center gap-3">
+            <div className="relative min-w-0">
               <button
-                key={opt.value}
-                onClick={() => {
-                  if (sort === opt.value) setAsc((v) => !v);
-                  else { setSort(opt.value); setAsc(false); }
-                }}
-                className={`flex h-[var(--ctl-3-h)] shrink-0 items-center whitespace-nowrap rounded-full px-3 text-[13px] font-medium transition-colors ${
-                  sort === opt.value
-                    ? 'bg-white/15 text-white'
-                    : 'chip-glass text-white/40 hover:text-white/70'
-                }`}
+                onClick={() => setMenu(menu === 'filter' ? null : 'filter')}
+                aria-label="筛选"
+                aria-haspopup="menu"
+                aria-expanded={menu === 'filter'}
+                className="flex h-[var(--ctl-2-h)] items-center gap-2 rounded-full chip-glass px-4 text-left transition-colors hover:bg-white/12"
               >
-                {opt.label}{sort === opt.value ? (asc ? ' ↑' : ' ↓') : ''}
+                <span className="truncate text-sm font-semibold text-white">{filterTitle}</span>
+                <ChevronDown
+                  size={13}
+                  className={`shrink-0 text-white/40 transition-transform duration-200 ${menu === 'filter' ? 'rotate-180' : ''}`}
+                />
+                <span className="ml-auto shrink-0 text-[13px] tabular-nums text-white/45">{filtered.length}</span>
               </button>
-            ))}
+              {menu === 'filter' && (
+                <div
+                  role="menu"
+                  aria-label="稿件范围"
+                  className="absolute left-0 top-full z-50 mt-2 w-60 rounded-2xl border border-white/10 glass-surface py-1.5 shadow-2xl"
+                >
+                  <MenuOption
+                    icon={<FileText size={15} />}
+                    label="全部稿件"
+                    checked={filter === 'all'}
+                    onClick={() => { setFilter('all'); setMenu(null); }}
+                  />
+                  <MenuOption
+                    icon={<Star size={15} />}
+                    label="星标稿件"
+                    checked={filter === 'starred'}
+                    onClick={() => { setFilter('starred'); setMenu(null); }}
+                  />
+                  {folders.length > 0 && (
+                    <>
+                      <div className="my-1 h-px bg-white/10" />
+                      <div className="px-4 pb-1 pt-1.5 text-[10px] text-white/30">文件夹</div>
+                      {folders.map((f) => (
+                        <MenuOption
+                          key={f}
+                          icon={<Folder size={15} />}
+                          label={f}
+                          checked={filter === f}
+                          onClick={() => { setFilter(f); setMenu(null); }}
+                        />
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
 
-            <button
-              onClick={handleExport}
-              aria-label="导出数据"
-              className="flex h-[var(--ctl-3-h)] shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-white/45 transition-colors hover:bg-white/10 hover:text-white/80 active:scale-95"
-            >
-              <Share size={13} /> 导出
-            </button>
-            <button
-              onClick={() => setConfirmClear(true)}
-              className="ml-auto flex h-[var(--ctl-3-h)] shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-[#D4A432]/80 transition-colors hover:bg-[#D4A432]/15 hover:text-[#D4A432] active:scale-95"
-            >
-              <Trash2 size={13} /> 清空全部
-            </button>
+            <div className="relative ml-auto shrink-0">
+              <button
+                onClick={() => setMenu(menu === 'sort' ? null : 'sort')}
+                aria-label="排序方式"
+                aria-haspopup="menu"
+                aria-expanded={menu === 'sort'}
+                className="flex h-[var(--ctl-2-h)] w-[var(--ctl-2-h)] items-center justify-center rounded-full chip-glass text-white/60 transition-colors hover:bg-white/12 hover:text-white"
+              >
+                <ArrowUpDown size={14} />
+              </button>
+              {menu === 'sort' && (
+                <div
+                  role="menu"
+                  aria-label="排序方式"
+                  className="absolute left-0 top-full z-50 mt-2 w-56 rounded-2xl border border-white/10 glass-surface py-1.5 shadow-2xl"
+                >
+                  <div className="px-4 pb-1 pt-1.5 text-[10px] text-white/30">排序依据</div>
+                  {SORT_OPTIONS.map((opt) => (
+                    <MenuOption
+                      key={opt.value}
+                      label={opt.label}
+                      checked={sort === opt.value}
+                      onClick={() => { setSort(opt.value); setMenu(null); }}
+                    />
+                  ))}
+                  <div className="my-1 h-px bg-white/10" />
+                  <div className="px-4 pb-1 pt-1.5 text-[10px] text-white/30">排列顺序</div>
+                  <MenuOption label="升序" checked={asc} onClick={() => { setAsc(true); setMenu(null); }} />
+                  <MenuOption label="降序" checked={!asc} onClick={() => { setAsc(false); setMenu(null); }} />
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -618,6 +679,27 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
       )}
 
     </div>
+  );
+}
+
+/** 菜单选项行（筛选/排序下拉内）：图标 + 文案 + 选中态金色对勾（对齐 iOS inline Picker 观感） */
+function MenuOption({ icon, label, checked, onClick }: {
+  icon?: React.ReactNode;
+  label: string;
+  checked?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      role="menuitemradio"
+      aria-checked={checked}
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/10 active:bg-white/15"
+    >
+      {icon && <span className="shrink-0 text-white/40">{icon}</span>}
+      <span className={`min-w-0 flex-1 truncate ${checked ? 'font-medium text-white' : 'text-white/70'}`}>{label}</span>
+      {checked && <Check size={14} className="shrink-0 text-[#D4A432]" />}
+    </button>
   );
 }
 
