@@ -135,12 +135,6 @@ describe('Teleprompter 读完动作', () => {
     expect(screen.queryByLabelText('关闭镜子')).toBeNull();
   });
 
-  it('暂停时中央显示播放提示，容器穿透不拦截点击', () => {
-    renderTel();
-    const hint = screen.getByText('点击屏幕任意位置播放');
-    expect(hint.closest('div')!.className).toContain('pointer-events-none');
-  });
-
   it('暂停时计时旁为双竖线暂停图标，播放中右上角操作胶囊自动隐藏', () => {
     renderTel();
     // 暂停态：状态格内是 CirclePause 图标

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Camera, ChevronLeft, CircleCheck, CirclePause, Play, SlidersHorizontal } from 'lucide-react';
+import { ArrowUp, Camera, ChevronLeft, CircleCheck, CirclePause, SlidersHorizontal } from 'lucide-react';
 import { Script, TeleprompterSettings } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
@@ -64,8 +64,6 @@ export function Teleprompter({
   const [showSettings, setShowSettings] = useState(false);
   const [showMirror, setShowMirror] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !hasOnboarded());
-  // 手指/指针按住屏幕（拖拽浏览）时隐藏中央播放提示，松手恢复
-  const [pointerDown, setPointerDown] = useState(false);
   const [wakeLockFailed, showWakeLockFailed] = useTransientFlag(3000);
   const [pauseReason, setPauseReason] = useState<string | null>(null);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -345,12 +343,10 @@ export function Teleprompter({
   };
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    setPointerDown(true);
     touchStartRef.current = { y: e.clientY };
   }, []);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    setPointerDown(false);
     const start = touchStartRef.current;
     touchStartRef.current = null;
     if (!start) return;
@@ -505,18 +501,6 @@ export function Teleprompter({
           </Capsule>
         </div>
       </div>
-
-      {/* ── Center Play Hint（暂停时提示可点击播放）──
-          pointer-events-none：点击穿透到屏幕本身，用户瞄准图标点也能播放，
-          从物理上消除「必须点中按钮」的误解 */}
-      {!isPlaying && !pointerDown && !showOnboarding && (
-        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-3">
-          <div className="play-hint flex h-[72px] w-[72px] items-center justify-center rounded-full border border-white/10 bg-black/35">
-            <Play size={30} className="ml-1 text-white/80" fill="currentColor" />
-          </div>
-          <span className="play-hint text-xs text-white/45">点击屏幕任意位置播放</span>
-        </div>
-      )}
 
       {/* ── Reading Guide Lines (soft glass) ── */}
       <div
