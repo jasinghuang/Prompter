@@ -19,7 +19,6 @@ struct PrompterScrollView: UIViewRepresentable {
     let typography: Typography
     let isPlaying: Bool
     let wordsPerMinute: Int
-    var mirror = false
     let controller: ScrollEngineController
 
     var onActiveIndex: (Int) -> Void = { _ in }
@@ -29,7 +28,6 @@ struct PrompterScrollView: UIViewRepresentable {
     var onTap: () -> Void = {}
     var onPinch: (Int) -> Void = { _ in }
     var onPinchEnd: (Int) -> Void = { _ in }
-    var onEdgeBack: () -> Void = {}
     var onUserDragPause: () -> Void = {} // 播放中用户拖动正文 → 暂停（计时随之停）
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -57,7 +55,6 @@ struct PrompterScrollView: UIViewRepresentable {
         let c = context.coordinator
         c.parent = self
         c.wordsPerMinute = wordsPerMinute
-        c.edgePan?.edges = mirror ? .right : .left // 镜像模式视觉翻转，返回边缘跟到物理右侧
         c.render(typography)
         c.setPlaying(isPlaying)
     }
@@ -86,7 +83,6 @@ struct PrompterScrollView: UIViewRepresentable {
         private var pinchStartFont = 0
         private var lastPinchFont = 0
         private var suppressTapUntil: CFTimeInterval = 0
-        weak var edgePan: UIScreenEdgePanGestureRecognizer?
 
         init(_ parent: PrompterScrollView) {
             self.parent = parent
@@ -116,14 +112,6 @@ struct PrompterScrollView: UIViewRepresentable {
             pinch.delegate = self
             tv.addGestureRecognizer(pinch)
 
-            // 左缘右滑返回列表（对齐系统返回手势）；镜像模式下视觉左右翻转，边缘取右侧
-            let edge = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(handleEdgeBack(_:)))
-            edge.edges = .left
-            edge.delegate = self
-            tv.addGestureRecognizer(edge)
-            edgePan = edge
-            // 边缘手势优先于滚动：不是从边缘起的触摸，edge pan 立刻失败、滚动不受影响
-            tv.panGestureRecognizer.require(toFail: edge)
         }
 
         func teardown() {
@@ -372,15 +360,6 @@ struct PrompterScrollView: UIViewRepresentable {
             parent.onTap()
         }
 
-        /// 左缘右滑 ≥24pt 触发一次返回；复位识别器避免同一次手势重复触发
-        @objc private func handleEdgeBack(_ gesture: UIScreenEdgePanGestureRecognizer) {
-            guard gesture.state == .changed || gesture.state == .ended,
-                  gesture.translation(in: gesture.view).x > 24 else { return }
-            gesture.isEnabled = false
-            gesture.isEnabled = true
-            parent.onEdgeBack()
-        }
-
         @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
             guard let tv = textView else { return }
             switch gesture.state {
@@ -407,8 +386,6 @@ struct PrompterScrollView: UIViewRepresentable {
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            // 边缘返回手势独占：与滚动的同时识别会架空 require(toFail:) 仲裁
-            if gestureRecognizer === edgePan || other === edgePan { return false }
             return true
         }
     }

@@ -26,55 +26,52 @@ struct ScriptListView: View {
     @State private var lastOpenedID: UUID?
     @State private var confirmDelete = false
     @State private var deleteTargets: [Script] = []
+    @State private var lastUndoCount = 0
+    @State private var lastShelfMode = ActionShelfMode()
+    #if DEBUG
+    @State private var didAutoOpenPlayer = false
+    #endif
     @FocusState private var searchFocused: Bool
 
     private var visible: [Script] { library.visible(in: scripts) }
     private var selectedScripts: [Script] { scripts.filter { library.selected.contains($0.id) } }
     private var allVisibleSelected: Bool { !visible.isEmpty && Set(visible.map(\.id)).isSubset(of: library.selected) }
 
+    private struct ActionShelfMode: Equatable {
+        var undo = false
+        var selection = false
+        var visible: Bool { undo || selection }
+    }
+
     var body: some View {
-        let visible = library.visible(in: scripts)
-        let rows = library.rows(for: visible)
+        let rows = library.projection(in: scripts).rows
         NavigationStack {
             VStack(spacing: 0) {
                 header
                 if !scripts.isEmpty { filters }
-                List {
-                    if visible.isEmpty {
-                        emptyState.listRowBackground(Color.canvas).listRowSeparator(.hidden)
+                Group {
+                    if rows.isEmpty {
+                        ScrollView { emptyState }
                     } else {
-                        ForEach(rows) { row in
-                            switch row {
-                            case .heading(let tier, let count):
-                                sectionHeading(tier: tier, count: count)
-                            case .script(let script):
-                                card(script)
+                        NativeScriptList(state: .init(rows: rows, summaries: library.summaries,
+                            wordsPerMinute: settings.data.scrollSpeed, selecting: library.selecting,
+                            selected: library.selected, highlighted: lastOpenedID)) { action, id in
+                                guard let script = scripts.first(where: { $0.id == id }) else { return }
+                                handle(action, script)
                             }
-                        }
                     }
                 }
-                .listStyle(.plain)
-                // A row move must not inherit the swipe action's closing animation.
-                // Match by global script ID; keep scrolling and UIKit swipe gestures native.
-                .transaction(value: rows.map(\.id)) { transaction in
-                    transaction.animation = nil
-                    transaction.disablesAnimations = true
-                }
-                .scrollContentBackground(.hidden)
-                .scrollDismissesKeyboard(.interactively)
-                .environment(\.defaultMinListRowHeight, 0)
-                .accessibilityIdentifier("script.list")
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if !operations.undoItems.isEmpty || library.selecting {
-                        VStack(spacing: 8) {
-                            if !operations.undoItems.isEmpty { undoBar }
-                            if library.selecting { selectionBar }
-                        }.padding(.horizontal, 16).padding(.vertical, 8)
-                    }
+                    actionShelf
                 }
             }
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(item: $playingScript) { script in
+                PlayerView(script: script)
+                    .navigationBarBackButtonHidden(true)
+                    .toolbar(.hidden, for: .navigationBar)
+            }
         }
         .preferredColorScheme(.dark)
         .sheet(item: $sheet) { destination in
@@ -83,7 +80,6 @@ struct ScriptListView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Color.canvas)
         }
-        .fullScreenCover(item: $playingScript) { PlayerView(script: $0) }
         .confirmationDialog("删除这 \(deleteTargets.count) 篇稿件？", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("删除 \(deleteTargets.count) 篇", role: .destructive) {
                 if operations.delete(deleteTargets, in: context) { library.exitSelection() }
@@ -95,10 +91,14 @@ struct ScriptListView: View {
             Button("知道了", role: .cancel) { operations.errorMessage = nil }
         } message: { Text(operations.errorMessage ?? "") }
         .onChange(of: scripts.map(ScriptLibraryState.Revision.init), initial: true) { _, _ in library.refresh(scripts) }
+        .onChange(of: operations.undoItems.count, initial: true) { _, count in
+            if count > 0 { lastUndoCount = count }
+        }
         .task {
             operations.purgeExpired(in: context)
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("-openPlayer"), playingScript == nil {
+            if ProcessInfo.processInfo.arguments.contains("-openPlayer"), playingScript == nil, !didAutoOpenPlayer {
+                didAutoOpenPlayer = true
                 playingScript = scripts.max { $0.content.count < $1.content.count }
             }
             #endif
@@ -192,7 +192,7 @@ struct ScriptListView: View {
             }
             .accessibilityLabel("排序方式")
             .accessibilityValue("\(library.sortKey == .date ? "时间" : library.sortKey.label)，\(library.sortAscending ? "升序" : "降序")")
-            .accessibilityHint("时间按最近修改时间排序；星标和已拍摄分层保持不变")
+            .accessibilityHint("时间按最近修改时间排序；各拍摄分类内星标稿件置顶")
             .accessibilityIdentifier("library.sort")
         }.padding(.horizontal, 16).padding(.bottom, 2)
     }
@@ -205,43 +205,20 @@ struct ScriptListView: View {
         }
     }
 
-    private func card(_ script: Script) -> some View {
-        ScriptCardView(script: script, wordsPerMinute: settings.data.scrollSpeed, summary: library.summaries[script.id],
-                       selectMode: library.selecting, isSelected: library.selected.contains(script.id),
-                       highlighted: script.id == lastOpenedID && !library.selecting) { handle($0, script) }
-            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 10, trailing: 16))
-            .listRowBackground(Color.canvas).listRowSeparator(.hidden)
-            .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                if !library.selecting {
-                    Button { handle(.toggleFilmed, script) } label: {
-                        Label(script.isFilmed ? "取消已拍" : "已拍摄", systemImage: script.isFilmed ? "arrow.uturn.backward" : "checkmark")
-                    }.tint(script.isFilmed ? .gray : .green)
-                }
-            }
-            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                if !library.selecting {
-                    Button(role: .destructive) { handle(.delete, script) } label: {
-                        Label("删除", systemImage: "trash").foregroundStyle(Color.canvas)
-                    }.tint(.accentGold)
-                }
-            }
-    }
-
-    private func sectionHeading(tier: Int, count: Int) -> some View {
-        // Ordinary, opaque rows cannot leave a second pinned header over a moving card.
-        HStack {
-            Text(sectionTitle(tier))
-            Spacer()
-            Text("\(count) 篇")
+    private var actionShelf: some View {
+        let mode = ActionShelfMode(undo: !operations.undoItems.isEmpty, selection: library.selecting)
+        let displayed = mode.visible ? mode : lastShelfMode
+        return ActionBarPresence(visible: mode.visible) {
+            // One presence lifetime prevents batch-delete from temporarily reserving two shelves
+            // while the old selection bar leaves and the new undo bar enters.
+            VStack(spacing: 8) {
+                if displayed.undo { undoBar }
+                if displayed.selection { selectionBar }
+            }.padding(.horizontal, 16).padding(.vertical, 8)
         }
-        .font(.caption).foregroundStyle(.textSecondary)
-        .frame(minHeight: 34)
-        .background(Color.canvas)
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("script.section.\(tier)")
-        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
-        .listRowBackground(Color.canvas).listRowSeparator(.hidden)
+        .onChange(of: mode, initial: true) { _, new in
+            if new.visible { lastShelfMode = new }
+        }
     }
 
     private var selectionBar: some View {
@@ -263,7 +240,7 @@ struct ScriptListView: View {
     private var undoBar: some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("已删除 \(operations.undoItems.count) 篇").font(.subheadline)
+                Text("已删除 \(operations.undoItems.isEmpty ? lastUndoCount : operations.undoItems.count) 篇").font(.subheadline)
                 Text("8 秒内可撤销").font(.caption).foregroundStyle(.textSecondary)
             }
             Spacer(minLength: 4)
@@ -322,5 +299,4 @@ struct ScriptListView: View {
         }
     }
     private func requestDelete(_ targets: [Script]) { deleteTargets = targets; confirmDelete = !targets.isEmpty }
-    private func sectionTitle(_ tier: Int) -> String { ["星标置顶", "待拍摄", "已拍摄 · 星标", "已拍摄"][tier] }
 }

@@ -31,6 +31,19 @@ final class PlayerUITests: XCTestCase {
         }
         XCTAssertTrue(element.isHittable)
     }
+    private func waitForStableFrame(_ element: XCUIElement) {
+        var lastFrame = CGRect.null
+        var steadySamples = 0
+        let stable = NSPredicate { _, _ in
+            guard element.exists && element.isHittable else { return false }
+            let frame = element.frame
+            steadySamples = frame == lastFrame ? steadySamples + 1 : 0
+            lastFrame = frame
+            return steadySamples >= 2
+        }
+        expectation(for: stable, evaluatedWith: element)
+        waitForExpectations(timeout: 5)
+    }
     private func assertPlayerToolbarOrder() {
         let elements = [app.buttons["返回"], app.buttons["player.returnToTop"], app.buttons["player.mirror"],
                         app.buttons["player.filmed"], app.buttons["player.settings"]]
@@ -52,6 +65,14 @@ final class PlayerUITests: XCTestCase {
         }
     }
     private func play() { app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+
+    private func dragPlayerBack(to fraction: CGFloat, hold: TimeInterval = 0.1) {
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.5))
+            .press(forDuration: 0.05,
+                   thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: fraction, dy: 0.5)),
+                   withVelocity: .slow, thenHoldForDuration: hold)
+    }
 
     private func revealAirPodsSettings() {
         let toggle = app.switches["settings.airPodsNod"]
@@ -226,6 +247,8 @@ final class PlayerUITests: XCTestCase {
         app.buttons["关闭设置"].tap()
         XCTAssertTrue(app.staticTexts["player.nodStatus"].waitForExistence(timeout: 5))
         let status = app.buttons["player.returnToTop"]
+        dragPlayerBack(to: 0.15, hold: 0.4)
+        XCTAssertTrue(status.exists, "取消返回后应继续接收耳机点头事件")
         expectation(for: NSPredicate(format: "value CONTAINS %@", "提词中"), evaluatedWith: status)
         waitForExpectations(timeout: 10)
         XCTAssertFalse(app.sliders["player.slider.字号"].exists)
@@ -356,6 +379,79 @@ final class PlayerUITests: XCTestCase {
         app.buttons["关闭设置"].tap()
         XCTAssertTrue(app.sliders["字号"].isHittable)
     }
+    func testSettingsDrawerCancelledDragReturnsToItsOriginalPosition() {
+        launch(player: true, landscape: true, extra: ["-openSettings"])
+        let close = app.buttons["关闭设置"]
+        let original = close.frame
+        let title = app.staticTexts["设置"].firstMatch.frame
+        let origin = app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
+        let start = origin.withOffset(CGVector(dx: title.minX - 34, dy: title.midY))
+        start.press(forDuration: 0.05,
+                    thenDragTo: origin.withOffset(CGVector(dx: title.minX + 6, dy: title.midY)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertTrue(close.isHittable)
+        XCTAssertEqual(close.frame.minX, original.minX, accuracy: 1)
+        snapshot("drawer-cancelled-drag-returned")
+        app.sliders["slider.字号"].adjust(toNormalizedSliderPosition: 0.6)
+        XCTAssertTrue(close.isHittable)
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 3))
+        app.buttons["player.settings"].tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 3))
+        XCTAssertEqual(close.frame.minX, original.minX, accuracy: 1)
+    }
+
+    func testHelpAppearsAfterSettingsDismissalInBothOrientations() {
+        for landscape in [false, true] {
+            launch(player: true, landscape: landscape, extra: ["-openSettings"])
+            let help = app.buttons["settings.help"]
+            for _ in 0..<12 {
+                if help.isHittable { break }
+                app.scrollViews["settings.scroll"].swipeUp()
+            }
+            XCTAssertTrue(help.isHittable)
+            help.tap()
+            let done = app.buttons["知道了"]
+            XCTAssertTrue(done.waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["关闭设置"].exists)
+            let instruction = app.staticTexts["player.onboardingInstruction"]
+            XCTAssertTrue(instruction.exists)
+            XCTAssertGreaterThanOrEqual(done.frame.minY, instruction.frame.maxY + 8,
+                                       "确认按钮不能覆盖最后一行操作说明")
+            dragPlayerBack(to: 0.85)
+            XCTAssertTrue(done.isHittable, "引导打开时边缘拖动不能退出播放页")
+            snapshot(landscape ? "help-reopened-landscape" : "help-reopened-portrait")
+            done.tap()
+            XCTAssertTrue(done.waitForNonExistence(timeout: 3))
+            XCTAssertTrue(app.sliders["字号"].isHittable)
+            app.buttons["player.settings"].tap()
+            XCTAssertTrue(app.buttons["关闭设置"].waitForExistence(timeout: 3))
+            app.buttons["关闭设置"].tap()
+            XCTAssertTrue(app.buttons["关闭设置"].waitForNonExistence(timeout: 3))
+            XCTAssertFalse(done.exists, "普通关闭设置不能遗留待显示的引导")
+        }
+    }
+
+    func testFolderCreationCanCancelAndReopenWithKeyboardFocus() {
+        launch()
+        app.buttons.matching(identifier: "card.folder").firstMatch.tap()
+        app.buttons["folder.new"].tap()
+        let field = app.textFields["folder.name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        field.typeText("Temporary")
+        app.buttons["folder.cancelCreation"].tap()
+        XCTAssertTrue(field.waitForNonExistence(timeout: 3))
+        app.buttons["folder.new"].tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        XCTAssertEqual(field.value as? String, "文件夹名称")
+        field.typeText("Focus works")
+        snapshot("folder-creation-reopened-with-focus")
+        field.typeText("\n")
+        XCTAssertTrue(app.buttons["folder.new"].waitForNonExistence(timeout: 3))
+        app.buttons["library.filter"].tap()
+        XCTAssertTrue(app.buttons["Focus works"].exists)
+    }
+
     func testDirectPlayerFilmedActionPersists() {
         launch(player: true)
         let filmed = app.buttons["player.filmed"]
@@ -414,7 +510,7 @@ final class PlayerUITests: XCTestCase {
     }
     func testRepeatedFilmedSwipesKeepRowsAndHeadersSeparate() {
         launch()
-        let list = app.collectionViews["script.list"]
+        let list = app.tables["script.list"]
         XCTAssertTrue(list.exists)
         func target(_ title: String) -> XCUIElement {
             app.buttons.matching(identifier: "card").matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
@@ -447,6 +543,8 @@ final class PlayerUITests: XCTestCase {
                         XCTAssertLessThanOrEqual(pair.0.maxY, pair.1.minY + 1, "分区标题与卡片不能重叠")
                     }
                     waitForCount(4)
+                    XCTAssertFalse(app.staticTexts["星标置顶"].exists)
+                    XCTAssertFalse(app.staticTexts["已拍摄 · 星标"].exists)
                     XCTAssertFalse(app.buttons["返回"].exists)
                     snapshot("filmed-cycle-\(cycle)-\(title)-\(filmed)")
                 }
@@ -463,6 +561,80 @@ final class PlayerUITests: XCTestCase {
         XCTAssertTrue(app.buttons["undo.pill"].waitForExistence(timeout: 3))
         waitForCount(3)
         snapshot("delete-bottom-undo")
+    }
+
+    func testLongCardSwipesAtScrolledPositionsKeepContentInsideRows() {
+        launch(extra: ["-seedSwipeStress"])
+        app.buttons["library.filter"].tap()
+        app.buttons["123"].tap()
+        let list = app.tables["script.list"]
+        func assertLayout() {
+            // One accessibility snapshot: separate frame queries can span scroll deceleration
+            // and compare content from different moments, producing false overlap reports.
+            guard let snapshot = try? list.snapshot() else { return XCTFail("无法读取列表布局快照") }
+            func flatten(_ node: any XCUIElementSnapshot) -> [any XCUIElementSnapshot] {
+                [node] + node.children.flatMap(flatten)
+            }
+            let nodes = flatten(snapshot), bounds = snapshot.frame
+            let cells = nodes.filter { $0.elementType == .cell && $0.frame.intersects(bounds) }.map(\.frame)
+            for frame in cells {
+                XCTAssertLessThan(frame.height, 300, "固定两行标题/摘要的稿件不应撑出整屏空白，\(frame)")
+            }
+            let footers = nodes.filter { $0.elementType == .button && $0.identifier == "card.star" }.map(\.frame)
+            for body in nodes where body.elementType == .button && body.identifier == "card" {
+                let content = body.frame
+                guard content.minY > bounds.minY + 1, content.maxY < bounds.maxY - 50 else { continue }
+                guard let frame = cells.first(where: { $0.minY <= content.minY + 1 && $0.maxY > content.minY + 1 }) else {
+                    XCTFail("卡片正文没有对应的列表行：\(content)"); continue
+                }
+                guard frame.minY >= bounds.minY + 1, frame.maxY <= bounds.maxY - 1 else { continue }
+                XCTAssertLessThanOrEqual(content.maxY, frame.maxY + 1)
+                let matching = footers.filter { $0.minY >= content.maxY - 1 && $0.minY < frame.maxY }
+                XCTAssertEqual(matching.count, 1, "每行应有一个完整的底部星标按钮")
+                if let footer = matching.first {
+                    XCTAssertLessThanOrEqual(footer.maxY, frame.maxY + 1, "底部按钮不能画到下一行")
+                    XCTAssertLessThanOrEqual(frame.maxY - footer.maxY, 18, "行内不能留下陈旧高度形成的空白")
+                }
+            }
+            let ordered = cells.sorted { $0.minY < $1.minY }
+            for pair in zip(ordered, ordered.dropFirst()) { XCTAssertLessThanOrEqual(pair.0.maxY, pair.1.minY + 1) }
+        }
+        assertLayout()
+        for index in 0..<8 {
+            if index % 3 == 0 { list.swipeUp() }
+            if index % 3 == 2 { list.swipeDown() }
+            let candidates = list.buttons.matching(identifier: "card").allElementsBoundByIndex
+                .filter { $0.isHittable && $0.frame.minY > list.frame.minY + 20 && $0.frame.maxY < list.frame.maxY - 50 }
+            XCTAssertFalse(candidates.isEmpty)
+            let card = candidates[candidates.count / 2]
+            let wasFilmed = card.value as? String == "已拍摄"
+            if index % 2 == 0 {
+                card.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5))
+                    .press(forDuration: 0.05, thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)),
+                           withVelocity: .fast, thenHoldForDuration: 0.02)
+            } else {
+                card.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+                    .press(forDuration: 0.05, thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5)),
+                           withVelocity: .slow, thenHoldForDuration: 0.02)
+                app.buttons[wasFilmed ? "取消已拍" : "已拍摄"].tap()
+            }
+            assertLayout()
+            snapshot("long-card-scrolled-swipe-\(index)")
+        }
+    }
+
+    func testChangingScopeWhileSwipeIsRevealedClosesItAndShowsTheNewRows() {
+        launch(extra: ["-seedSwipeStress"])
+        app.buttons.matching(identifier: "card").firstMatch.swipeLeft()
+        XCTAssertTrue(app.buttons["删除"].waitForExistence(timeout: 3))
+        app.buttons["library.filter"].tap()
+        app.buttons["星标稿件"].tap()
+        let filter = app.buttons["library.filter"]
+        expectation(for: NSPredicate(format: "value CONTAINS %@", "当前 5 篇"), evaluatedWith: filter)
+        waitForExpectations(timeout: 5)
+        XCTAssertEqual(app.buttons.matching(identifier: "card").count, 5)
+        XCTAssertFalse(app.buttons["删除"].exists)
+        snapshot("scope-change-closes-swipe")
     }
     func testMultiSelectBatchDelete() {
         launch()
@@ -502,9 +674,74 @@ final class PlayerUITests: XCTestCase {
     }
     func testEdgeSwipeBackToList() {
         launch(player: true, landscape: true)
-        let window = app.windows.firstMatch
-        window.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
-            .press(forDuration: 0.12, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)))
+        dragPlayerBack(to: 0.85)
+        XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5))
+    }
+    func testNativePlayerBackCancelsAndCompletesInBothOrientations() {
+        for landscape in [false, true] {
+            launch(player: true, landscape: landscape)
+            dragPlayerBack(to: 0.15, hold: 0.4)
+            XCTAssertTrue(app.buttons["返回"].isHittable)
+            XCTAssertTrue(app.sliders["字号"].isHittable)
+            snapshot(landscape ? "native-back-landscape-cancelled" : "native-back-portrait-cancelled")
+            dragPlayerBack(to: 0.85)
+            XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["返回"].exists, "返回列表后不得由 DEBUG 入口再次打开播放页")
+        }
+    }
+
+    func testNativePlayerBackCancellationKeepsPlaybackAndAllowsReentry() {
+        launch(player: true)
+        play()
+        let status = app.buttons["player.returnToTop"]
+        let before = app.staticTexts["player.elapsed"].label
+        dragPlayerBack(to: 0.15, hold: 0.4)
+        XCTAssertTrue(status.exists)
+        XCTAssertTrue((status.value as? String ?? "").contains("提词中"))
+        XCTAssertFalse(app.sliders["字号"].exists)
+        XCTAssertNotEqual(app.staticTexts["player.elapsed"].label, before)
+        snapshot("native-back-cancelled-keeps-playing")
+        dragPlayerBack(to: 0.85)
+        XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5))
+        for _ in 0..<2 {
+            app.buttons.matching(identifier: "card").firstMatch.tap()
+            XCTAssertTrue(app.buttons["返回"].waitForExistence(timeout: 5))
+            dragPlayerBack(to: 0.85)
+            XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5))
+        }
+    }
+
+    func testNativePlayerBackUsesPhysicalLeftEdgeWithMirroredText() {
+        launch(player: true)
+        app.buttons["player.settings"].tap()
+        let mirror = app.switches["镜像翻转"]
+        for _ in 0..<12 {
+            if mirror.isHittable { break }
+            app.scrollViews["settings.scroll"].swipeUp()
+        }
+        XCTAssertTrue(mirror.isHittable); mirror.tap()
+        app.buttons["关闭设置"].tap()
+        dragPlayerBack(to: 0.15, hold: 0.4)
+        XCTAssertTrue(app.buttons["返回"].isHittable)
+        snapshot("native-back-mirrored-cancelled")
+        dragPlayerBack(to: 0.85)
+        XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5))
+    }
+
+    func testNativePlayerBackWaitsUntilModalToolsClose() {
+        launch(player: true, landscape: true, extra: ["-openSettings"])
+        dragPlayerBack(to: 0.85)
+        XCTAssertTrue(app.buttons["关闭设置"].isHittable)
+        app.buttons["关闭设置"].tap()
+        XCTAssertTrue(app.buttons["关闭设置"].waitForNonExistence(timeout: 3))
+        app.buttons["player.mirror"].tap()
+        let closeMirror = app.buttons["mirror.close"]
+        XCTAssertTrue(closeMirror.waitForExistence(timeout: 5))
+        dragPlayerBack(to: 0.85)
+        XCTAssertTrue(closeMirror.isHittable)
+        closeMirror.tap()
+        XCTAssertTrue(closeMirror.waitForNonExistence(timeout: 3))
+        dragPlayerBack(to: 0.85)
         XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 5))
     }
     func testReachBottomBackToTop() {
@@ -527,6 +764,28 @@ final class PlayerUITests: XCTestCase {
         sleep(2)
         XCTAssertFalse(hint.exists, "回顶后应从开头重新播放，而不是立即再次结束")
     }
+    func testNativePlayerCompletionMarksAndReturnsToList() {
+        launch(player: true, landscape: true, extra: ["-openSettings", "-fastEnd"])
+        let choices = app.segmentedControls["settings.completion"]
+        for _ in 0..<8 {
+            if choices.buttons["标记并返回"].isHittable { break }
+            app.scrollViews["settings.scroll"].swipeUp()
+        }
+        XCTAssertTrue(choices.buttons["标记并返回"].isHittable)
+        choices.buttons["标记并返回"].tap()
+        app.buttons["关闭设置"].tap()
+        play()
+        XCTAssertTrue(app.buttons["新建稿件"].waitForExistence(timeout: 40))
+        let marked = app.buttons.matching(identifier: "card")
+            .matching(NSPredicate(format: "label CONTAINS %@", "脚本1-广发新客开户")).firstMatch
+        for _ in 0..<5 {
+            if marked.isHittable { break }
+            app.tables["script.list"].swipeUp()
+        }
+        XCTAssertEqual(marked.value as? String, "已拍摄")
+        XCTAssertFalse(app.buttons["返回"].exists)
+        snapshot("native-back-completion-marked-and-returned")
+    }
     func testTimeCanRestartFromMidPlayback() {
         launch(player: true)
         play(); sleep(2)
@@ -545,6 +804,27 @@ final class PlayerUITests: XCTestCase {
         waitForCount(3)
         app.buttons["undo.pill"].tap()
         waitForCount(4)
+    }
+    func testUndoToolbarUpdatesConsecutiveDeletesAndCanReappear() {
+        launch()
+        deleteFirst()
+        waitForCount(3)
+        XCTAssertTrue(app.buttons["undo.pill"].waitForExistence(timeout: 3))
+        deleteFirst()
+        waitForCount(2)
+        XCTAssertEqual(app.buttons.matching(identifier: "undo.pill").count, 1)
+        XCTAssertTrue(app.staticTexts["已删除 1 篇"].exists)
+        snapshot("motion-consecutive-delete-undo")
+        app.buttons["undo.pill"].tap()
+        waitForCount(3) // Only the most recent deletion is undone.
+        XCTAssertTrue(app.buttons["undo.pill"].waitForNonExistence(timeout: 3))
+        deleteFirst()
+        waitForCount(2)
+        XCTAssertTrue(app.buttons["undo.pill"].waitForExistence(timeout: 3))
+        app.buttons["undo.pill"].tap()
+        waitForCount(3)
+        XCTAssertTrue(app.buttons["undo.pill"].waitForNonExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["新建稿件"].isHittable)
     }
     func testCreateFolderFromCard() {
         launch()
@@ -696,14 +976,24 @@ final class PlayerUITests: XCTestCase {
         title.tap(); title.typeText("Keyword draft")
         let content = app.textViews["editor.content"]
         content.tap(); content.typeText("Part A#Part B")
+        // Finish interactive keyboard dismissal before targeting a segmented control that moves with it.
+        let form = app.scrollViews["editor.form"]
+        form.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.8))
+            .press(forDuration: 0.05,
+                   thenDragTo: form.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.25)),
+                   withVelocity: .slow, thenHoldForDuration: 0.1)
         revealInEditor(app.segmentedControls["editor.splitMode"])
         app.segmentedControls["editor.splitMode"].buttons["关键词"].tap()
+        let keywordOption = app.segmentedControls["editor.splitMode"].buttons["关键词"]
+        expectation(for: NSPredicate(format: "isSelected == true"), evaluatedWith: keywordOption)
+        waitForExpectations(timeout: 3)
         let keyword = app.textFields["editor.splitKeyword"]
+        revealInEditor(keyword)
         keyword.tap(); keyword.typeText("#")
         snapshot("editor-keyword-keyboard")
         let split = app.buttons["editor.split"]
         XCTAssertTrue(split.isEnabled)
-        revealInEditor(split); split.tap()
+        revealInEditor(split); waitForStableFrame(split); split.tap()
         waitForCount(6)
         XCTAssertFalse(app.buttons["editor.done"].exists)
         snapshot("editor-keyword-direct-split")

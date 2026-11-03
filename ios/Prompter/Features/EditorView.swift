@@ -119,6 +119,7 @@ struct EditorView: View {
             }.frame(minHeight: 44)
             if splitMode == .keyword {
                 keywordField("拆分关键词", text: $settings.data.splitKeyword, field: .splitKeyword)
+                    .modifier(LocalReveal())
             }
             Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1).padding(.vertical, 2)
             HStack(spacing: 10) {
@@ -129,9 +130,16 @@ struct EditorView: View {
             }.frame(minHeight: 44)
             if settings.data.automaticPause == .keyword {
                 keywordField("暂停关键词", text: $settings.data.pauseKeyword, field: .pauseKeyword)
+                    .modifier(LocalReveal())
             }
         }.foregroundStyle(.textPrimary)
-            .onChange(of: splitMode) { _, value in settings.data.splitMode = value.rawValue }
+            .onChange(of: splitMode) { _, value in
+                if value != .keyword && focusedField == .splitKeyword { focusedField = nil }
+                settings.data.splitMode = value.rawValue
+            }
+            .onChange(of: settings.data.automaticPause) { _, value in
+                if value != .keyword && focusedField == .pauseKeyword { focusedField = nil }
+            }
     }
 
     private var splitButton: some View {

@@ -179,13 +179,27 @@ final class ScriptLibraryTests: XCTestCase {
         starred.isFilmed = true
         let after = library.rows(for: library.visible(in: scripts))
         XCTAssertEqual(after.filter { $0.id == .script(starred.id) }.count, 1)
-        XCTAssertFalse(after.contains { $0.id == .heading(0) })
-        XCTAssertTrue(after.contains { $0.id == .heading(2) })
+        XCTAssertTrue(after.contains { $0.id == .heading(.pending) })
+        XCTAssertTrue(after.contains { $0.id == .heading(.filmed) })
         XCTAssertEqual(Set(before.compactMap { row -> UUID? in if case .script(let script) = row { return script.id }; return nil }),
                        Set(after.compactMap { row -> UUID? in if case .script(let script) = row { return script.id }; return nil }))
         XCTAssertEqual(Set(after.map(\.id)).count, after.count)
         starred.isFilmed = false
         XCTAssertEqual(library.rows(for: library.visible(in: scripts)).map(\.id), before.map(\.id))
+    }
+
+    func testRenderedRowsKeepTheRevisionUsedForTheirOrderUntilTheNextSnapshot() {
+        let item = Script(title: "标记前", content: "原正文", folder: "123")
+        let library = ScriptLibraryState()
+        let before = library.rows(for: library.visible(in: [item]))
+        item.isFilmed = true; item.starred = true; item.title = "标记后"
+        guard case .script(let old) = before.last else { return XCTFail("应有稿件行") }
+        XCTAssertFalse(old.isFilmed); XCTAssertFalse(old.starred); XCTAssertEqual(old.title, "标记前")
+        let after = library.rows(for: library.visible(in: [item]))
+        guard case .script(let current) = after.last else { return XCTFail("应有更新后的稿件行") }
+        XCTAssertTrue(current.isFilmed); XCTAssertTrue(current.starred); XCTAssertEqual(current.title, "标记后")
+        XCTAssertEqual(before.last?.id, after.last?.id, "使用不可变内容仍须保留稿件全局身份")
+        XCTAssertEqual(after.first?.id, .heading(.filmed))
     }
 
     func testHeaderIdentityDoesNotDependOnItsChangingCount() {
@@ -195,15 +209,49 @@ final class ScriptLibraryTests: XCTestCase {
         let before = library.rows(for: library.visible(in: scripts))
         a.isFilmed = true
         let after = library.rows(for: library.visible(in: scripts))
-        func headings(_ rows: [ScriptLibraryState.Row]) -> [Int: Int] {
+        func headings(_ rows: [ScriptLibraryState.Row]) -> [ScriptLibraryState.Group: Int] {
             Dictionary(uniqueKeysWithValues: rows.compactMap { row in
                 if case .heading(let tier, let count) = row { return (tier, count) }; return nil
             })
         }
-        XCTAssertEqual(headings(before), [1: 2, 3: 1])
-        XCTAssertEqual(headings(after), [1: 1, 3: 2])
+        XCTAssertEqual(headings(before), [.pending: 2, .filmed: 1])
+        XCTAssertEqual(headings(after), [.pending: 1, .filmed: 2])
         XCTAssertEqual(before.filter { if case .heading = $0 { return true }; return false }.map(\.id),
                        after.filter { if case .heading = $0 { return true }; return false }.map(\.id))
+    }
+
+    func testTwoFilmingGroupsIncludePinnedStarsForEverySortAndFilter() {
+        let library = ScriptLibraryState()
+        let scripts = [false, true].flatMap { filmed in
+            [("B", 2, true), ("A", 1, true), ("D", 4, false), ("C", 3, false)].map { title, length, starred in
+                Script(title: title, content: String(repeating: "字", count: length), folder: "口播",
+                       starred: starred, isFilmed: filmed, updatedAt: Date(timeIntervalSince1970: Double(length)))
+            }
+        }
+        library.refresh(scripts)
+        for key in SortKey.allCases {
+            library.sortKey = key
+            for ascending in [true, false] {
+                library.sortAscending = ascending
+                for filter in [ScriptFilter.all, .folder("口播"), .starred] {
+                    library.filter = filter
+                    let rows = library.rows(for: library.visible(in: scripts))
+                    let headings = rows.compactMap { row -> (ScriptLibraryState.Group, Int)? in
+                        if case .heading(let group, let count) = row { return (group, count) }; return nil
+                    }
+                    XCTAssertEqual(headings.map(\.0), [.pending, .filmed])
+                    XCTAssertEqual(headings.map(\.1), filter == .starred ? [2, 2] : [4, 4])
+                    let expected = ascending ? ["A", "B", "C", "D"] : ["B", "A", "D", "C"]
+                    let titles = filter == .starred ? Array(expected.prefix(2)) : expected
+                    for filmed in [false, true] {
+                        XCTAssertEqual(library.visible(in: scripts).filter { $0.isFilmed == filmed }.map(\.title), titles)
+                    }
+                }
+            }
+        }
+        library.filter = .all
+        scripts.forEach { $0.isFilmed = true }
+        XCTAssertFalse(library.rows(for: library.visible(in: scripts)).contains { $0.id == .heading(.pending) })
     }
 
     func testSearchSortingAndStatsReflectContentChanges() {

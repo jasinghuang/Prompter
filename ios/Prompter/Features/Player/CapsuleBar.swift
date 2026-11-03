@@ -30,6 +30,7 @@ struct CapsuleDivider: View {
 
 /// Keep the 44pt hit target; active state is conveyed by the icon without a second background.
 struct CapsuleButton: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let icon: String
     let label: String
     var active = false
@@ -42,6 +43,8 @@ struct CapsuleButton: View {
             Image(systemName: icon)
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(active ? Self.green400 : Color.white.opacity(0.65))
+                .contentTransition(.opacity)
+                .animation(reduceMotion ? nil : AppMotion.detail, value: active)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }

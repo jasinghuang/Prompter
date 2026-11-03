@@ -65,6 +65,16 @@ struct PrompterApp: App {
             for (title, content, folder, starred, filmed) in demo {
                 context.insert(Script(title: title, content: content, folder: folder, starred: starred, isFilmed: filmed))
             }
+            if ProcessInfo.processInfo.arguments.contains("-seedSwipeStress") {
+                for i in 1...14 {
+                    let title = i == 2 ? "---" : "脚本\(i)-客供-20261016-何沐瑾／余奕昕——新客来广发证券开户，有机会节省交易费用"
+                    let text = String(repeating: "\(title) 朋友们，新客开户福利来了。正规、靠谱又省心！ ", count: i == 1 ? 24 : i % 3 + 1)
+                    context.insert(Script(title: title, content: text, folder: "123", starred: [1, 5, 7, 13].contains(i),
+                        isFilmed: ![1, 2, 3, 9, 10].contains(i),
+                        createdAt: Date(timeIntervalSince1970: Double(2_000 - i)),
+                        updatedAt: Date(timeIntervalSince1970: Double(2_000 - i))))
+                }
+            }
             if ProcessInfo.processInfo.arguments.contains("-seedMany") {
                 for i in 1...40 {
                     context.insert(Script(title: String(format: "滚动测试稿件 %02d", i),

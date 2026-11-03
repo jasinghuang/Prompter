@@ -34,7 +34,6 @@ struct CameraMirrorView: View {
                                     cardHeight * (landscape ? 1.6 : 1.0))
                 mirrorCard
                     .frame(width: cardWidth, height: cardHeight)
-                    .transition(reduceMotion ? .opacity : .scale(scale: 0.98).combined(with: .opacity))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -52,8 +51,12 @@ struct CameraMirrorView: View {
                 }
             })
             .id(retryID)
-            .opacity(status == .ready ? 1 : 0)
-            if status != .ready { statusOverlay }
+            .animation(reduceMotion ? nil : AppMotion.detail) { $0.opacity(status == .ready ? 1 : 0) }
+            ZStack {
+                if status != .ready { statusOverlay.transition(.opacity) }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(reduceMotion ? nil : AppMotion.detail, value: status == .ready)
             closeButton
         }
         .background(Color.surface, in: RoundedRectangle(cornerRadius: 22))

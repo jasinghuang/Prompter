@@ -32,8 +32,10 @@ struct PlayerView: View {
     @State private var returnTask: Task<Void, Never>?
 
     struct Toast: Equatable {
+        enum Kind { case readout, event, connection }
         var text: String
         var color: Color
+        var kind: Kind
     }
 
     private var typography: PrompterScrollView.Typography {
@@ -53,20 +55,16 @@ struct PlayerView: View {
             reader
             guideLines
             topBar
-            if !isPlaying { bottomControls }
+            bottomControlLayer
             toastView
             onboarding
             PlayerSettingsDrawer(open: $showSettings, nodController: nodController) {
                 showSettings = false; showOnboarding = true
             }
-            // 前置化妆镜（最顶层；打开才取流，关闭即释放）
-            if showMirror {
-                CameraMirrorView(open: $showMirror)
-                    .transition(.opacity)
-                    .zIndex(10)
-            }
+            mirrorOverlay.zIndex(10)
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: showMirror)
+        .background(NativePlayerNavigation(enabled: scenePhase == .active && !showSettings && !showMirror && !showOnboarding)
+            .frame(width: 0, height: 0))
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .onAppear {
@@ -127,7 +125,9 @@ struct PlayerView: View {
         }
         .onReceive(nodController.notices) { message in
             guard settings.data.airPodsNodEnabled, !nodConfiguration.suspended else { return }
-            showToast(message)
+            // While paused the persistent AirPods status already explains this condition.
+            guard isPlaying else { return }
+            showToast(message, kind: .connection)
         }
         .alert("操作未完成", isPresented: Binding(get: { operations.errorMessage != nil }, set: { if !$0 { operations.errorMessage = nil } })) {
             Button("知道了", role: .cancel) { operations.errorMessage = nil }
@@ -150,7 +150,6 @@ struct PlayerView: View {
             typography: typography,
             isPlaying: isPlaying,
             wordsPerMinute: settings.data.scrollSpeed,
-            mirror: settings.data.mirror,
             controller: engine,
             onActiveIndex: { activeIndex = $0 },
             onReachEnd: handleReachEnd,
@@ -158,10 +157,9 @@ struct PlayerView: View {
             onTap: togglePlayback,
             onPinch: { size in
                 settings.data.fontSize = size
-                showToast("字号 \(size) pt", duration: nil)
+                showToast("字号 \(size) pt", kind: .readout, duration: nil)
             },
-            onPinchEnd: { size in showToast("字号 \(size) pt", duration: 0.6) },
-            onEdgeBack: { dismiss() }, // 左缘右滑返回列表，对齐系统返回手势
+            onPinchEnd: { size in showToast("字号 \(size) pt", kind: .readout, duration: 0.6) },
             onUserDragPause: {
                 nodController.rearm()
                 if isPlaying { isPlaying = false } // 播放中拖动正文=回看，自动暂停并停表
@@ -210,33 +208,34 @@ struct PlayerView: View {
                     CapsuleButton(icon: "slider.horizontal.3", label: "设置") { isPlaying = false; showSettings = true }
                         .accessibilityIdentifier("player.settings")
                 }
-                .opacity(isPlaying ? 0 : 1).allowsHitTesting(!isPlaying)
-                .accessibilityHidden(isPlaying)
+                .modifier(PlaybackControlVisibility(visible: !isPlaying))
             }
-            if showReturnHint && !isPlaying {
-                Text("已读完，点击时间回到顶部")
-                    .font(.caption).foregroundStyle(.textSecondary)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(Color.surface, in: Capsule())
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.07)))
-                    .accessibilityIdentifier("player.returnHint")
-                    .transition(.opacity)
-                    .allowsHitTesting(false)
-            }
-            if settings.data.airPodsNodEnabled && !nodConfiguration.suspended && !isPlaying {
-                HStack(alignment: .top, spacing: 6) {
-                    Image(systemName: "airpodspro").foregroundStyle(Color.accentGold)
-                    Text(nodController.status).foregroundStyle(.textSecondary)
-                        .accessibilityIdentifier("player.nodStatus")
+            Group {
+                if showReturnHint {
+                    Text("已读完，点击时间回到顶部")
+                        .font(.caption).foregroundStyle(.textSecondary)
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(Color.surface, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.07)))
+                        .accessibilityIdentifier("player.returnHint")
+                        .transition(.opacity)
+                        .allowsHitTesting(false)
                 }
-                .font(.caption).padding(.horizontal, 12).padding(.vertical, 8)
-                .frame(maxWidth: 280, alignment: .leading)
-                .background(Color.surface, in: RoundedRectangle(cornerRadius: 12))
-                .fixedSize(horizontal: false, vertical: true)
-                .allowsHitTesting(false)
+                if settings.data.airPodsNodEnabled && !nodConfiguration.suspended {
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "airpodspro").foregroundStyle(Color.accentGold)
+                        Text(nodController.status).foregroundStyle(.textSecondary)
+                            .accessibilityIdentifier("player.nodStatus")
+                    }
+                    .font(.caption).padding(.horizontal, 12).padding(.vertical, 8)
+                    .frame(maxWidth: 280, alignment: .leading)
+                    .background(Color.surface, in: RoundedRectangle(cornerRadius: 12))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .allowsHitTesting(false)
+                }
             }
+            .modifier(PlaybackControlVisibility(visible: !isPlaying))
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: isPlaying)
         .padding(.horizontal, 16).padding(.top, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -250,8 +249,9 @@ struct PlayerView: View {
             guideBar
         }
         .padding(.horizontal, 12)
-        .opacity(isPlaying ? 1 : 0) // 暂停时让位正文，播放时才亮起
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: isPlaying)
+        .animation(reduceMotion ? nil : AppMotion.playback) {
+            $0.opacity(isPlaying ? 1 : 0)
+        }
         .allowsHitTesting(false)
     }
 
@@ -263,6 +263,15 @@ struct PlayerView: View {
     }
 
     // MARK: 底部控件（字号 / 速度，播放中自动隐藏）
+
+    private var bottomControlLayer: some View {
+        ZStack {
+            if !isPlaying { bottomControls.transition(.opacity) }
+        }
+        .animation(reduceMotion ? nil : AppMotion.playback, value: isPlaying)
+        .allowsHitTesting(!isPlaying)
+        .accessibilityHidden(isPlaying)
+    }
 
     private var bottomControls: some View {
         GeometryReader { geometry in
@@ -319,53 +328,82 @@ struct PlayerView: View {
 
     // MARK: 提示胶囊（暂停原因 / 捏合字号 / 读完）
 
-    @ViewBuilder
     private var toastView: some View {
-        if let toast {
-            Text(toast.text)
-                .font(.subheadline)
-                .foregroundStyle(toast.color)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.surface, in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
-                .padding(.bottom, 148)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-                .allowsHitTesting(false)
-                .accessibilityIdentifier("player.toast")
+        ZStack {
+            if let toast {
+                Text(toast.text)
+                    .font(.subheadline)
+                    .foregroundStyle(toast.color)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.surface, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                    .padding(.bottom, 148)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .contentTransition(.identity)
+                    .transition(.opacity)
+                    .accessibilityAddTraits(toast.kind == .readout ? .updatesFrequently : [])
+                    .accessibilityIdentifier("player.toast")
+            }
         }
+        .animation(reduceMotion ? nil : toast == nil ? AppMotion.noticeOut : AppMotion.noticeIn,
+                   value: toast != nil)
+        .allowsHitTesting(false)
     }
 
     // MARK: 首次操作提示：明确确认后关闭，可从设置再次查看
 
-    @ViewBuilder
     private var onboarding: some View {
-        if showOnboarding {
-            ZStack {
-                Color.canvas.opacity(0.8).ignoresSafeArea()
-                VStack(spacing: 16) {
-                    Text("提词器")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(Color.textPrimary)
-                    VStack(spacing: 10) {
-                        onboardLine("轻点屏幕", "开始 / 暂停")
-                        onboardLine("拖动文本", "回看上文")
-                        onboardLine("双指捏合", "调整字号")
+        ZStack {
+            if showOnboarding {
+                GeometryReader { geometry in
+                    let compact = geometry.size.width > geometry.size.height
+                    ZStack {
+                        Color.canvas.opacity(0.8).ignoresSafeArea()
+                        VStack(spacing: 16) {
+                            Text("提词器")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundStyle(Color.textPrimary)
+                            VStack(spacing: 10) {
+                                onboardLine("轻点屏幕", "开始 / 暂停")
+                                onboardLine("拖动文本", "回看上文")
+                                onboardLine("双指捏合", "调整字号")
+                            }
+                            Text("轻点正文开始，再点一下暂停")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.textMuted)
+                                .padding(.top, 8)
+                                .accessibilityIdentifier("player.onboardingInstruction")
+                            if compact { onboardingDone }
+                        }
                     }
-                    Text("轻点正文开始，再点一下暂停")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.textMuted)
-                        .padding(.top, 8)
+                    .overlay(alignment: .bottom) {
+                        if !compact { onboardingDone.padding(.bottom, 96) }
+                    }
                 }
+                .transition(.opacity)
             }
-            .overlay(alignment: .bottom) {
-                Button("知道了") { dismissOnboarding() }
-                    .buttonStyle(.borderedProminent).tint(.accentGold).foregroundStyle(.canvas)
-                    .frame(minHeight: 44).padding(.bottom, 96)
-            }
-            .transition(.opacity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(reduceMotion ? nil : AppMotion.overlay, value: showOnboarding)
+        .allowsHitTesting(showOnboarding)
+        .accessibilityHidden(!showOnboarding)
+    }
+
+    private var onboardingDone: some View {
+        Button("知道了") { dismissOnboarding() }
+            .buttonStyle(.borderedProminent).tint(.accentGold).foregroundStyle(.canvas)
+            .frame(minHeight: 44)
+    }
+
+    private var mirrorOverlay: some View {
+        ZStack {
+            if showMirror { CameraMirrorView(open: $showMirror).transition(.opacity) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(reduceMotion ? nil : AppMotion.overlay, value: showMirror)
+        .allowsHitTesting(showMirror)
+        .accessibilityHidden(!showMirror)
     }
 
     private func onboardLine(_ action: String, _ effect: String) -> some View {
@@ -425,14 +463,16 @@ struct PlayerView: View {
     }
 
     /// duration 为 nil 时常驻（捏合过程中），由后续调用接管关闭
-    private func showToast(_ text: String, color: Color = .accentGold, duration: Double? = 3) {
+    private func showToast(_ text: String, color: Color = .accentGold, kind: Toast.Kind = .event, duration: Double? = 3) {
         toastTask?.cancel()
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { toast = Toast(text: text, color: color) }
+        // Readouts replace their number immediately; only container presence fades.
+        // Repeated service notices do not re-enter or restart a visual animation either.
+        toast = Toast(text: text, color: color, kind: kind)
         guard let duration else { return }
         toastTask = Task {
             try? await Task.sleep(for: .seconds(duration))
             guard !Task.isCancelled else { return }
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { toast = nil }
+            toast = nil
         }
     }
 
@@ -448,8 +488,21 @@ struct PlayerView: View {
 
     private func dismissOnboarding() {
         guard showOnboarding else { return }
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { showOnboarding = false }
+        showOnboarding = false
         UserDefaults.standard.set(true, forKey: Self.onboardKey)
+    }
+}
+
+/// Only the control appearance animates; the reader always receives playback changes immediately.
+private struct PlaybackControlVisibility: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var visible: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .animation(reduceMotion ? nil : AppMotion.playback) { $0.opacity(visible ? 1 : 0) }
+            .allowsHitTesting(visible)
+            .accessibilityHidden(!visible)
     }
 }
 

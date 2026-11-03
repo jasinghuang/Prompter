@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// Black/gold card with direct footer shortcuts; the List owns row swipes.
+/// Black/gold card with direct footer shortcuts; the native table owns row swipes.
 struct ScriptCardView: View {
     enum Action { case open, edit, delete, toggleStar, toggleFilmed, showFolderPicker, longPress, toggleSelect }
-    let script: Script
+    // Render the same immutable revision used to compute row order. Observing a live
+    // SwiftData model here lets a moving cell resize before the list applies its move.
+    let script: ScriptSnapshot
     let wordsPerMinute: Int
     var summary: ScriptLibraryState.Summary?
     var selectMode = false
@@ -141,13 +143,11 @@ struct ScriptCardView: View {
 }
 
 private struct ScriptOpenButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var enabled
     @Binding var suppressTap: Bool
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .opacity(configuration.isPressed ? 0.8 : 1)
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.99 : 1)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: configuration.isPressed)
+            .modifier(PressFeedback(pressed: configuration.isPressed, enabled: enabled, scale: 1))
             .onChange(of: configuration.isPressed) { _, pressed in
                 if !pressed { DispatchQueue.main.async { suppressTap = false } }
             }

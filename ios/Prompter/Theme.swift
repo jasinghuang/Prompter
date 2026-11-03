@@ -20,17 +20,108 @@ enum CTL {
     static let cardRadius: CGFloat = 16
 }
 
-struct PressableStyle: ButtonStyle {
+/// Timings describe UI feedback only. Never apply these to reader motion or list updates.
+enum AppMotion {
+    static let press = Animation.easeOut(duration: 0.15)
+    static let playback = Animation.easeOut(duration: 0.2)
+    static let noticeIn = Animation.easeOut(duration: 0.18)
+    static let noticeOut = Animation.easeOut(duration: 0.16)
+    static let detail = Animation.easeOut(duration: 0.14)
+    static let sensorTracking = Animation.linear(duration: 0.1)
+    static let drawer = Animation.easeOut(duration: 0.22)
+    static let drawerReturn = Animation.spring(response: 0.3, dampingFraction: 0.85)
+    static let overlay = Animation.easeOut(duration: 0.2)
+    static let fieldReveal = Animation.easeOut(duration: 0.16)
+}
+
+/// Mount fields immediately for focus/layout. Only their appearance fades after the first frame.
+/// Removal stays immediate so a hidden field never keeps accepting input.
+struct LocalReveal: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var revealed = false
+
+    func body(content: Content) -> some View {
+        VStack(spacing: 0) {
+            content.animation(reduceMotion ? nil : AppMotion.fieldReveal) { $0.opacity(revealed ? 1 : 0) }
+        }
+        .task(id: reduceMotion) {
+            if !reduceMotion && !revealed {
+                do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
+            }
+            revealed = true
+        }
+    }
+}
+
+struct PressFeedback: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var pressed: Bool
+    var enabled = true
+    var scale: CGFloat = 0.98
+    var disabledOpacity: Double = 0.35
+
+    func body(content: Content) -> some View {
+        content.animation(reduceMotion ? nil : AppMotion.press) { label in
+            label
+                .opacity(!enabled ? disabledOpacity : pressed ? 0.82 : 1)
+                .scaleEffect(pressed && !reduceMotion ? scale : 1)
+        }
+    }
+}
+
+/// Keeps an outgoing tool visible until its fade ends, without animating its layout.
+/// The task is cancelled on a new request, so a quick re-entry cannot be removed by an old exit.
+struct ActionBarPresence<Content: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let visible: Bool
+    @ViewBuilder var content: () -> Content
+    @State private var presented = false
+    @State private var revealed = false
+
+    private struct Request: Equatable {
+        var visible: Bool
+        var reduceMotion: Bool
+    }
+
+    var body: some View {
+        // A concrete zero-height container owns the task even while content is absent.
+        VStack(spacing: 0) {
+            if presented {
+                content()
+                    .animation(reduceMotion ? nil : revealed ? AppMotion.noticeIn : AppMotion.noticeOut) {
+                        $0.opacity(revealed ? 1 : 0)
+                    }
+                    .allowsHitTesting(visible)
+                    .accessibilityHidden(!visible)
+            }
+        }
+        .task(id: Request(visible: visible, reduceMotion: reduceMotion)) {
+            if reduceMotion {
+                presented = visible; revealed = visible
+            } else if visible {
+                presented = true
+                // Mount at zero opacity before revealing; no operation waits for this frame.
+                do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
+                revealed = true
+            } else {
+                revealed = false
+                do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+                presented = false
+            }
+        }
+    }
+}
+
+struct PressableStyle: ButtonStyle {
     @Environment(\.isEnabled) private var enabled
-    var scale: CGFloat = 0.96
+    var scale: CGFloat = 0.98
+    var disabledOpacity: Double = 0.35
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(configuration.role == .destructive ? Color.dangerRed : Color.accentGold)
             .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
-            .opacity(!enabled ? 0.35 : configuration.isPressed ? 0.8 : 1)
-            .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: configuration.isPressed)
+            .modifier(PressFeedback(pressed: configuration.isPressed, enabled: enabled,
+                                    scale: scale, disabledOpacity: disabledOpacity))
     }
 }
 

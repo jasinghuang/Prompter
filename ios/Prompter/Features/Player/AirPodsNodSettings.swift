@@ -67,6 +67,7 @@ struct AirPodsCalibrationView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var readyFeedbackSent = false
 
     private var stage: HeadCalibrationStage { controller.calibrationProgress.stage }
     private var action: HeadCalibrationAction { controller.calibrationAction ?? .down }
@@ -114,9 +115,19 @@ struct AirPodsCalibrationView: View {
         .onDisappear { controller.endCalibration() }
         .onChange(of: scenePhase) { _, phase in if phase == .background { controller.interruptCalibration() } }
         .onChange(of: stage) { _, stage in
-            if stage == .performing || stage == .verifying { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
-            if stage == .completed || stage == .verified { UINotificationFeedbackGenerator().notificationOccurred(.success) }
-            UIAccessibility.post(notification: .announcement, argument: stage == .performing ? action.title : stage.title)
+            // Verification is ready at .verifying; its .performing phase is already the user's nod.
+            let ready = hasCandidate ? stage == .verifying : stage == .performing
+            if ready && !readyFeedbackSent {
+                readyFeedbackSent = true
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+            if stage == .completed { UISelectionFeedbackGenerator().selectionChanged() }
+            UIAccessibility.post(notification: .announcement,
+                                 argument: stage == .performing && !hasCandidate ? action.title : stage.title)
+        }
+        .onChange(of: controller.verified) { _, verified in
+            // A full success belongs to the independently verified result, not each recorded step.
+            if verified { UINotificationFeedbackGenerator().notificationOccurred(.success) }
         }
     }
 
@@ -174,6 +185,8 @@ struct AirPodsCalibrationView: View {
                     .accessibilityHidden(true)
                 Text(actionTitle)
                     .font(.title.weight(.semibold)).foregroundStyle(.white)
+                    .contentTransition(.opacity)
+                    .animation(reduceMotion ? nil : AppMotion.detail, value: actionTitle)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 6)
                     .accessibilityIdentifier(hasCandidate ? "nod.verification" : "nod.action")
@@ -184,6 +197,9 @@ struct AirPodsCalibrationView: View {
                     } else {
                     Text("\(controller.learningHabit ? controller.habitSamples.count + 1 : stepNumber)").font(.system(.largeTitle, design: .rounded, weight: .semibold))
                         .foregroundStyle(Color.accentGold)
+                        .contentTransition(.opacity)
+                        .animation(reduceMotion ? nil : AppMotion.detail,
+                                   value: controller.learningHabit ? controller.habitSamples.count + 1 : stepNumber)
                     Text(controller.learningHabit ? "/3" : "/6").font(.title3.weight(.medium)).foregroundStyle(.textSecondary)
                     }
                 }
@@ -196,6 +212,8 @@ struct AirPodsCalibrationView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Label(stageTitle, systemImage: controller.verified ? "checkmark.circle" : stage == .preparing ? "pause.circle" : "waveform.path")
                     .font(.headline).foregroundStyle(stageColor)
+                    .contentTransition(.opacity)
+                    .animation(reduceMotion ? nil : AppMotion.detail, value: stageTitle)
                     .accessibilityIdentifier("nod.stage")
                 if controller.calibrationError == nil {
                     Text(controller.verified ? "点击下方按钮保存，之后点头即可开始或暂停提词。" : controller.capturing ? controller.calibrationProgress.hint : hasCandidate ? "先保持静止，再自然地点头一下并回正。" : displayAction.instruction)
@@ -204,8 +222,7 @@ struct AirPodsCalibrationView: View {
                         .accessibilityIdentifier("nod.instruction")
                 }
                 if controller.capturing && (stage == .preparing || stage == .performing || stage == .returning) {
-                    ProgressView(value: controller.calibrationProgress.fraction)
-                        .tint(Color.accentGold).animation(reduceMotion ? nil : .linear(duration: 0.1), value: controller.calibrationProgress.fraction)
+                    CalibrationProgressTrack(progress: controller.calibrationProgress)
                         .accessibilityLabel(stage == .preparing ? "准备进度" : stage == .performing ? "动作幅度进度" : "回正进度")
                 }
             }
@@ -260,7 +277,7 @@ struct AirPodsCalibrationView: View {
             }
             Button {
                 if controller.verified, let candidate = controller.candidate { onComplete(candidate) }
-                else { controller.retryCalibration() }
+                else { readyFeedbackSent = false; controller.retryCalibration() }
             } label: {
                 HStack(spacing: 8) {
                     if controller.capturing { ProgressView().tint(.black) }
@@ -268,15 +285,15 @@ struct AirPodsCalibrationView: View {
                 }.frame(maxWidth: .infinity, minHeight: 52)
                     .foregroundStyle(.black).background(Color.accentGold, in: Capsule())
             }
-            .buttonStyle(.plain).disabled(controller.capturing)
+            .buttonStyle(PressableStyle(disabledOpacity: 0.75)).disabled(controller.capturing)
             .accessibilityIdentifier("nod.startCalibration")
             if hasCandidate && controller.learningHabit {
-                Button("使用默认并验证") { controller.skipHabitLearning() }
+                Button("使用默认并验证") { readyFeedbackSent = false; controller.skipHabitLearning() }
                     .foregroundStyle(Color.accentGold).font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
                     .accessibilityIdentifier("nod.skipHabit")
             }
             if controller.capturing {
-                Button(hasCandidate ? "重新试一次点头" : "重新准备这个动作") { controller.retryCalibration() }
+                Button(hasCandidate ? "重新试一次点头" : "重新准备这个动作") { readyFeedbackSent = false; controller.retryCalibration() }
                     .foregroundStyle(Color.accentGold).font(.subheadline).frame(minHeight: 44)
                     .accessibilityIdentifier("nod.retryCurrent")
             }
@@ -296,6 +313,27 @@ struct AirPodsCalibrationView: View {
         if hasCandidate { return controller.learningHabit ? "\(controller.habitSamples.isEmpty ? "开始" : "继续")：自然点头 \(controller.habitSamples.count + 1)/3" : "试一次点头" }
         if controller.calibrationError != nil { return "只重试\(action.shortTitle)" }
         return stage == .completed ? "继续：\(action.shortTitle)" : "开始：\(action.shortTitle)"
+    }
+}
+
+/// Smooth real progress only within one phase. A reset or phase change must remain immediate.
+private struct CalibrationProgressTrack: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var progress: HeadCalibrationProgress
+    @State private var fraction: Double
+
+    init(progress: HeadCalibrationProgress) {
+        self.progress = progress
+        _fraction = State(initialValue: progress.fraction)
+    }
+
+    var body: some View {
+        ProgressView(value: fraction)
+            .tint(Color.accentGold)
+            .onChange(of: progress) { old, new in
+                let smooth = !reduceMotion && old.stage == new.stage && new.fraction > old.fraction
+                withAnimation(smooth ? AppMotion.sensorTracking : nil) { fraction = new.fraction }
+            }
     }
 }
 

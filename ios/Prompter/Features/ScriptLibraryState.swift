@@ -18,39 +18,73 @@ final class ScriptLibraryState: ObservableObject {
     @Published private(set) var folderCounts: [String: Int] = [:]
     private var searchable: [UUID: String] = [:]
 
+    /// A single bounded cache. UI-only state (selection, sheets, return highlight)
+    /// does not change ordering or the immutable rows used by the native table.
+    final class Projection {
+        let visibleIDs: [UUID]
+        let rows: [Row]
+        init(visibleIDs: [UUID], rows: [Row]) { self.visibleIDs = visibleIDs; self.rows = rows }
+    }
+    private struct ProjectionKey: Equatable {
+        let scripts: [ScriptSnapshot]
+        let query: String
+        let filter: ScriptFilter
+        let sortKey: SortKey
+        let ascending: Bool
+        let summaries: [UUID: Summary]
+    }
+    private var cachedProjection: (key: ProjectionKey, value: Projection)?
+
+    func projection(in scripts: [Script]) -> Projection {
+        // Read current model fields even on cache hits to retain SwiftData observation
+        // and detect edits that do not change updatedAt (including undo/rollback).
+        let key = ProjectionKey(scripts: scripts.map(ScriptSnapshot.init), query: query,
+                                filter: filter, sortKey: sortKey, ascending: sortAscending, summaries: summaries)
+        if let cachedProjection, cachedProjection.key == key { return cachedProjection.value }
+        let visible = computeVisible(in: scripts)
+        let value = Projection(visibleIDs: visible.map(\.id), rows: rows(for: visible))
+        cachedProjection = (key, value)
+        return value
+    }
+
     struct Revision: Equatable {
         let snapshot: ScriptSnapshot
         init(_ script: Script) { snapshot = ScriptSnapshot(script) }
     }
-    struct Summary {
+    struct Summary: Equatable {
         let content: String
         let characterCount: Int
         let excerpt: String
     }
+    enum Group: Int, CaseIterable, Hashable {
+        case pending, filmed
+        var title: String { self == .pending ? "待拍摄" : "已拍摄" }
+    }
     enum RowID: Hashable {
-        case heading(Int)
+        case heading(Group)
         case script(UUID)
     }
-    enum Row: Identifiable {
-        case heading(tier: Int, count: Int)
-        case script(Script)
+    enum Row: Identifiable, Equatable {
+        case heading(group: Group, count: Int)
+        case script(ScriptSnapshot)
 
         var id: RowID {
             switch self {
-            case .heading(let tier, _): return .heading(tier)
+            case .heading(let group, _): return .heading(group)
             case .script(let script): return .script(script.id)
             }
         }
     }
 
-    /// One identity scope: a script keeps its row when its filmed/starred tier changes.
+    /// Only filming status creates headings; starred ordering stays within each group.
+    /// A script keeps its global row identity when its filmed/starred state changes.
     func rows(for visibleScripts: [Script]) -> [Row] {
         var result: [Row] = []
-        for tier in 0..<4 {
-            let items = visibleScripts.filter { PrompterCore.tier(starred: $0.starred, filmed: $0.isFilmed) == tier }
+        for group in Group.allCases {
+            let items = visibleScripts.filter { $0.isFilmed == (group == .filmed) }
             guard !items.isEmpty else { continue }
-            result.append(.heading(tier: tier, count: items.count))
-            result.append(contentsOf: items.map(Row.script))
+            result.append(.heading(group: group, count: items.count))
+            result.append(contentsOf: items.map { .script(ScriptSnapshot($0)) })
         }
         return result
     }
@@ -67,12 +101,23 @@ final class ScriptLibraryState: ObservableObject {
             if let folder = script.folder { counts[folder, default: 0] += 1 }
             search[script.id] = script.title + "\n" + script.content
         }
-        summaries = next; folderCounts = counts; searchable = search
-        selected.formIntersection(scripts.map(\.id))
+        let searchChanged = searchable != search
+        searchable = search
+        if summaries != next || searchChanged { summaries = next }
+        if folderCounts != counts { folderCounts = counts }
+        let remaining = selected.intersection(scripts.map(\.id))
+        if remaining != selected { selected = remaining }
         if case .folder(let name) = filter, counts[name] == nil { filter = .all }
     }
 
     func visible(in scripts: [Script]) -> [Script] {
+        let ids = projection(in: scripts).visibleIDs
+        // Resolve current objects rather than caching live models across contexts.
+        let current = Dictionary(uniqueKeysWithValues: scripts.map { ($0.id, $0) })
+        return ids.compactMap { current[$0] }
+    }
+
+    private func computeVisible(in scripts: [Script]) -> [Script] {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return scripts.filter { script in
             guard script.deletedAt == nil else { return false }

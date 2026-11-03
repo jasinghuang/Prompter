@@ -8,63 +8,115 @@ struct PlayerSettingsDrawer: View {
     @EnvironmentObject private var settings: AppSettings
     var onShowHelp: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var dragOffset: CGFloat = 0 // onEnded 接住的位置（动画衔接用）
-    @GestureState private var dragAmount: CGFloat = 0 // 手势期间跟手；取消/结束自动归零，杜绝卡在半路
+    @State private var dragOffset: CGFloat = 0
+    @GestureState private var dragging = false
+    @State private var pendingHelp = false
+    @FocusState private var keywordFocused: Bool
 
     var body: some View {
         GeometryReader { geo in
             if geo.size.width > geo.size.height {
+                let width = min(340, geo.size.width * 0.85)
                 ZStack(alignment: .trailing) {
                     if open {
-                        Color.black.opacity(0.35).ignoresSafeArea()
+                        Color.black.opacity(0.35 * (1 - min(1, dragOffset / width))).ignoresSafeArea()
                             .onTapGesture { open = false }.transition(.opacity)
-                        panel(width: min(340, geo.size.width * 0.85), showsHandle: true)
-                            .offset(x: max(0, dragOffset + dragAmount))
-                            .transition(.move(edge: .trailing))
+                        panel(width: width, showsHandle: true)
                             .overlay(alignment: .leading) {
                                 Color.clear.contentShape(Rectangle()).frame(width: 28)
-                                    .gesture(dismissDrag(panelWidth: min(340, geo.size.width * 0.85)))
+                                    .gesture(dismissDrag(panelWidth: width))
                                     .accessibilityHidden(true)
                             }
+                            .offset(x: max(0, dragOffset))
+                            .transition(reduceMotion ? .opacity : .move(edge: .trailing))
                     }
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .animation(reduceMotion ? nil : AppMotion.drawer, value: open)
+                .allowsHitTesting(open)
             } else {
-                Color.clear.sheet(isPresented: $open) {
+                Color.clear.sheet(isPresented: $open, onDismiss: showPendingHelp) {
                     panel(width: nil, showsHandle: false)
                         .presentationDetents([.fraction(0.75), .large])
                         .presentationDragIndicator(.visible).presentationBackground(Color.surface)
                 }
             }
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: open)
-        .task(id: open) {
-            guard !open else { dragOffset = 0; return }
-            do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
-            dragOffset = 0
+        .coordinateSpace(name: "settings.drawerInteraction")
+        .onChange(of: open, initial: true) { _, open in
+            if open {
+                pendingHelp = false
+                resetDragImmediately()
+            } else { keywordFocused = false }
+        }
+        .onChange(of: dragging) { _, dragging in
+            // Also handles a system-cancelled drag, which does not deliver onEnded.
+            if !dragging && open { returnDrag() }
+        }
+        .onChange(of: settings.data.automaticPause) { _, mode in
+            if mode != .keyword { keywordFocused = false }
+        }
+        .onDisappear {
+            pendingHelp = false
+            resetDragImmediately()
         }
     }
 
     /// 从左往右拨：横向为主的拖动才接管（竖向留给滚动）；
-    /// 手势期间只跟手不写状态，onEnded 一次写入收起/弹回——经典 drawer 手势范式。
-    /// @GestureState 保证手势被系统取消（如拖进屏幕边缘手势区）时自动归零弹回，不会卡在半开。
+    /// Gesture state detects cancellation; the offset itself follows the finger without animation.
     private func dismissDrag(panelWidth: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 12)
-            .updating($dragAmount) { value, state, _ in
+        DragGesture(minimumDistance: 12, coordinateSpace: .named("settings.drawerInteraction"))
+            .updating($dragging) { _, state, transaction in
+                transaction.animation = nil
+                state = true
+            }
+            .onChanged { value in
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                state = max(0, value.translation.width)
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { dragOffset = max(0, value.translation.width) }
             }
             .onEnded { value in
                 let horizontal = abs(value.translation.width) > abs(value.translation.height)
                 let final = horizontal ? max(0, value.translation.width) : 0
-                dragOffset = final // 接住手势状态归零前的位置，同帧无缝
-                let dismiss = final > panelWidth * 0.3
-                    || value.predictedEndTranslation.width > panelWidth * 0.6
+                let dismiss = horizontal && (final > panelWidth * 0.3
+                    || value.predictedEndTranslation.width > panelWidth * 0.6)
                 if dismiss {
-                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { open = false }
+                    open = false
                 } else {
-                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85)) { dragOffset = 0 }
+                    returnDrag()
                 }
             }
+    }
+
+    private func returnDrag() {
+        withAnimation(reduceMotion ? nil : AppMotion.drawerReturn) { dragOffset = 0 }
+    }
+
+    private func resetDragImmediately() {
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { dragOffset = 0 }
+    }
+
+    private func requestHelp(sidePanel: Bool) {
+        pendingHelp = true
+        if sidePanel {
+            withAnimation(reduceMotion ? nil : AppMotion.drawer, completionCriteria: .removed) {
+                open = false
+            } completion: {
+                showPendingHelp()
+            }
+        } else {
+            // Native sheet dismissal owns its completion, rather than a guessed sleep duration.
+            open = false
+        }
+    }
+
+    private func showPendingHelp() {
+        guard pendingHelp && !open else { return }
+        pendingHelp = false
+        onShowHelp()
     }
 
     // MARK: 面板
@@ -111,7 +163,8 @@ struct PlayerSettingsDrawer: View {
                                 .font(.caption).foregroundStyle(.textSecondary)
                         }
                     }
-                    Button { onShowHelp() } label: { Label("查看操作提示", systemImage: "questionmark.circle").frame(minHeight: 44) }
+                    Button { requestHelp(sidePanel: showsHandle) } label: { Label("查看操作提示", systemImage: "questionmark.circle").frame(minHeight: 44) }
+                        .accessibilityIdentifier("settings.help")
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
@@ -218,6 +271,9 @@ struct PlayerSettingsDrawer: View {
                     .font(.body).foregroundStyle(.textPrimary).padding(12)
                     .background(Color.canvas, in: RoundedRectangle(cornerRadius: 10))
                     .autocorrectionDisabled()
+                    .focused($keywordFocused)
+                    .accessibilityIdentifier("settings.pauseKeyword")
+                    .modifier(LocalReveal())
             }
         }
         .padding(.top, 20)

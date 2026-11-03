@@ -34,12 +34,13 @@ struct FolderPickerSheet: View {
                                 .focused($nameFocused).submitLabel(.done).onSubmit(createFolder)
                                 .accessibilityIdentifier("folder.name")
                             HStack {
-                                Button("取消") { creating = false; name = "" }
+                                Button("取消") { nameFocused = false; creating = false; name = "" }
+                                    .accessibilityIdentifier("folder.cancelCreation")
                                 Spacer()
                                 Button("创建并移入", action: createFolder).fontWeight(.semibold)
                                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             }.frame(minHeight: 44)
-                        }.padding(12)
+                        }.padding(12).modifier(LocalReveal())
                     } else {
                         Button { creating = true; nameFocused = true } label: {
                             Label("新建文件夹", systemImage: "folder.badge.plus")
