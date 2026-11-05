@@ -66,6 +66,45 @@ final class PlayerUITests: XCTestCase {
     }
     private func play() { app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
 
+    func testLibrarySearchExpandsFiltersAndCancelsInBothOrientations() {
+        for landscape in [false, true] {
+            launch(landscape: landscape)
+            let field = app.textFields["script.search"]
+            XCTAssertFalse(field.exists)
+            let list = app.tables["script.list"]
+            XCTAssertEqual(list.frame.maxY, app.windows.firstMatch.frame.maxY, accuracy: 1,
+                           "列表应延伸到屏幕底部，而非在安全区上方截断")
+            snapshot(landscape ? "library-compact-landscape" : "library-compact-portrait")
+            app.buttons["library.search"].tap()
+            XCTAssertTrue(field.waitForExistence(timeout: 3))
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+            field.typeText("VIP")
+            expectation(for: NSPredicate { _, _ in
+                self.app.buttons.matching(identifier: "card").count == 1
+            }, evaluatedWith: app)
+            waitForExpectations(timeout: 5)
+            snapshot(landscape ? "library-search-landscape" : "library-search-portrait")
+            app.buttons["library.search.cancel"].tap()
+            XCTAssertFalse(field.exists)
+            XCTAssertFalse(app.keyboards.firstMatch.exists)
+            XCTAssertTrue((app.buttons["library.filter"].value as? String ?? "").contains("当前 4 篇"))
+        }
+    }
+
+    func testLibraryLastRowCanScrollAboveSelectionShelf() {
+        launch(extra: ["-seedMany"])
+        app.buttons.matching(identifier: "card").firstMatch.press(forDuration: 0.8)
+        let all = app.buttons["select.all"]
+        XCTAssertTrue(all.waitForExistence(timeout: 3))
+        let list = app.tables["script.list"]
+        for _ in 0..<10 { list.swipeUp(velocity: .fast) }
+        let lastRow = list.cells.element(boundBy: list.cells.count - 1)
+        XCTAssertTrue(lastRow.isHittable)
+        XCTAssertLessThanOrEqual(lastRow.frame.maxY, all.frame.minY,
+                                "末张卡片应能完整滚到批量操作栏上方")
+        snapshot("library-last-row-above-actions")
+    }
+
     private func dragPlayerBack(to fraction: CGFloat, hold: TimeInterval = 0.1) {
         let window = app.windows.firstMatch
         window.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.5))

@@ -37,7 +37,9 @@ struct NativeScriptList: UIViewRepresentable {
         table.accessibilityIdentifier = "script.list"
         table.backgroundColor = UIColor(Color.canvas)
         table.separatorStyle = .none
-        table.contentInsetAdjustmentBehavior = .never
+        // Let cards scroll underneath the home-indicator area, while keeping the
+        // last row reachable above it. SwiftUI reserves the temporary action shelf.
+        table.contentInsetAdjustmentBehavior = .automatic
         table.keyboardDismissMode = .interactive
         table.rowHeight = UITableView.automaticDimension
         table.estimatedRowHeight = 190

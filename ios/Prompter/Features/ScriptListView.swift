@@ -28,6 +28,7 @@ struct ScriptListView: View {
     @State private var deleteTargets: [Script] = []
     @State private var lastUndoCount = 0
     @State private var lastShelfMode = ActionShelfMode()
+    @State private var searchExpanded = false
     #if DEBUG
     @State private var didAutoOpenPlayer = false
     #endif
@@ -48,7 +49,7 @@ struct ScriptListView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 header
-                if !scripts.isEmpty { filters }
+                if !scripts.isEmpty || searchExpanded { filters }
                 Group {
                     if rows.isEmpty {
                         ScrollView { emptyState }
@@ -59,6 +60,8 @@ struct ScriptListView: View {
                                 guard let script = scripts.first(where: { $0.id == id }) else { return }
                                 handle(action, script)
                             }
+                            .ignoresSafeArea(.container, edges:
+                                operations.undoItems.isEmpty && !library.selecting ? .bottom : [])
                     }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -131,6 +134,11 @@ struct ScriptListView: View {
                     .buttonStyle(PressableStyle()).accessibilityLabel("新建稿件")
                 }
             }
+        }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.textMuted)
                 TextField("搜索标题或正文", text: $library.query)
@@ -147,53 +155,76 @@ struct ScriptListView: View {
             .padding(.leading, 12).padding(.trailing, library.query.isEmpty ? 12 : 0)
             .frame(minHeight: 44).background(Color.surface, in: Capsule())
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.08)))
-        }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
+            Button("取消") {
+                searchFocused = false
+                library.query = ""
+                searchExpanded = false
+            }
+            .font(.body).frame(minWidth: 44, minHeight: 44)
+            .accessibilityIdentifier("library.search.cancel")
+        }
+        // Request focus only after the conditional field appears.
+        .task { searchFocused = true }
     }
 
     private var filters: some View {
         HStack(spacing: 12) {
-            Menu {
-                Picker("稿件范围", selection: $library.filter) {
-                    Label("全部稿件", systemImage: "doc.text").tag(ScriptFilter.all)
-                    Label("星标稿件", systemImage: "star").tag(ScriptFilter.starred)
-                    if !library.folders.isEmpty {
-                        Section("文件夹") {
-                            ForEach(library.folders, id: \.self) { name in
-                                Label(name, systemImage: "folder").tag(ScriptFilter.folder(name))
-                                    .accessibilityIdentifier("filter.folder.\(name)")
+            if searchExpanded {
+                searchField
+            } else {
+                Menu {
+                    Picker("稿件范围", selection: $library.filter) {
+                        Label("全部稿件", systemImage: "doc.text").tag(ScriptFilter.all)
+                        Label("星标稿件", systemImage: "star").tag(ScriptFilter.starred)
+                        if !library.folders.isEmpty {
+                            Section("文件夹") {
+                                ForEach(library.folders, id: \.self) { name in
+                                    Label(name, systemImage: "folder").tag(ScriptFilter.folder(name))
+                                        .accessibilityIdentifier("filter.folder.\(name)")
+                                }
                             }
                         }
+                    }.pickerStyle(.inline)
+                } label: {
+                    HStack(spacing: 7) {
+                        Text(filterTitle).font(.headline).lineLimit(1)
+                        Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
+                        Text("\(visible.count)").font(.subheadline).foregroundStyle(.textMuted).monospacedDigit()
                     }
-                }.pickerStyle(.inline)
-            } label: {
-                HStack(spacing: 7) {
-                    Text(filterTitle).font(.headline).lineLimit(1)
-                    Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
-                    Text("\(visible.count)").font(.subheadline).foregroundStyle(.textMuted).monospacedDigit()
+                    .foregroundStyle(.textPrimary).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-                .foregroundStyle(.textPrimary).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
+                .accessibilityLabel(filterTitle)
+                .accessibilityValue("共 \(scripts.count) 篇稿件，当前 \(visible.count) 篇")
+                .accessibilityIdentifier("library.filter")
+                Button {
+                    searchExpanded = true
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(searchExpanded ? Color.accentGold : Color.textSecondary)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("搜索稿件")
+                .accessibilityIdentifier("library.search")
+                Menu {
+                    Picker("排序依据", selection: $library.sortKey) {
+                        ForEach(SortKey.allCases, id: \.self) { key in
+                            Text(key == .date ? "时间" : key.label).tag(key)
+                        }
+                    }.pickerStyle(.inline)
+                    Picker("排列顺序", selection: $library.sortAscending) {
+                        Text("升序").tag(true)
+                        Text("降序").tag(false)
+                    }.pickerStyle(.inline)
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down").foregroundStyle(.textSecondary).frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("排序方式")
+                .accessibilityValue("\(library.sortKey == .date ? "时间" : library.sortKey.label)，\(library.sortAscending ? "升序" : "降序")")
+                .accessibilityHint("时间按最近修改时间排序；各拍摄分类内星标稿件置顶")
+                .accessibilityIdentifier("library.sort")
             }
-            .accessibilityLabel(filterTitle)
-            .accessibilityValue("共 \(scripts.count) 篇稿件，当前 \(visible.count) 篇")
-            .accessibilityIdentifier("library.filter")
-            Menu {
-                Picker("排序依据", selection: $library.sortKey) {
-                    ForEach(SortKey.allCases, id: \.self) { key in
-                        Text(key == .date ? "时间" : key.label).tag(key)
-                    }
-                }.pickerStyle(.inline)
-                Picker("排列顺序", selection: $library.sortAscending) {
-                    Text("升序").tag(true)
-                    Text("降序").tag(false)
-                }.pickerStyle(.inline)
-            } label: {
-                Image(systemName: "arrow.up.arrow.down").foregroundStyle(.textSecondary).frame(width: 44, height: 44)
-            }
-            .accessibilityLabel("排序方式")
-            .accessibilityValue("\(library.sortKey == .date ? "时间" : library.sortKey.label)，\(library.sortAscending ? "升序" : "降序")")
-            .accessibilityHint("时间按最近修改时间排序；各拍摄分类内星标稿件置顶")
-            .accessibilityIdentifier("library.sort")
         }.padding(.horizontal, 16).padding(.bottom, 2)
     }
 
