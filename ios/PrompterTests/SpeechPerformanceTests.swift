@@ -1,8 +1,32 @@
 import AVFoundation
+import Combine
 import XCTest
 @testable import Prompter
 
 final class SpeechPerformanceTests: XCTestCase {
+    @MainActor
+    func testRejectedStartsAndRepeatedStopsDoNotRepublishUnchangedRecognitionState() async {
+        let controller = SpeechFollowController(requestPermission: { false })
+        var changes = 0
+        let subscriptions = [
+            controller.$target.dropFirst().sink { _ in changes += 1 },
+            controller.$lastRecognized.dropFirst().sink { _ in changes += 1 },
+            controller.$lastMatchSucceeded.dropFirst().sink { _ in changes += 1 },
+            controller.$recognizedLineDelta.dropFirst().sink { _ in changes += 1 }
+        ]
+        for _ in 0..<2 {
+            await controller.start(content: "测试语音跟随", startUTF16: 0,
+                                   modelDirectory: FileManager.default.temporaryDirectory)
+            controller.stop()
+        }
+        withExtendedLifetime(subscriptions) {
+            XCTAssertEqual(changes, 0, "Unchanged recognition state must not invalidate the reader during retries or teardown")
+        }
+        XCTAssertNil(controller.target)
+        XCTAssertFalse(controller.lastMatchSucceeded)
+        XCTAssertNotNil(controller.errorMessage, "Permission errors still reach the UI")
+    }
+
     func testNative16kBuffersKeepTheirOwnAudioAfterLaterAppends() throws {
         let format = try XCTUnwrap(AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000,
                                                channels: 1, interleaved: false))

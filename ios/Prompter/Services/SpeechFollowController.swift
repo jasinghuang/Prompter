@@ -200,8 +200,8 @@ final class SpeechFollowController: ObservableObject {
         let id = UUID()
         sessionID = id
         errorMessage = nil
-        lastRecognized = ""
-        lastMatchSucceeded = false
+        if !lastRecognized.isEmpty { lastRecognized = "" }
+        if lastMatchSucceeded { lastMatchSucceeded = false }
         reachedEnd = false
         matcher = SpeechScriptMatcher(content: content, startUTF16: startUTF16)
         scriptContent = content
@@ -211,8 +211,8 @@ final class SpeechFollowController: ObservableObject {
         viewportOffset = nil; viewportDelta = nil
         inputHasVoice = false
         speechDetected = false
-        target = nil
-        recognizedLineDelta = nil
+        if target != nil { target = nil }
+        if recognizedLineDelta != nil { recognizedLineDelta = nil }
         matched = false
         lastResultAt = 0
         audioPackets = 0
@@ -301,23 +301,23 @@ final class SpeechFollowController: ObservableObject {
         pauseContinuation = nil
         cruiseUntil = nil
         speechDetected = false
-        target = nil
-        recognizedLineDelta = nil
+        if target != nil { target = nil }
+        if recognizedLineDelta != nil { recognizedLineDelta = nil }
         status = errorMessage ?? "轻点正文开始语音跟随"
     }
 
     func pauseForInteraction() {
         guard sessionID != nil else { return }
-        lastRecognized = ""
-        lastMatchSucceeded = false
+        if !lastRecognized.isEmpty { lastRecognized = "" }
+        if lastMatchSucceeded { lastMatchSucceeded = false }
         interactionRevision = UUID()
         interactionResume?.cancel(); interactionResume = nil
         pendingResumeUTF16 = nil
         isInteractionPaused = true
         recognitionEpoch = nil
         pipeline?.suspend()
-        target = nil
-        recognizedLineDelta = nil
+        if target != nil { target = nil }
+        if recognizedLineDelta != nil { recognizedLineDelta = nil }
         matched = false
         isAdvancing = false
         advanceUntil = nil
@@ -352,8 +352,8 @@ final class SpeechFollowController: ObservableObject {
         inputHasVoice = false
         speechDetected = false
         matched = false
-        target = nil
-        recognizedLineDelta = nil
+        if target != nil { target = nil }
+        if recognizedLineDelta != nil { recognizedLineDelta = nil }
         reachedEnd = false
         lastResultAt = 0
         do {
@@ -395,21 +395,24 @@ final class SpeechFollowController: ObservableObject {
             timing.observeVoice(at: event.capturedAt)
         }
         if let result = event.result, !result.text.isEmpty {
-            lastRecognized = result.text
+            // Deduplicate UI notifications only: identical text may carry a
+            // new final result, so matching and timing still consume it below.
+            if lastRecognized != result.text { lastRecognized = result.text }
             captureLog("ASR segment=\(result.segment) chars=\(result.text.count) final=\(result.isFinal)")
             lastResultAt = event.capturedAt
             if let match = matcher.match(result.text) {
                 if target?.utf16End != match.utf16End { captureLog("matched script offset=\(match.utf16End)") }
                 timing.observeMatch(token: match.tokenEnd, at: event.capturedAt)
-                target = .init(utf16End: match.utf16End, tokensPerSecond: timing.tokensPerSecond)
+                let nextTarget = SpeechFollowTarget(utf16End: match.utf16End, tokensPerSecond: timing.tokensPerSecond)
+                if target != nextTarget { target = nextTarget }
                 matched = true
-                lastMatchSucceeded = true
+                if !lastMatchSucceeded { lastMatchSucceeded = true }
                 settlement.matched(offset: match.utf16End, final: result.isFinal,
                                    reachedEnd: match.reachedEnd, at: ProcessInfo.processInfo.systemUptime)
             } else {
                 captureLog("no match cursor=\(matcher.cursor)")
                 matched = false
-                lastMatchSucceeded = false
+                if lastMatchSucceeded { lastMatchSucceeded = false }
             }
         }
         updateActivity()
@@ -419,7 +422,7 @@ final class SpeechFollowController: ObservableObject {
         guard target?.utf16End == utf16, !isInteractionPaused else { return }
         viewportOffset = utf16
         viewportDelta = delta
-        if report { recognizedLineDelta = delta }
+        if report && recognizedLineDelta != delta { recognizedLineDelta = delta }
         #if DEBUG
         let now = ProcessInfo.processInfo.systemUptime
         if report && now - lastViewportLogAt >= 0.5 {
@@ -427,7 +430,7 @@ final class SpeechFollowController: ObservableObject {
             captureLog("viewport offset=\(utf16) delta=\(delta)")
         }
         #endif
-        if settlement.completionReady(delta: delta, voice: inputHasVoice, at: ProcessInfo.processInfo.systemUptime) { reachedEnd = true }
+        if settlement.completionReady(delta: delta, voice: inputHasVoice, at: ProcessInfo.processInfo.systemUptime), !reachedEnd { reachedEnd = true }
     }
 
     private func captureLog(_ message: @autoclosure () -> String) {
@@ -441,11 +444,11 @@ final class SpeechFollowController: ObservableObject {
 
     private func updateActivity() {
         if isInteractionPaused {
-            isAdvancing = false
-            advanceUntil = nil
-            pauseContinuation = nil
-            cruiseUntil = nil
-            status = "手动调整中 · 松手 1.5 秒后恢复"
+            if isAdvancing { isAdvancing = false }
+            if advanceUntil != nil { advanceUntil = nil }
+            if pauseContinuation != nil { pauseContinuation = nil }
+            if cruiseUntil != nil { cruiseUntil = nil }
+            if status != "手动调整中 · 松手 1.5 秒后恢复" { status = "手动调整中 · 松手 1.5 秒后恢复" }
             return
         }
         let now = ProcessInfo.processInfo.systemUptime
@@ -482,7 +485,7 @@ final class SpeechFollowController: ObservableObject {
         else { text = "等待朗读 · 音频仅在本机处理" }
         if status != text { status = text }
         let delta = viewportOffset == target?.utf16End ? viewportDelta : nil
-        if settlement.completionReady(delta: delta, voice: inputHasVoice, at: now) { reachedEnd = true }
+        if settlement.completionReady(delta: delta, voice: inputHasVoice, at: now), !reachedEnd { reachedEnd = true }
     }
 
     private func detachEngine() {
