@@ -135,6 +135,29 @@ describe('Teleprompter 读完动作', () => {
     expect(screen.queryByLabelText('关闭镜子')).toBeNull();
   });
 
+  it('横屏：镜子入口移至右下大圆钮，顶栏左胶囊瘦身为「返回｜时间」', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(orientation: landscape)',
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })));
+    try {
+      renderTel();
+      const fab = screen.getByLabelText('前置镜子');
+      expect(fab.className).toContain('h-14'); // 56px 大圆钮而非顶栏 34px 格
+      expect(screen.getByLabelText('返回')).toBeInTheDocument();
+      expect(screen.getByLabelText('设置')).toBeInTheDocument();
+      // 开镜流程与竖屏入口一致
+      fireEvent.click(fab);
+      await waitFor(() => expect(screen.getByText('未检测到可用的摄像头')).toBeInTheDocument());
+      fireEvent.click(screen.getByLabelText('关闭镜子'));
+      expect(screen.queryByLabelText('关闭镜子')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('暂停时计时旁为双竖线暂停图标，播放中右上角操作胶囊自动隐藏', () => {
     renderTel();
     // 暂停态：时间格（点击回顶）内是 CirclePause 图标

@@ -29,6 +29,7 @@ struct PlayerView: View {
 
     @State private var showSettings = false
     @State private var showMirror = false
+    @State private var isLandscape = false
     @State private var showOnboarding = !UserDefaults.standard.bool(forKey: PlayerView.onboardKey)
     @State private var completed = false
     @State private var toast: Toast?
@@ -54,6 +55,110 @@ struct PlayerView: View {
     }
 
     var body: some View {
+        playerRoot
+            // 横屏判定（宽>高，同 CameraMirrorView）：驱动镜子入口在顶栏格与右下大圆钮间切换
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { isLandscape = geo.size.width > geo.size.height }
+                        .onChange(of: geo.size.width > geo.size.height) { _, landscape in
+                            isLandscape = landscape
+                        }
+                }
+            )
+            .animation(reduceMotion ? nil : AppMotion.overlay, value: isLandscape)
+            .task(id: voiceSessionEnabled) {
+                if voiceSessionEnabled {
+                    await speech.start(content: script.content, startUTF16: activeIndex, modelDirectory: speechModels.directory, kind: settings.data.speechEngine)
+                } else { speech.stop() }
+            }
+            .task(id: nodConfiguration) {
+                nodController.configure(profile: nodConfiguration.profile, suspended: nodConfiguration.suspended)
+            }
+            .onReceive(nodController.nods) { trigger in
+                guard settings.data.airPodsNodEnabled, !nodConfiguration.suspended else { nodController.discardNod(trigger); return }
+                applyPlaybackToggle()
+                nodController.confirmNodApplied(trigger, playing: isPlaying)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+            .onReceive(nodController.notices) { message in
+                guard settings.data.airPodsNodEnabled, !nodConfiguration.suspended else { return }
+                // While paused the persistent AirPods status already explains this condition.
+                guard isPlaying else { return }
+                showToast(message, kind: .connection)
+            }
+            .alert("操作未完成", isPresented: Binding(get: { operations.errorMessage != nil }, set: { if !$0 { operations.errorMessage = nil } })) {
+                Button("知道了", role: .cancel) { operations.errorMessage = nil }
+            } message: { Text(operations.errorMessage ?? "") }
+    }
+
+    /// body 拆段（巨型表达式会令类型检查超时）：界面层 + 生命周期 → 语音/点头/警报
+    private var playerRoot: some View {
+        playerSurface
+            .onAppear {
+                UIApplication.shared.isIdleTimerDisabled = true // 拍摄中屏幕常亮
+                paragraphStarts = PrompterCore.paragraphStarts(script.content)
+                #if DEBUG
+                // 自动化截图验证用：-skipOnboard 跳过引导 / -autoPlay 直接播放 / -openSettings 打开设置抽屉
+                // -pauseParagraph=段落暂停+高速；-fastEnd=仅高速（验证读完提示和点击时间回顶）
+                let args = ProcessInfo.processInfo.arguments
+                let testRun = args.contains("-pauseParagraph") || args.contains("-fastEnd")
+                if args.contains("-skipOnboard") || testRun { showOnboarding = false }
+                if args.contains("-autoPlay") || testRun { isPlaying = true }
+                if args.contains("-openSettings") { showSettings = true }
+                if testRun {
+                    UserDefaults.standard.set(true, forKey: "debug_player_test_ran")
+                    settings.data.scrollSpeed = 700
+                    if args.contains("-pauseParagraph") { settings.data.automaticPause = .paragraph }
+                } else if UserDefaults.standard.bool(forKey: "debug_player_test_ran") {
+                    // 上次是验证运行，还原设置
+                    settings.data.automaticPause = .off
+                    settings.data.scrollSpeed = SettingsData.defaults.scrollSpeed
+                    UserDefaults.standard.set(false, forKey: "debug_player_test_ran")
+                }
+                #endif
+            }
+            .onDisappear {
+                speech.stop()
+                speechModels.cancel()
+                nodController.shutdown()
+                UIApplication.shared.isIdleTimerDisabled = false
+                toastTask?.cancel(); returnTask?.cancel(); settings.flush()
+            }
+            .onChange(of: script.content) { _, content in
+                isPlaying = false
+                paragraphStarts = PrompterCore.paragraphStarts(content)
+                keywordTracker.reset(); paragraphTracker.reset(); cancelCompletionReturn()
+            }
+            .onChange(of: activeIndex) { _, _ in checkAutoPause() }
+            .onChange(of: isPlaying) { _, playing in
+                if playing { checkAutoPause() }
+                else { speech.stop() }
+            }
+            .onChange(of: settings.data.speechEngine) { _, _ in isPlaying = false; speech.stop() }
+            .onChange(of: settings.data.playbackMode) { _, _ in isPlaying = false; speech.stop() }
+            .onChange(of: speech.errorMessage) { _, message in
+                if let message { isPlaying = false; showToast(message) }
+            }
+            .onChange(of: speech.reachedEnd) { _, reached in
+                if reached && isPlaying && settings.data.playbackMode == .voice {
+                    handleReachEnd()
+                }
+            }
+            .onChange(of: settings.data.pauseKeyword) { _, _ in keywordTracker.reset() }
+            .onChange(of: settings.data.automaticPause) { _, _ in keywordTracker.reset(); paragraphTracker.reset() }
+            .onChange(of: showSettings) { _, open in if open { isPlaying = false; cancelCompletionReturn() } }
+            .onChange(of: showMirror) { _, open in if open { isPlaying = false; cancelCompletionReturn() } }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background { nodController.interruptCalibration() }
+                if phase != .active { isPlaying = false; settings.flush() }
+                if phase == .background { showMirror = false }
+                UIApplication.shared.isIdleTimerDisabled = phase == .active
+            }
+            .task(id: isPlaying) { await runTimer() }
+    }
+
+    private var playerSurface: some View {
         ZStack {
             Color.canvas.ignoresSafeArea()
             reader
@@ -61,6 +166,7 @@ struct PlayerView: View {
             runningSpeechStatus
             topBar
             bottomControlLayer
+            mirrorFab
             toastView
             onboarding
             PlayerSettingsDrawer(open: $showSettings, nodController: nodController, speechModels: speechModels) {
@@ -72,90 +178,6 @@ struct PlayerView: View {
             .frame(width: 0, height: 0))
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
-        .onAppear {
-            UIApplication.shared.isIdleTimerDisabled = true // 拍摄中屏幕常亮
-            paragraphStarts = PrompterCore.paragraphStarts(script.content)
-            #if DEBUG
-            // 自动化截图验证用：-skipOnboard 跳过引导 / -autoPlay 直接播放 / -openSettings 打开设置抽屉
-            // -pauseParagraph=段落暂停+高速；-fastEnd=仅高速（验证读完提示和点击时间回顶）
-            let args = ProcessInfo.processInfo.arguments
-            let testRun = args.contains("-pauseParagraph") || args.contains("-fastEnd")
-            if args.contains("-skipOnboard") || testRun { showOnboarding = false }
-            if args.contains("-autoPlay") || testRun { isPlaying = true }
-            if args.contains("-openSettings") { showSettings = true }
-            if testRun {
-                UserDefaults.standard.set(true, forKey: "debug_player_test_ran")
-                settings.data.scrollSpeed = 700
-                if args.contains("-pauseParagraph") { settings.data.automaticPause = .paragraph }
-            } else if UserDefaults.standard.bool(forKey: "debug_player_test_ran") {
-                // 上次是验证运行，还原设置
-                settings.data.automaticPause = .off
-                settings.data.scrollSpeed = SettingsData.defaults.scrollSpeed
-                UserDefaults.standard.set(false, forKey: "debug_player_test_ran")
-            }
-            #endif
-        }
-        .onDisappear {
-            speech.stop()
-            speechModels.cancel()
-            nodController.shutdown()
-            UIApplication.shared.isIdleTimerDisabled = false
-            toastTask?.cancel(); returnTask?.cancel(); settings.flush()
-        }
-        .onChange(of: script.content) { _, content in
-            isPlaying = false
-            paragraphStarts = PrompterCore.paragraphStarts(content)
-            keywordTracker.reset(); paragraphTracker.reset(); cancelCompletionReturn()
-        }
-        .onChange(of: activeIndex) { _, _ in checkAutoPause() }
-        .onChange(of: isPlaying) { _, playing in
-            if playing { checkAutoPause() }
-            else { speech.stop() }
-        }
-        .onChange(of: settings.data.speechEngine) { _, _ in isPlaying = false; speech.stop() }
-        .onChange(of: settings.data.playbackMode) { _, _ in isPlaying = false; speech.stop() }
-        .onChange(of: speech.errorMessage) { _, message in
-            if let message { isPlaying = false; showToast(message) }
-        }
-        .onChange(of: speech.reachedEnd) { _, reached in
-            if reached && isPlaying && settings.data.playbackMode == .voice {
-                handleReachEnd()
-            }
-        }
-        .onChange(of: settings.data.pauseKeyword) { _, _ in keywordTracker.reset() }
-        .onChange(of: settings.data.automaticPause) { _, _ in keywordTracker.reset(); paragraphTracker.reset() }
-        .onChange(of: showSettings) { _, open in if open { isPlaying = false; cancelCompletionReturn() } }
-        .onChange(of: showMirror) { _, open in if open { isPlaying = false; cancelCompletionReturn() } }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .background { nodController.interruptCalibration() }
-            if phase != .active { isPlaying = false; settings.flush() }
-            if phase == .background { showMirror = false }
-            UIApplication.shared.isIdleTimerDisabled = phase == .active
-        }
-        .task(id: isPlaying) { await runTimer() }
-        .task(id: voiceSessionEnabled) {
-            if voiceSessionEnabled {
-                await speech.start(content: script.content, startUTF16: activeIndex, modelDirectory: speechModels.directory, kind: settings.data.speechEngine)
-            } else { speech.stop() }
-        }
-        .task(id: nodConfiguration) {
-            nodController.configure(profile: nodConfiguration.profile, suspended: nodConfiguration.suspended)
-        }
-        .onReceive(nodController.nods) { trigger in
-            guard settings.data.airPodsNodEnabled, !nodConfiguration.suspended else { nodController.discardNod(trigger); return }
-            applyPlaybackToggle()
-            nodController.confirmNodApplied(trigger, playing: isPlaying)
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        }
-        .onReceive(nodController.notices) { message in
-            guard settings.data.airPodsNodEnabled, !nodConfiguration.suspended else { return }
-            // While paused the persistent AirPods status already explains this condition.
-            guard isPlaying else { return }
-            showToast(message, kind: .connection)
-        }
-        .alert("操作未完成", isPresented: Binding(get: { operations.errorMessage != nil }, set: { if !$0 { operations.errorMessage = nil } })) {
-            Button("知道了", role: .cancel) { operations.errorMessage = nil }
-        } message: { Text(operations.errorMessage ?? "") }
     }
 
     // MARK: 正文
@@ -249,9 +271,11 @@ struct PlayerView: View {
                         .accessibilityLabel("回到顶部")
                         .accessibilityValue("\(isPlaying ? "提词中" : "已暂停")，\(PrompterCore.formatTime(elapsed))")
                         .accessibilityHint("回到正文开头，暂停并将计时归零")
-                    CapsuleDivider()
-                    CapsuleButton(icon: "camera", label: "前置镜子") { isPlaying = false; showMirror = true }
-                        .accessibilityIdentifier("player.mirror")
+                    if !isLandscape {
+                        CapsuleDivider()
+                        CapsuleButton(icon: "camera", label: "前置镜子") { isPlaying = false; showMirror = true }
+                            .accessibilityIdentifier("player.mirror")
+                    }
                 }
                 Spacer(minLength: 0)
                 if settings.data.playbackMode == .voice && isPlaying {
@@ -360,6 +384,37 @@ struct PlayerView: View {
         .animation(reduceMotion ? nil : AppMotion.playback, value: isPlaying)
         .allowsHitTesting(!isPlaying)
         .accessibilityHidden(isPlaying)
+    }
+
+    // MARK: 横屏右下大圆钮镜子入口（竖屏仍走顶栏格；对齐 Web Teleprompter FAB）
+    // 播放中常驻=一键开镜自动暂停；暂停时上浮避开底部控制卡（卡高约 60 + 底距 16 + 间隙 12）
+
+    @ViewBuilder
+    private var mirrorFab: some View {
+        if isLandscape {
+            Button(action: { isPlaying = false; showMirror = true }) {
+                mirrorFabLabel
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("前置镜子")
+            .accessibilityIdentifier("player.mirror")
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .padding(.trailing, 20)
+            .padding(.bottom, isPlaying ? 16 : 88)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: isPlaying)
+            .transition(.scale(scale: 0.85).combined(with: .opacity))
+        }
+    }
+
+    private var mirrorFabLabel: some View {
+        Image(systemName: "camera")
+            .font(.system(size: 24, weight: .medium))
+            .foregroundStyle(Color.white.opacity(0.65))
+            .frame(width: 56, height: 56)
+            .background(Color.surface, in: Circle())
+            .overlay(Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+            .shadow(color: .black.opacity(0.45), radius: 24, y: 8)
+            .contentShape(Circle())
     }
 
     private var bottomControls: some View {

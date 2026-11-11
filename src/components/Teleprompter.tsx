@@ -68,6 +68,19 @@ export function Teleprompter({
   const [pauseReason, setPauseReason] = useState<string | null>(null);
   // 读完停在末尾时的引导提示（对齐 iOS returnHint）：点击顶栏时间回顶后消失
   const [showReturnHint, setShowReturnHint] = useState(false);
+  // 横屏判定（orientation media，对齐 iOS geo 宽>高）：横屏时镜子入口移至右下大圆钮，
+  // 顶栏左胶囊瘦身为「返回｜时间」；竖屏维持左上格（DOM 单入口，测试与 a11y 不重复）
+  const [isLandscape, setIsLandscape] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(orientation: landscape)').matches
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia?.('(orientation: landscape)');
+    if (!mq) return;
+    const onChange = (e: MediaQueryListEvent) => setIsLandscape(e.matches);
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, []);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [completed, setCompleted] = useState(false);
   const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -493,10 +506,14 @@ export function Teleprompter({
               {formatTime(elapsedSeconds)}
             </span>
           </button>
-          <CapsuleDivider />
-          <CapsuleButton label="前置镜子" onClick={() => setShowMirror(true)}>
-            <Camera size={18} strokeWidth={2.4} />
-          </CapsuleButton>
+          {!isLandscape && (
+            <>
+              <CapsuleDivider />
+              <CapsuleButton label="前置镜子" onClick={() => setShowMirror(true)}>
+                <Camera size={18} strokeWidth={2.4} />
+              </CapsuleButton>
+            </>
+          )}
         </Capsule>
 
         <div className="min-w-0 flex-1" />
@@ -568,6 +585,25 @@ export function Teleprompter({
         onFontSizeChange={(v) => onChangeSettings({ fontSize: v })}
         onSpeedChange={(v) => onChangeSettings({ scrollSpeed: v })}
       />
+
+      {/* ── 横屏右下大圆钮镜子入口（对齐 iOS）：竖屏仍走顶栏格；暂停时上浮避开控制卡 ── */}
+      {isLandscape && (
+        <button
+          type="button"
+          aria-label="前置镜子"
+          title="前置镜子"
+          onClick={() => setShowMirror(true)}
+          className="absolute z-50 flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-[#131316] text-white/65 shadow-[0_8px_24px_rgba(0,0,0,0.45)] transition-[bottom] duration-300 ease-out hover:bg-[#1a1a1f] hover:text-white active:scale-95"
+          style={{
+            right: 'calc(1.25rem + env(safe-area-inset-right))',
+            bottom: isPlaying
+              ? 'calc(1.25rem + env(safe-area-inset-bottom))'
+              : /* 控制卡(68px)+底距(16px)+间隙(12px) */ 'calc(6rem + env(safe-area-inset-bottom))',
+          }}
+        >
+          <Camera size={24} strokeWidth={2.2} />
+        </button>
+      )}
 
       {/* ── 读完提示（停在末尾模式）：引导点击顶栏时间回顶（对齐 iOS returnHint） ── */}
       {showReturnHint && (

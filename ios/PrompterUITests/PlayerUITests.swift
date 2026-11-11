@@ -44,12 +44,24 @@ final class PlayerUITests: XCTestCase {
         expectation(for: stable, evaluatedWith: element)
         waitForExpectations(timeout: 5)
     }
-    private func assertPlayerToolbarOrder() {
-        let elements = [app.buttons["返回"], app.buttons["player.returnToTop"], app.buttons["player.mirror"],
-                        app.buttons["player.filmed"], app.buttons["player.settings"]]
+    private func assertPlayerToolbarOrder(landscape: Bool) {
+        // 横屏镜子入口移至右下大圆钮，顶栏只剩四格；竖屏五格含镜子（对齐 Web FAB 方案）
+        let elements = landscape
+            ? [app.buttons["返回"], app.buttons["player.returnToTop"],
+               app.buttons["player.filmed"], app.buttons["player.settings"]]
+            : [app.buttons["返回"], app.buttons["player.returnToTop"], app.buttons["player.mirror"],
+               app.buttons["player.filmed"], app.buttons["player.settings"]]
         for pair in zip(elements, elements.dropFirst()) {
             XCTAssertLessThanOrEqual(pair.0.frame.maxX, pair.1.frame.minX)
             XCTAssertEqual(pair.0.frame.midY, pair.1.frame.midY, accuracy: 1)
+        }
+        if landscape {
+            let fab = app.buttons["player.mirror"]
+            XCTAssertTrue(fab.waitForExistence(timeout: 3), "横屏右下应有镜子大圆钮")
+            XCTAssertGreaterThan(fab.frame.minY, app.buttons["player.settings"].frame.maxY,
+                                 "镜子圆钮应在顶栏下方")
+            XCTAssertGreaterThan(fab.frame.midX, app.buttons["player.filmed"].frame.minX,
+                                 "镜子圆钮应在右半屏")
         }
     }
     private func assertParameterTrackWidths(landscape: Bool) {
@@ -381,7 +393,7 @@ final class PlayerUITests: XCTestCase {
 
     func testPlayerLandscape() {
         launch(player: true, landscape: true)
-        assertPlayerToolbarOrder()
+        assertPlayerToolbarOrder(landscape: true)
         assertParameterTrackWidths(landscape: true)
         snapshot("player-landscape-paused")
         play()
@@ -395,7 +407,7 @@ final class PlayerUITests: XCTestCase {
     func testPlayerPortrait() {
         launch(player: true)
         XCTAssertTrue(app.sliders["字号"].isHittable)
-        assertPlayerToolbarOrder()
+        assertPlayerToolbarOrder(landscape: false)
         assertParameterTrackWidths(landscape: false)
         XCTAssertFalse(app.buttons["player.play"].exists)
         XCTAssertTrue(app.buttons["前置镜子"].isHittable)
@@ -528,7 +540,7 @@ final class PlayerUITests: XCTestCase {
         filmed.tap()
         XCTAssertEqual(filmed.value as? String, "已拍摄")
         XCTAssertEqual(filmed.frame, frame, "绿色状态不能改变按钮布局")
-        assertPlayerToolbarOrder()
+        assertPlayerToolbarOrder(landscape: false)
         snapshot("player-filmed-direct")
         filmed.tap()
         XCTAssertEqual(filmed.value as? String, "待拍摄")
