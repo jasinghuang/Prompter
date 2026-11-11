@@ -38,7 +38,12 @@ struct PlayerPromptIndicator: View {
                                     visible: true, calibration: calibration, reduceMotion: reduceMotion)
                     .frame(maxWidth: .infinity, maxHeight: .infinity).ignoresSafeArea()
             }
+            Color.clear
+                .onChange(of: visible && playing && geometry.size.width > geometry.size.height && !reduceMotion, initial: true) { _, active in
+                    meter.setDisplayActive(active)
+                }
         }.ignoresSafeArea().allowsHitTesting(false)
+            .onDisappear { meter.setDisplayActive(false) }
     }
 }
 
@@ -68,6 +73,7 @@ struct PromptIslandOverlay: UIViewRepresentable {
         private var lastFrame: CGRect?
         private var lastCompleted = false
         private var drewProgress = false
+        private var drawnProgress = 0.0
         private var orientationObserver: NSObjectProtocol?
         #if DEBUG
         private var lastLayoutReport = ""
@@ -94,6 +100,10 @@ struct PromptIslandOverlay: UIViewRepresentable {
             for glow in [goldGlow, greenGlow] {
                 glow.lineWidth = 1.6; glow.shadowOpacity = 0.9; glow.opacity = 0
             }
+            // A fixed blur kernel can be cached. Audio animates opacity only;
+            // changing shadowRadius at 20Hz repeatedly rasterizes the glow.
+            goldGlow.shadowRadius = 10
+            greenGlow.shadowRadius = 14
         }
         required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
         override func didMoveToWindow() {
@@ -133,10 +143,12 @@ struct PromptIslandOverlay: UIViewRepresentable {
 
         private func layoutIndicator() {
             #if DEBUG
-            let report = "visible=\(wantsVisible) bounds=\(bounds) window=\(String(describing: window?.bounds)) safe=\(String(describing: window?.safeAreaInsets))"
-            if report != lastLayoutReport {
-                lastLayoutReport = report
-                SpeechCaptureDiagnostics.record("[PromptIndicator] \(report)")
+            if SpeechCaptureDiagnostics.enabled {
+                let report = "visible=\(wantsVisible) bounds=\(bounds) window=\(String(describing: window?.bounds)) safe=\(String(describing: window?.safeAreaInsets))"
+                if report != lastLayoutReport {
+                    lastLayoutReport = report
+                    SpeechCaptureDiagnostics.record("[PromptIndicator] \(report)")
+                }
             }
             #endif
             guard let window, wantsVisible, window.bounds.width > window.bounds.height,
@@ -152,23 +164,34 @@ struct PromptIslandOverlay: UIViewRepresentable {
             isHidden = false; isAccessibilityElement = true
             accessibilityValue = "\(Int(state.progress * 100))%"
             let changedGeometry = lastFrame != rect
+            let changedProgress = abs(drawnProgress - state.progress) > 0.0001
             let oldProgress = progress.presentation()?.strokeEnd ?? progress.strokeEnd
             let oldOpacity = greenGlow.presentation()?.opacity ?? greenGlow.opacity
             CATransaction.begin(); CATransaction.setDisableActions(true)
             if changedGeometry {
                 lastFrame = rect
-                let path = IslandIndicatorGeometry.path(in: rect)
-                for shape in [rail, progress, goldGlow, greenGlow] { shape.path = path }
+                let local = CGRect(origin: .zero, size: rect.size)
+                let path = IslandIndicatorGeometry.path(in: local)
+                for shape in [rail, progress, goldGlow, greenGlow] {
+                    shape.frame = rect
+                    shape.contentsScale = window.screen.scale
+                    shape.path = path
+                }
+                goldGlow.shadowPath = path.copy(strokingWithWidth: goldGlow.lineWidth, lineCap: .round,
+                                                lineJoin: .round, miterLimit: 0)
+            }
+            if changedGeometry || changedProgress || !drewProgress {
+                let partial = IslandIndicatorGeometry.path(in: CGRect(origin: .zero, size: rect.size), progress: state.progress)
+                greenGlow.shadowPath = partial.copy(strokingWithWidth: greenGlow.lineWidth, lineCap: .round,
+                                                    lineJoin: .round, miterLimit: 0)
             }
             progress.strokeEnd = state.progress
             greenGlow.strokeEnd = state.progress
             let pulse = reduceMotion ? 0 : state.pulse
             goldGlow.opacity = Float(pulse * 0.32)
             greenGlow.opacity = Float(pulse * 0.65)
-            goldGlow.shadowRadius = 3 + pulse * 7
-            greenGlow.shadowRadius = 4 + pulse * 10
             CATransaction.commit()
-            if drewProgress && !changedGeometry && !reduceMotion && abs(oldProgress - state.progress) > 0.0001 {
+            if drewProgress && !changedGeometry && !reduceMotion && changedProgress {
                 for shape in [progress, greenGlow] {
                     let animation = CABasicAnimation(keyPath: "strokeEnd")
                     animation.fromValue = oldProgress; animation.toValue = state.progress
@@ -191,6 +214,7 @@ struct PromptIslandOverlay: UIViewRepresentable {
                 flash.values = [0, 0.75, 0]; flash.keyTimes = [0, 0.3, 1]; flash.duration = 0.65
                 greenGlow.add(flash, forKey: "readingComplete")
             }
+            drawnProgress = state.progress
             lastCompleted = state.completed; drewProgress = true
         }
 

@@ -135,6 +135,9 @@ targets:
       - PrompterTests
     dependencies:
       - target: Prompter
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
   PrompterUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -145,6 +148,7 @@ targets:
     settings:
       base:
         TEST_TARGET_NAME: Prompter
+        GENERATE_INFOPLIST_FILE: true
 schemes:
   Prompter:
     build:

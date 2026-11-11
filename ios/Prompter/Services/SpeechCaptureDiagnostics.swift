@@ -5,8 +5,11 @@ import Foundation
 /// Persist in Caches so a connected physical device can be diagnosed even when
 /// Xcode owns the app's console. This code is absent from release builds.
 enum SpeechCaptureDiagnostics {
+    static let enabled = ProcessInfo.processInfo.arguments.contains("-speechDiagnostics")
     private static let queue = DispatchQueue(label: "prompter.speech-diagnostics", qos: .utility)
-    static func record(_ message: String) {
+    static func record(_ message: @autoclosure () -> String) {
+        guard enabled else { return }
+        let message = message()
         print("[SpeechCapture] \(message)")
         let line = "\(Date().timeIntervalSince1970) \(message)\n"
         queue.async {

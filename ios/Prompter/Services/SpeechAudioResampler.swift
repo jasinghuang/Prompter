@@ -5,25 +5,36 @@ import AVFoundation
 final class SpeechAudioResampler {
     private var converter: AVAudioConverter?
     private var inputRate: Double = 0
+    private var sourceFormat: AVAudioFormat?
+    private let targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000,
+                                             channels: 1, interleaved: false)!
+    private var inputBuffer: AVAudioPCMBuffer?
+    private var outputBuffer: AVAudioPCMBuffer?
 
     func convert(_ samples: [Float], sampleRate: Double) throws -> [Float] {
         guard !samples.isEmpty else { return [] }
         if sampleRate == 16_000 { return samples }
-        guard sampleRate.isFinite, sampleRate > 0,
-              let source = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate,
-                                         channels: 1, interleaved: false),
-              let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000,
-                                         channels: 1, interleaved: false) else { throw SpeechCaptureError.input }
+        guard sampleRate.isFinite, sampleRate > 0 else { throw SpeechCaptureError.input }
         if converter == nil || inputRate != sampleRate {
-            converter = AVAudioConverter(from: source, to: target)
+            guard let source = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate,
+                                             channels: 1, interleaved: false) else { throw SpeechCaptureError.input }
+            sourceFormat = source
+            converter = AVAudioConverter(from: source, to: targetFormat)
             inputRate = sampleRate
+            inputBuffer = nil; outputBuffer = nil
         }
-        guard let converter,
-              let input = AVAudioPCMBuffer(pcmFormat: source, frameCapacity: AVAudioFrameCount(samples.count)),
-              let output = AVAudioPCMBuffer(pcmFormat: target,
-                    frameCapacity: AVAudioFrameCount(ceil(Double(samples.count) * 16_000 / sampleRate)) + 64),
+        let capacity = AVAudioFrameCount(samples.count)
+        let outputCapacity = AVAudioFrameCount(ceil(Double(samples.count) * 16_000 / sampleRate)) + 64
+        if inputBuffer == nil || inputBuffer!.frameCapacity < capacity, let sourceFormat {
+            inputBuffer = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: capacity)
+        }
+        if outputBuffer == nil || outputBuffer!.frameCapacity < outputCapacity {
+            outputBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: outputCapacity)
+        }
+        guard let converter, let input = inputBuffer, let output = outputBuffer,
               let inputData = input.floatChannelData else { throw SpeechCaptureError.input }
-        input.frameLength = input.frameCapacity
+        input.frameLength = capacity
+        output.frameLength = 0
         samples.withUnsafeBufferPointer { inputData[0].update(from: $0.baseAddress!, count: samples.count) }
         var supplied = false
         var error: NSError?
@@ -34,6 +45,8 @@ final class SpeechAudioResampler {
             return input
         }
         guard error == nil, status != .error, let data = output.floatChannelData else { throw SpeechCaptureError.input }
+        // Return an owned copy: only the synchronous conversion buffers are
+        // reused; the recognizer never observes overwritten audio storage.
         return Array(UnsafeBufferPointer(start: data[0], count: Int(output.frameLength)))
     }
 }

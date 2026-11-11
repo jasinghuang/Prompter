@@ -23,10 +23,25 @@ final class SpeechAudioMeter: ObservableObject {
     nonisolated let input = SpeechLevelInput()
     private var clock: Task<Void, Never>?
     private var envelope = SpeechLevelEnvelope()
+    private var capture: UUID?
+    private var displayActive = false
 
     func start(capture: UUID) {
         stop()
+        self.capture = capture
         input.begin(capture)
+        if displayActive { startClock() }
+    }
+
+    /// Visibility changes only affect visual work, never capture or VAD.
+    func setDisplayActive(_ active: Bool) {
+        guard active != displayActive else { return }
+        displayActive = active
+        stopClock()
+        if active && capture != nil { startClock() }
+    }
+
+    private func startClock() {
         clock = Task { @MainActor [weak self] in
             var last = ProcessInfo.processInfo.systemUptime
             while !Task.isCancelled {
@@ -42,8 +57,13 @@ final class SpeechAudioMeter: ObservableObject {
         }
     }
     func stop() {
-        clock?.cancel(); clock = nil
+        capture = nil
         input.begin(nil)
+        stopClock()
+    }
+
+    private func stopClock() {
+        clock?.cancel(); clock = nil
         envelope = .init()
         level = 0; sampledAt = nil
     }

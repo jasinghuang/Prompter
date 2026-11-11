@@ -165,12 +165,13 @@ private final class AppleAnalyzerRecognizer: LocalSpeechRecognizer {
 }
 
 /// Queue-confined PCM conversion for the native analyzer's chosen format.
-private final class AppleSpeechPCMConverter {
+final class AppleSpeechPCMConverter {
     private let source = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
     private let output: AVAudioFormat
-    private let converter: AVAudioConverter
+    private let converter: AVAudioConverter?
     init(output: AVAudioFormat) throws {
         self.output = output
+        if source == output { converter = nil; return }
         guard let converter = AVAudioConverter(from: source, to: output) else { throw SpeechCaptureError.input }
         self.converter = converter
     }
@@ -180,6 +181,9 @@ private final class AppleSpeechPCMConverter {
               let data = input.floatChannelData?[0] else { throw SpeechCaptureError.input }
         input.frameLength = AVAudioFrameCount(samples.count)
         samples.withUnsafeBufferPointer { data.update(from: $0.baseAddress!, count: $0.count) }
+        // AnalyzerInput retains its buffer. Keep this fresh input buffer for
+        // every append, but skip a redundant 16kHz-to-16kHz conversion.
+        guard let converter else { return input }
         let capacity = AVAudioFrameCount(ceil(Double(samples.count) * output.sampleRate / 16_000) + 1024)
         guard let result = AVAudioPCMBuffer(pcmFormat: output, frameCapacity: capacity) else { throw SpeechCaptureError.input }
         var supplied = false

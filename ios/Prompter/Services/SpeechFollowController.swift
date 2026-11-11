@@ -439,11 +439,12 @@ final class SpeechFollowController: ObservableObject {
         if settlement.completionReady(delta: delta, voice: inputHasVoice, at: ProcessInfo.processInfo.systemUptime) { reachedEnd = true }
     }
 
-    private func captureLog(_ message: String) {
+    private func captureLog(_ message: @autoclosure () -> String) {
         #if DEBUG
+        guard SpeechCaptureDiagnostics.enabled else { return }
         let session = AVAudioSession.sharedInstance()
         let input = session.currentRoute.inputs.map { $0.portType.rawValue }.joined(separator: ",")
-        SpeechCaptureDiagnostics.record("\(message) running=\(engine?.isRunning ?? false) rate=\(session.sampleRate) input=\(input)")
+        SpeechCaptureDiagnostics.record("\(message()) running=\(engine?.isRunning ?? false) rate=\(session.sampleRate) input=\(input)")
         #endif
     }
 
