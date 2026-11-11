@@ -155,7 +155,7 @@ final class SpeechFollowController: ObservableObject {
     @Published private(set) var lastRecognized = ""
     @Published private(set) var lastMatchSucceeded = false
     @Published private(set) var recognizedLineDelta: Double?
-    private var engine: AVAudioEngine?
+    private var capture: SpeechAudioCapture?
     private var pipeline: SpeechRecognitionPipeline?
     private var sessionID: UUID?
     private let audioSession: SpeechAudioSessionCoordinator
@@ -164,7 +164,6 @@ final class SpeechFollowController: ObservableObject {
     private var inputCheckPending = false
     private var inputState: SpeechAudioInputState?
     private var captureID = UUID()
-    private var hasInputTap = false
     private var recoveryBudget = SpeechCaptureRecoveryBudget()
     private var clock: Task<Void, Never>?
     private var matcher = SpeechScriptMatcher(content: "")
@@ -262,7 +261,7 @@ final class SpeechFollowController: ObservableObject {
                 pipeline.stop()
                 return
             }
-            try beginCapture(pipeline: pipeline, session: id)
+            try await beginCapture(pipeline: pipeline, session: id)
             if isInteractionPaused, let index = pendingResumeUTF16 { await resumeAfterInteraction(atUTF16: index) }
             guard sessionID == id, !Task.isCancelled else { return }
             status = isInteractionPaused ? "手动调整中 · 松手 1.5 秒后恢复" : "等待朗读 · 音频仅在本机处理"
@@ -293,9 +292,9 @@ final class SpeechFollowController: ObservableObject {
         inputCheckPending = false
         inputState = nil
         observers.forEach { NotificationCenter.default.removeObserver($0) }; observers = []
-        detachEngine()
+        let stoppedCapture = detachEngine()
         pipeline?.stop(); pipeline = nil
-        if let owner { audioSession.release(owner: owner) }
+        if let owner { audioSession.release(owner: owner, after: { await stoppedCapture?.waitUntilStopped() }) }
         isAdvancing = false
         advanceUntil = nil
         pauseContinuation = nil
@@ -438,7 +437,7 @@ final class SpeechFollowController: ObservableObject {
         guard SpeechCaptureDiagnostics.enabled else { return }
         let session = AVAudioSession.sharedInstance()
         let input = session.currentRoute.inputs.map { $0.portType.rawValue }.joined(separator: ",")
-        SpeechCaptureDiagnostics.record("\(message()) running=\(engine?.isRunning ?? false) rate=\(session.sampleRate) input=\(input)")
+        SpeechCaptureDiagnostics.record("\(message()) running=\(inputState?.running ?? false) rate=\(session.sampleRate) input=\(input)")
         #endif
     }
 
@@ -488,56 +487,37 @@ final class SpeechFollowController: ObservableObject {
         if settlement.completionReady(delta: delta, voice: inputHasVoice, at: now), !reachedEnd { reachedEnd = true }
     }
 
-    private func detachEngine() {
-        if let engine {
-            if hasInputTap { engine.inputNode.removeTap(onBus: 0) }
-            engine.stop()
-        }
-        hasInputTap = false
-        engine = nil
+    @discardableResult
+    private func detachEngine() -> SpeechAudioCapture? {
+        let previous = capture
+        capture = nil
+        previous?.stop()
+        return previous
     }
 
-    private func beginCapture(pipeline: SpeechRecognitionPipeline, session id: UUID) throws {
+    private func beginCapture(pipeline: SpeechRecognitionPipeline, session id: UUID) async throws {
         observers.forEach { NotificationCenter.default.removeObserver($0) }; observers = []
-        detachEngine()
-        captureID = UUID()
-        let engine = AVAudioEngine()
-        self.engine = engine
-        let input = engine.inputNode
-        let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0, format.channelCount > 0, format.commonFormat == .pcmFormatFloat32 else {
-            throw SpeechCaptureError.input
+        let previous = detachEngine()
+        await previous?.waitUntilStopped()
+        guard sessionID == id, !Task.isCancelled else { throw CancellationError() }
+        let generation = UUID()
+        captureID = generation
+        let capture = SpeechAudioCapture()
+        self.capture = capture
+        let started = try await capture.start { samples, rate, capturedAt in
+            pipeline.submit(samples: samples, sampleRate: rate, capturedAt: capturedAt)
         }
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-            guard let channels = buffer.floatChannelData, buffer.frameLength > 0 else { return }
-            let frames = Int(buffer.frameLength)
-            let count = Int(buffer.format.channelCount)
-            var samples = [Float](repeating: 0, count: frames)
-            for channel in 0..<count {
-                for frame in 0..<frames {
-                    let value = buffer.format.isInterleaved ? channels[0][frame * count + channel] : channels[channel][frame]
-                    samples[frame] += value / Float(count)
-                }
-            }
-            let capturedAt = ProcessInfo.processInfo.systemUptime
-            pipeline.submit(samples: samples, sampleRate: buffer.format.sampleRate, capturedAt: capturedAt)
+        guard sessionID == id, captureID == generation, !Task.isCancelled else {
+            capture.stop()
+            throw CancellationError()
         }
-        hasInputTap = true
-        engine.prepare()
-        try engine.start()
-        inputState = currentInput(engine)
+        inputState = started.state
         lastAudio = ProcessInfo.processInfo.systemUptime
         captureLog("engine started")
-        observeAudioChanges(engine: engine, session: id, capture: captureID)
+        observeAudioChanges(configurationObject: started.configurationObject, session: id, capture: generation)
     }
 
-    private func currentInput(_ engine: AVAudioEngine) -> SpeechAudioInputState {
-        let format = engine.inputNode.outputFormat(forBus: 0)
-        return .init(portIDs: AVAudioSession.sharedInstance().currentRoute.inputs.map(\.uid).sorted(),
-                     sampleRate: format.sampleRate, channels: Int(format.channelCount), running: engine.isRunning)
-    }
-
-    private func observeAudioChanges(engine: AVAudioEngine, session id: UUID, capture generation: UUID) {
+    private func observeAudioChanges(configurationObject: AnyObject?, session id: UUID, capture generation: UUID) {
         func observe(_ name: Notification.Name, object: Any? = nil,
                      change: @escaping @Sendable (Notification) -> SpeechAudioChange?) {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: object, queue: .main) { [weak self] notification in
@@ -559,7 +539,7 @@ final class SpeechFollowController: ObservableObject {
         observe(AVAudioSession.mediaServicesWereLostNotification) { _ in .mediaServices }
         observe(AVAudioSession.mediaServicesWereResetNotification) { _ in .mediaServices }
         // Ignore another (or a previously torn-down) engine's notifications.
-        observe(.AVAudioEngineConfigurationChange, object: engine) { _ in .configuration }
+        observe(.AVAudioEngineConfigurationChange, object: configurationObject) { _ in .configuration }
     }
 
     private func handleAudioChange(_ change: SpeechAudioChange, session id: UUID, capture generation: UUID) {
@@ -580,8 +560,9 @@ final class SpeechFollowController: ObservableObject {
         inputCheck = Task { [weak self] in
             do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
             guard let self, self.sessionID == id, self.captureID == generation,
-                  let engine = self.engine, let previous = self.inputState else { return }
-            let current = self.currentInput(engine)
+                  let capture = self.capture, let previous = self.inputState else { return }
+            guard let current = try? await capture.snapshot(), self.sessionID == id,
+                  self.captureID == generation, !Task.isCancelled else { return }
             let action = SpeechAudioChangeAction.evaluate(change, previous: previous, current: current)
             self.captureLog("input check action=\(action) channels=\(current.channels) unchangedPort=\(previous.portIDs == current.portIDs)")
             self.inputCheckPending = false
@@ -595,9 +576,13 @@ final class SpeechFollowController: ObservableObject {
                     self.fail(SpeechCaptureError.input); return
                 }
                 do {
-                    try self.beginCapture(pipeline: pipeline, session: id)
+                    try await self.beginCapture(pipeline: pipeline, session: id)
+                    guard self.sessionID == id, !Task.isCancelled else { return }
                     self.updateActivity()
-                } catch { self.fail(error) }
+                } catch {
+                    guard self.sessionID == id, !(error is CancellationError), !Task.isCancelled else { return }
+                    self.fail(error)
+                }
             case .pause(let error): self.fail(error)
             }
         }

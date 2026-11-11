@@ -273,7 +273,7 @@ struct PlayerView: View {
                         .accessibilityHint("回到正文开头，暂停并将计时归零")
                     if !isLandscape {
                         CapsuleDivider()
-                        CapsuleButton(icon: "camera", label: "前置镜子") { isPlaying = false; showMirror = true }
+                        CapsuleButton(icon: "camera", label: "前置镜子") { openMirror() }
                             .accessibilityIdentifier("player.mirror")
                     }
                 }
@@ -392,7 +392,7 @@ struct PlayerView: View {
     @ViewBuilder
     private var mirrorFab: some View {
         if isLandscape {
-            Button(action: { isPlaying = false; showMirror = true }) {
+            Button(action: { openMirror() }) {
                 mirrorFabLabel
             }
             .buttonStyle(PressableStyle())
@@ -451,6 +451,12 @@ struct PlayerView: View {
             Text("语速自动跟随").font(.caption).foregroundStyle(Color.textSecondary)
                 .frame(minHeight: 44)
         }
+    }
+
+    private func openMirror() {
+        speech.stop()
+        isPlaying = false
+        showMirror = true
     }
 
     private func togglePlayback() {

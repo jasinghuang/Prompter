@@ -736,12 +736,14 @@ final class PlayerUITests: XCTestCase {
     }
     func testCameraMirrorOverlay() {
         launch(player: true, landscape: true)
-        app.buttons["前置镜子"].tap()
-        let close = app.buttons["mirror.close"]
-        XCTAssertTrue(close.waitForExistence(timeout: 5))
-        snapshot("mirror-simulator")
-        close.tap()
-        XCTAssertTrue(app.sliders["字号"].isHittable)
+        for attempt in 0..<3 {
+            app.buttons["前置镜子"].tap()
+            let close = app.buttons["mirror.close"]
+            XCTAssertTrue(close.waitForExistence(timeout: 5))
+            if attempt == 0 { snapshot("mirror-simulator") }
+            close.tap()
+            XCTAssertTrue(app.sliders["字号"].isHittable)
+        }
     }
     func testReturnHighlight() {
         launch()

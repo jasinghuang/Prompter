@@ -36,6 +36,29 @@ private final class ControlledAudioSession: SpeechAudioSessionBackend {
 
 @MainActor
 final class SpeechAudioSessionTests: XCTestCase {
+    func testDeactivationWaitsForEngineTeardownBeforeNextActivation() async throws {
+        let backend = ControlledAudioSession()
+        backend.holdFirstActivation = false
+        let coordinator = SpeechAudioSessionCoordinator(backend: backend)
+        let owner = UUID()
+        try await coordinator.activate(owner: owner)
+        let cleanupStarted = expectation(description: "capture graph is stopping")
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        coordinator.release(owner: owner, after: {
+            cleanupStarted.fulfill()
+            for await _ in stream { }
+        })
+        await fulfillment(of: [cleanupStarted], timeout: 2)
+        let next = UUID()
+        let restart = Task { try await coordinator.activate(owner: next) }
+        XCTAssertEqual(backend.events, ["activate"], "Audio deactivation must not race a blocked graph teardown")
+        continuation.finish()
+        try await restart.value
+        XCTAssertEqual(backend.events, ["activate", "deactivate", "activate"])
+        coordinator.release(owner: next)
+        await coordinator.waitForIdle()
+    }
+
     func testRapidStopAndRestartSerializesHardwareAndIgnoresStaleRelease() async throws {
         let backend = ControlledAudioSession()
         let started = expectation(description: "activation is in flight")

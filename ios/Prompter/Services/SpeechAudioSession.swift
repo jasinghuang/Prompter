@@ -90,13 +90,14 @@ final class SpeechAudioSessionCoordinator {
         }
     }
 
-    func release(owner: UUID) {
+    func release(owner: UUID, after cleanup: (@Sendable () async -> Void)? = nil) {
         guard requestedOwner == owner else { return }
         requestedOwner = nil
         let previous = tail
         tail = Task { @MainActor in
             await previous?.value
             guard self.activeOwner == owner else { return }
+            await cleanup?()
             try? await self.backend.deactivate()
             self.activeOwner = nil
         }

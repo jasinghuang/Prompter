@@ -2,16 +2,16 @@ import SwiftUI
 import AVFoundation
 import QuartzCore
 
-/// 前置化妆镜（复刻 Web CameraMirror）：打开才取流，关闭立即停会话释放设备（指示灯灭）；
+/// 前置化妆镜：打开才取流，关闭取消采集请求并按序停止会话、释放设备；
 /// 纯本地预览不录制不上传，水平镜像；加载/错误态文案与 Web 一致。
 ///
-/// 架构（教科书原生）：整个摄像头生命周期（会话/输入/预览层/启停）收在
-/// MirrorCameraUIView 一个 UIView 里自持——SwiftUI 只嵌入与收状态回调，
-/// 不再有跨对象的 @State 会话与异步配置时序（黑屏/多会话两类 bug 的根源）。
+/// The native view observes preview readiness and system failures; blocking
+/// hardware work belongs to the serial capture owner.
 struct CameraMirrorView: View {
     @Binding var open: Bool
     @State private var status: Status = .loading
     @State private var retryID = UUID()
+    @State private var cameraControl = MirrorCameraControl()
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -26,7 +26,7 @@ struct CameraMirrorView: View {
                 Color.black.opacity(0.55)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
-                    .onTapGesture { open = false }
+                    .onTapGesture { close() }
                 // 显式宽高（Web: 横屏 16:10·高 75%·最宽 80%；竖屏正方·高 72%）——
                 // aspectRatio 对贪婪子视图的求值不可靠，曾致卡片横向失控
                 let cardHeight = geo.size.height * (landscape ? 0.75 : 0.72)
@@ -43,7 +43,7 @@ struct CameraMirrorView: View {
 
     private var mirrorCard: some View {
         ZStack {
-            MirrorCameraView(onStatus: { message in
+            MirrorCameraView(control: cameraControl, onStatus: { message in
                 if let message {
                     status = .failed(message)
                 } else {
@@ -51,7 +51,6 @@ struct CameraMirrorView: View {
                 }
             })
             .id(retryID)
-            .animation(reduceMotion ? nil : AppMotion.detail) { $0.opacity(status == .ready ? 1 : 0) }
             ZStack {
                 if status != .ready { statusOverlay.transition(.opacity) }
             }
@@ -93,7 +92,7 @@ struct CameraMirrorView: View {
                         if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                     }.frame(minHeight: 44).foregroundStyle(.accentGold)
                 } else {
-                    Button("重试") { status = .loading; retryID = UUID() }
+                    Button("重试") { cameraControl.stop(); status = .loading; retryID = UUID() }
                         .frame(minHeight: 44).foregroundStyle(.accentGold)
                 }
             }
@@ -109,7 +108,7 @@ struct CameraMirrorView: View {
             HStack {
                 Spacer()
                 Button {
-                    open = false
+                    close()
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
@@ -126,17 +125,33 @@ struct CameraMirrorView: View {
         }
         .padding(10)
     }
+
+    private func close() {
+        // Stop before SwiftUI's fade-out or a replacement view can begin.
+        cameraControl.stop()
+        open = false
+    }
 }
 
-// MARK: - 自持摄像头的原生视图（会话/输入/预览层生命周期全在此，无跨对象时序）
+// MARK: - 原生预览视图（将界面生命周期绑定到可取消的采集请求）
+
+/// Weak cancellation handle for close/retry actions before SwiftUI teardown.
+@MainActor
+private final class MirrorCameraControl {
+    weak var view: MirrorCameraUIView?
+    func stop() { view?.stop() }
+}
 
 /// nil = 就绪；非 nil = 错误文案
 private struct MirrorCameraView: UIViewRepresentable {
+    let control: MirrorCameraControl
     let onStatus: (String?) -> Void
+    func makeCoordinator() -> MirrorCameraControl { control }
 
     func makeUIView(context: Context) -> MirrorCameraUIView {
         let view = MirrorCameraUIView()
         view.onStatus = onStatus
+        control.view = view
         return view
     }
 
@@ -144,8 +159,9 @@ private struct MirrorCameraView: UIViewRepresentable {
         uiView.onStatus = onStatus
     }
 
-    static func dismantleUIView(_ uiView: MirrorCameraUIView, coordinator: ()) {
-        uiView.stop() // 移除即释放设备（指示灯灭）
+    static func dismantleUIView(_ uiView: MirrorCameraUIView, coordinator: MirrorCameraControl) {
+        uiView.stop() // 移除即取消回调，硬件按后台队列顺序释放
+        if coordinator.view === uiView { coordinator.view = nil }
     }
 }
 
@@ -155,101 +171,117 @@ final class MirrorCameraUIView: UIView {
 
     var onStatus: ((String?) -> Void)?
 
-    private let session = AVCaptureSession()
-    private let queue = DispatchQueue(label: "prompter.camera")
+    private var capture: MirrorCameraCapture?
+    private var request: CaptureRequest?
+    private var startTask: Task<Void, Never>?
+    private var previewTimeout: Task<Void, Never>?
+    private var previewObservation: NSKeyValueObservation?
+    private var sessionObserver: MirrorCameraSessionObserver?
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var rotationObservation: NSKeyValueObservation?
-    private var generation = 0
-    private var requested = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        // 关键：预览层必须挂上会话才有画面（单视图重构时漏了这两行=黑屏根因）
-        videoPreviewLayer.session = session
         videoPreviewLayer.videoGravity = .resizeAspectFill
     }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    deinit {
+        request?.cancel()
+        startTask?.cancel(); previewTimeout?.cancel()
+        previewObservation?.invalidate(); rotationObservation?.invalidate()
+        capture?.stop()
     }
 
     func start() {
-        guard window != nil, !requested else { return }
-        requested = true; generation += 1
-        let expectedGeneration = generation
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .denied, .restricted:
-            onStatus?("摄像头权限被拒绝，可在系统设置中允许后重试")
-        case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-                DispatchQueue.main.async {
-                    guard let self, self.window != nil, self.generation == expectedGeneration else { return }
-                    granted ? self.configure(generation: expectedGeneration) : self.onStatus?("摄像头权限被拒绝，可在系统设置中允许后重试")
-                }
+        guard window != nil, request == nil else { return }
+        let request = CaptureRequest()
+        self.request = request
+        let capture = MirrorCameraCapture()
+        self.capture = capture
+        sessionObserver = MirrorCameraSessionObserver(session: capture.session) { [weak self] failure in
+            self?.fail(failure.localizedDescription, request: request)
+        }
+        startTask = Task { @MainActor [weak self] in
+            let allowed: Bool
+            switch AVCaptureDevice.authorizationStatus(for: .video) {
+            case .authorized: allowed = true
+            case .notDetermined: allowed = await AVCaptureDevice.requestAccess(for: .video)
+            default: allowed = false
             }
-        default:
-            configure(generation: expectedGeneration)
+            guard let self, self.isCurrent(request) else { return }
+            guard allowed else {
+                self.fail("摄像头权限被拒绝，可在系统设置中允许后重试", request: request)
+                return
+            }
+            self.watchPreviewTimeout(request)
+            // The mirror action stops speech before mounting this view. Wait
+            // for both graph teardown and app-wide audio-session deactivation.
+            await SpeechAudioSessionCoordinator.shared.waitForIdle()
+            guard self.isCurrent(request), !Task.isCancelled else { return }
+            self.videoPreviewLayer.session = capture.session
+            self.previewObservation = self.videoPreviewLayer.observe(\.isPreviewing, options: [.new]) { [weak self] _, _ in
+                Task { @MainActor in self?.previewChanged(request) }
+            }
+            do {
+                let device = try await capture.start()
+                guard self.isCurrent(request), !Task.isCancelled else { capture.stop(); return }
+                self.setupRotationCoordinator(device: device)
+                self.previewChanged(request)
+            } catch {
+                guard self.isCurrent(request), !(error is CancellationError) else { return }
+                let message = (error as? MirrorCameraFailure)?.localizedDescription ?? MirrorCameraFailure.unavailable.localizedDescription
+                self.fail(message, request: request)
+            }
         }
     }
 
-    private func configure(generation expectedGeneration: Int) {
-        queue.async { [weak self] in
-            guard let self else { return }
-            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
-                DispatchQueue.main.async {
-                    guard self.window != nil, self.generation == expectedGeneration else { return }
-                    self.onStatus?("未检测到可用的摄像头")
-                }
-                return
-            }
-            guard let input = try? AVCaptureDeviceInput(device: device) else {
-                DispatchQueue.main.async {
-                    guard self.window != nil, self.generation == expectedGeneration else { return }
-                    self.onStatus?("摄像头暂时不可用（可能被其他应用占用）")
-                }
-                return
-            }
-            session.beginConfiguration()
-            session.inputs.forEach(session.removeInput)
-            session.sessionPreset = .hd1280x720
-            guard session.canAddInput(input) else {
-                session.commitConfiguration()
-                DispatchQueue.main.async {
-                    guard self.window != nil, self.generation == expectedGeneration else { return }
-                    self.onStatus?("摄像头暂时不可用，请稍后重试")
-                }
-                return
-            }
-            session.addInput(input)
-            session.commitConfiguration()
-            session.startRunning()
-            DispatchQueue.main.async {
-                guard self.window != nil, self.generation == expectedGeneration else { return }
-                self.setupRotationCoordinator(device: device)
-                self.onStatus?(nil) // 就绪
-            }
+    private func isCurrent(_ request: CaptureRequest) -> Bool {
+        self.request === request && request.isActive && window != nil
+    }
+
+    private func previewChanged(_ request: CaptureRequest) {
+        guard isCurrent(request) else { return }
+        guard videoPreviewLayer.isPreviewing else { watchPreviewTimeout(request); return }
+        previewTimeout?.cancel(); previewTimeout = nil
+        onStatus?(nil)
+    }
+
+    private func watchPreviewTimeout(_ request: CaptureRequest) {
+        previewTimeout?.cancel()
+        previewTimeout = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(6)) } catch { return }
+            guard let self, self.isCurrent(request) else { return }
+            self.fail(MirrorCameraFailure.previewTimeout.localizedDescription, request: request)
         }
+    }
+
+    private func fail(_ message: String, request: CaptureRequest) {
+        guard isCurrent(request) else { return }
+        stop()
+        onStatus?(message)
     }
 
     func stop() {
-        requested = false; generation += 1
-        rotationObservation?.invalidate()
-        rotationObservation = nil
+        request?.cancel(); request = nil
+        startTask?.cancel(); startTask = nil
+        previewTimeout?.cancel(); previewTimeout = nil
+        previewObservation?.invalidate(); previewObservation = nil
+        rotationObservation?.invalidate(); rotationObservation = nil
         rotationCoordinator = nil
-        queue.async { [session] in
-            if session.isRunning { session.stopRunning() }
-            session.inputs.forEach(session.removeInput) // 立即释放设备
+        sessionObserver?.stop(); sessionObserver = nil
+        let previous = capture
+        capture = nil
+        previous?.stop()
+        let preview = videoPreviewLayer
+        Task { @MainActor in
+            await previous?.waitUntilStopped()
+            if let previous, preview.session === previous.session { preview.session = nil }
         }
     }
 
-    // 真正挂上窗口才取流、离开窗口即释放（原生视图生命周期的标准触发点）
     override func didMoveToWindow() {
         super.didMoveToWindow()
-        if window != nil {
-            start()
-        } else {
-            stop()
-        }
+        if window != nil { start() } else { stop() }
     }
 
     // MARK: 自动旋转（RotationCoordinator：监听设备姿态始终给地平线水平角；含镜像）
