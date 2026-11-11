@@ -5,6 +5,7 @@ import SwiftUI
 struct PlayerSettingsDrawer: View {
     @Binding var open: Bool
     @ObservedObject var nodController: AirPodsNodController
+    @ObservedObject var speechModels: SpeechModelStore
     @EnvironmentObject private var settings: AppSettings
     var onShowHelp: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -126,6 +127,8 @@ struct PlayerSettingsDrawer: View {
             header
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
+                    SpeechFollowSettings(models: speechModels)
+                    IslandIndicatorSettings()
                     SettingSlider(icon: "textformat.size", label: "字号",
                                   value: Double(settings.data.fontSize),
                                   range: Double(PrompterCore.fontSizeMin)...Double(PrompterCore.fontSizeMax),
@@ -142,10 +145,12 @@ struct PlayerSettingsDrawer: View {
                                   value: Double(settings.data.horizontalPadding),
                                   range: Double(PrompterCore.paddingMin)...Double(PrompterCore.paddingMax),
                                   step: 1, suffix: "%") { settings.data.horizontalPadding = Int($0) }
-                    SettingSlider(icon: "speedometer", label: "滚动速度",
+                    if settings.data.playbackMode == .constant {
+                        SettingSlider(icon: "speedometer", label: "滚动速度",
                                   value: Double(settings.data.scrollSpeed),
                                   range: Double(PrompterCore.speedMin)...Double(PrompterCore.speedMax),
                                   step: 10, suffix: " 字/分") { settings.data.scrollSpeed = Int($0) }
+                    }
                     AirPodsNodSettings(controller: nodController)
                     alignmentRow
                     mirrorRow

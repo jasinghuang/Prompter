@@ -2,22 +2,28 @@ import SwiftUI
 import SwiftData
 
 private enum LibrarySheet: Identifiable {
-    case editor(Script?), folders([Script])
+    case editor(Script?), folders([Script]), export(LibraryExportRequest), archive(LibraryTransferCoordinator.Incoming)
     var id: String {
         switch self {
         case .editor(let script): return "editor.\(script?.id.uuidString ?? "new")"
         case .folders(let scripts): return "folders." + scripts.map { $0.id.uuidString }.sorted().joined()
+        case .export(let request): return "export." + request.id.uuidString
+        case .archive(let incoming): return "archive." + incoming.id.uuidString
         }
     }
     var detents: Set<PresentationDetent> {
-        switch self { case .editor: return [.fraction(0.85), .large]; default: return [.medium, .large] }
+        switch self {
+        case .editor: return [.fraction(0.85), .large]
+        case .folders: return [.medium, .large]
+        case .export, .archive: return [.large]
+        }
     }
 }
 
 struct ScriptListView: View {
     @Environment(\.modelContext) private var context
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var transfers: LibraryTransferCoordinator
     @Query(filter: #Predicate<Script> { $0.deletedAt == nil }, sort: \Script.createdAt, order: .reverse) private var scripts: [Script]
     @StateObject private var library = ScriptLibraryState()
     @StateObject private var operations = ScriptOperations()
@@ -28,15 +34,12 @@ struct ScriptListView: View {
     @State private var deleteTargets: [Script] = []
     @State private var lastUndoCount = 0
     @State private var lastShelfMode = ActionShelfMode()
-    @State private var searchExpanded = false
+    @State private var libraryVisible = false
     #if DEBUG
     @State private var didAutoOpenPlayer = false
     #endif
-    @FocusState private var searchFocused: Bool
 
-    private var visible: [Script] { library.visible(in: scripts) }
     private var selectedScripts: [Script] { scripts.filter { library.selected.contains($0.id) } }
-    private var allVisibleSelected: Bool { !visible.isEmpty && Set(visible.map(\.id)).isSubset(of: library.selected) }
 
     private struct ActionShelfMode: Equatable {
         var undo = false
@@ -45,11 +48,15 @@ struct ScriptListView: View {
     }
 
     var body: some View {
-        let rows = library.projection(in: scripts).rows
+        let projection = library.projection(in: scripts)
+        let rows = projection.rows
         NavigationStack {
             VStack(spacing: 0) {
                 header
-                if !scripts.isEmpty || searchExpanded { filters }
+                ScriptLibraryControls(library: library, totalCount: scripts.count,
+                                      visibleCount: projection.visibleIDs.count,
+                                      isPresentingContent: sheet != nil || playingScript != nil,
+                                      onExport: { requestExport(onlySelected: library.selecting) })
                 Group {
                     if rows.isEmpty {
                         ScrollView { emptyState }
@@ -65,10 +72,12 @@ struct ScriptListView: View {
                     }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    actionShelf
+                    actionShelf(visibleIDs: projection.visibleIDs)
                 }
             }
             .background(Color.canvas)
+            .onAppear { libraryVisible = true; presentPendingArchive() }
+            .onDisappear { libraryVisible = false }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $playingScript) { script in
                 PlayerView(script: script)
@@ -77,12 +86,16 @@ struct ScriptListView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .sheet(item: $sheet) { destination in
+        .sheet(item: $sheet, onDismiss: presentPendingArchive) { destination in
             sheetContent(destination)
                 .presentationDetents(destination.detents)
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Color.canvas)
         }
+        .onChange(of: transfers.pending.first?.id) { _, _ in presentPendingArchive() }
+        .onChange(of: confirmDelete) { _, showing in if !showing { presentPendingArchive() } }
+        .onChange(of: operations.errorMessage) { _, message in if message == nil { presentPendingArchive() } }
+        .onChange(of: transfers.errorMessage) { _, message in if message == nil { presentPendingArchive() } }
         .confirmationDialog("删除这 \(deleteTargets.count) 篇稿件？", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("删除 \(deleteTargets.count) 篇", role: .destructive) {
                 if operations.delete(deleteTargets, in: context) { library.exitSelection() }
@@ -125,7 +138,7 @@ struct ScriptListView: View {
                         Image(systemName: "trash").font(.system(size: 18)).frame(width: 44, height: 44)
                     }.buttonStyle(PressableStyle()).disabled(scripts.isEmpty)
                         .accessibilityLabel("清空全部稿件").accessibilityIdentifier("library.clear")
-                    Button { searchFocused = false; sheet = .editor(nil) } label: {
+                    Button { sheet = .editor(nil) } label: {
                         Text("新建稿件").font(.body.weight(.semibold))
                             .foregroundStyle(Color.canvas)
                             .fixedSize().padding(.horizontal, 16).frame(minHeight: 44)
@@ -137,106 +150,7 @@ struct ScriptListView: View {
         }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
     }
 
-    private var searchField: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.textMuted)
-                TextField("搜索标题或正文", text: $library.query)
-                    .font(.body).foregroundStyle(.textPrimary).focused($searchFocused)
-                    .autocorrectionDisabled().textInputAutocapitalization(.never)
-                    .submitLabel(.search).onSubmit { searchFocused = false }
-                    .accessibilityIdentifier("script.search")
-                if !library.query.isEmpty {
-                    Button { library.query = "" } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.textMuted).frame(width: 44, height: 44)
-                    }.buttonStyle(.plain).accessibilityLabel("清除搜索")
-                }
-            }
-            .padding(.leading, 12).padding(.trailing, library.query.isEmpty ? 12 : 0)
-            .frame(minHeight: 44).background(Color.surface, in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.08)))
-            Button("取消") {
-                searchFocused = false
-                library.query = ""
-                searchExpanded = false
-            }
-            .font(.body).frame(minWidth: 44, minHeight: 44)
-            .accessibilityIdentifier("library.search.cancel")
-        }
-        // Request focus only after the conditional field appears.
-        .task { searchFocused = true }
-    }
-
-    private var filters: some View {
-        HStack(spacing: 12) {
-            if searchExpanded {
-                searchField
-            } else {
-                Menu {
-                    Picker("稿件范围", selection: $library.filter) {
-                        Label("全部稿件", systemImage: "doc.text").tag(ScriptFilter.all)
-                        Label("星标稿件", systemImage: "star").tag(ScriptFilter.starred)
-                        if !library.folders.isEmpty {
-                            Section("文件夹") {
-                                ForEach(library.folders, id: \.self) { name in
-                                    Label(name, systemImage: "folder").tag(ScriptFilter.folder(name))
-                                        .accessibilityIdentifier("filter.folder.\(name)")
-                                }
-                            }
-                        }
-                    }.pickerStyle(.inline)
-                } label: {
-                    HStack(spacing: 7) {
-                        Text(filterTitle).font(.headline).lineLimit(1)
-                        Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
-                        Text("\(visible.count)").font(.subheadline).foregroundStyle(.textMuted).monospacedDigit()
-                    }
-                    .foregroundStyle(.textPrimary).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .accessibilityLabel(filterTitle)
-                .accessibilityValue("共 \(scripts.count) 篇稿件，当前 \(visible.count) 篇")
-                .accessibilityIdentifier("library.filter")
-                Button {
-                    searchExpanded = true
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(searchExpanded ? Color.accentGold : Color.textSecondary)
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("搜索稿件")
-                .accessibilityIdentifier("library.search")
-                Menu {
-                    Picker("排序依据", selection: $library.sortKey) {
-                        ForEach(SortKey.allCases, id: \.self) { key in
-                            Text(key == .date ? "时间" : key.label).tag(key)
-                        }
-                    }.pickerStyle(.inline)
-                    Picker("排列顺序", selection: $library.sortAscending) {
-                        Text("升序").tag(true)
-                        Text("降序").tag(false)
-                    }.pickerStyle(.inline)
-                } label: {
-                    Image(systemName: "arrow.up.arrow.down").foregroundStyle(.textSecondary).frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("排序方式")
-                .accessibilityValue("\(library.sortKey == .date ? "时间" : library.sortKey.label)，\(library.sortAscending ? "升序" : "降序")")
-                .accessibilityHint("时间按最近修改时间排序；各拍摄分类内星标稿件置顶")
-                .accessibilityIdentifier("library.sort")
-            }
-        }.padding(.horizontal, 16).padding(.bottom, 2)
-    }
-
-    private var filterTitle: String {
-        switch library.filter {
-        case .all: return "全部稿件"
-        case .starred: return "星标稿件"
-        case .folder(let name): return name
-        }
-    }
-
-    private var actionShelf: some View {
+    private func actionShelf(visibleIDs: [UUID]) -> some View {
         let mode = ActionShelfMode(undo: !operations.undoItems.isEmpty, selection: library.selecting)
         let displayed = mode.visible ? mode : lastShelfMode
         return ActionBarPresence(visible: mode.visible) {
@@ -244,7 +158,7 @@ struct ScriptListView: View {
             // while the old selection bar leaves and the new undo bar enters.
             VStack(spacing: 8) {
                 if displayed.undo { undoBar }
-                if displayed.selection { selectionBar }
+                if displayed.selection { selectionBar(visibleIDs: visibleIDs) }
             }.padding(.horizontal, 16).padding(.vertical, 8)
         }
         .onChange(of: mode, initial: true) { _, new in
@@ -252,10 +166,11 @@ struct ScriptListView: View {
         }
     }
 
-    private var selectionBar: some View {
-        HStack(spacing: 8) {
+    private func selectionBar(visibleIDs: [UUID]) -> some View {
+        let ids = Set(visibleIDs)
+        let allVisibleSelected = !ids.isEmpty && ids.isSubset(of: library.selected)
+        return HStack(spacing: 8) {
             Button(allVisibleSelected ? "取消全选" : "全选") {
-                let ids = Set(visible.map(\.id))
                 if ids.isSubset(of: library.selected) { library.selected.subtract(ids) }
                 else { library.selected.formUnion(ids) }
             }.accessibilityIdentifier("select.all").frame(minWidth: 44, minHeight: 44)
@@ -304,13 +219,42 @@ struct ScriptListView: View {
             FolderPickerSheet(targets: targets, folders: library.folders, counts: library.folderCounts, errorMessage: operations.errorMessage) { folder in
                 if operations.move(targets, to: folder, in: context) { sheet = nil; library.exitSelection() }
             }
+        case .export(let request): LibraryExportView(request: request)
+        case .archive(let incoming):
+            LibraryImportView(incoming: incoming) {
+                operations.dismissUndo()
+                library.exitSelection()
+            }
         }
+    }
+
+    private func presentPendingArchive() {
+        guard libraryVisible, sheet == nil, playingScript == nil, !confirmDelete,
+              operations.errorMessage == nil, transfers.errorMessage == nil,
+              let incoming = transfers.takeNext() else { return }
+        sheet = .archive(incoming)
+    }
+
+    private func requestExport(onlySelected: Bool) {
+        do {
+            let records = try (onlySelected ? selectedScripts : scripts).map { try LibraryArchive.Record(ScriptSnapshot($0)) }
+            guard !records.isEmpty else { return }
+            let ids = Set(library.projection(in: scripts).visibleIDs)
+            let title: String
+            switch library.filter {
+            case .all: title = "当前范围"
+            case .starred: title = "星标稿件"
+            case .folder(let name): title = name
+            }
+            sheet = .export(LibraryExportRequest(records: records, currentIDs: ids, currentTitle: title,
+                onlySelected: onlySelected, prefersCurrent: library.filter != .all && !ids.isEmpty))
+        } catch { operations.errorMessage = error.localizedDescription }
     }
 
     private func handle(_ action: ScriptCardView.Action, _ script: Script) {
         switch action {
-        case .open: searchFocused = false; lastOpenedID = script.id; playingScript = script
-        case .edit: searchFocused = false; sheet = .editor(script)
+        case .open: lastOpenedID = script.id; playingScript = script
+        case .edit: sheet = .editor(script)
         case .delete: operations.delete([script], in: context)
         case .toggleStar:
             operations.update([script], in: context) { $0.starred.toggle(); $0.updatedAt = Date() }

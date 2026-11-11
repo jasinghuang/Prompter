@@ -4,6 +4,7 @@ import SwiftData
 @main
 struct PrompterApp: App {
     @StateObject private var settings = AppSettings()
+    @StateObject private var transfers = LibraryTransferCoordinator()
     @Environment(\.scenePhase) private var scenePhase
     @State private var container: ModelContainer?
     @State private var storageError: String?
@@ -26,7 +27,21 @@ struct PrompterApp: App {
                     ProgressView("正在打开稿件…").frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.canvas)
                 }
             }
-            .environmentObject(settings).preferredColorScheme(.dark).tint(.accentGold)
+            .environmentObject(settings).environmentObject(transfers).preferredColorScheme(.dark).tint(.accentGold)
+            .onOpenURL { transfers.receive($0) }
+            .overlay(alignment: .top) {
+                if transfers.isReading {
+                    HStack(spacing: 8) { ProgressView(); Text("正在读取稿件库…").font(.subheadline) }
+                        .padding(12).background(Color.surface, in: Capsule()).padding(.horizontal, 16)
+                } else if !transfers.pending.isEmpty {
+                    Text("稿件库已收到，返回稿件列表后确认导入")
+                        .font(.subheadline).foregroundStyle(.textPrimary).padding(12)
+                        .background(Color.surface, in: RoundedRectangle(cornerRadius: 14)).padding(.horizontal, 16)
+                }
+            }
+            .alert("文件未能打开", isPresented: Binding(get: { transfers.errorMessage != nil }, set: { if !$0 { transfers.errorMessage = nil } })) {
+                Button("知道了", role: .cancel) { transfers.errorMessage = nil }
+            } message: { Text(transfers.errorMessage ?? "") }
             .task { if container == nil { openStore() } }
             .onChange(of: scenePhase) { _, phase in if phase != .active { settings.flush() } }
         }

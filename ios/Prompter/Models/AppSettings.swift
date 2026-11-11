@@ -1,6 +1,11 @@
 import Foundation
 import SwiftUI
 
+enum PlaybackMode: String, Codable, CaseIterable {
+    case constant, voice
+    var label: String { self == .constant ? "匀速" : "语音跟随" }
+}
+
 enum AutoPauseMode: String, Codable, CaseIterable {
     case off, paragraph, keyword
     var label: String {
@@ -21,6 +26,10 @@ struct SettingsData: Codable, Equatable {
     var letterSpacing: Double = 0.05
     var lineHeight: Double = 1.6
     var scrollSpeed: Int = 160
+    var playbackMode: PlaybackMode = .constant
+    var speechEngine: SpeechEngineKind = .paraformer
+    var showSpeechDiagnostics = false
+    var islandIndicatorEnabled = true
     var mirror = false
     var horizontalPadding: Int = 8
     var textAlign: String = "left"
@@ -38,7 +47,8 @@ struct SettingsData: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case fontSize, letterSpacing, lineHeight, scrollSpeed, mirror, horizontalPadding, textAlign
         case pauseKeyword, pauseOnParagraph, completeAction, splitMode, splitKeyword, pauseMode
-        case airPodsNodEnabled, headGestureCalibration
+        case airPodsNodEnabled, headGestureCalibration, playbackMode, speechEngine, showSpeechDiagnostics
+        case islandIndicatorEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -47,6 +57,10 @@ struct SettingsData: Codable, Equatable {
         letterSpacing = try c.decodeIfPresent(Double.self, forKey: .letterSpacing) ?? 0.05
         lineHeight = try c.decodeIfPresent(Double.self, forKey: .lineHeight) ?? 1.6
         scrollSpeed = try c.decodeIfPresent(Int.self, forKey: .scrollSpeed) ?? 160
+        playbackMode = (try? c.decodeIfPresent(PlaybackMode.self, forKey: .playbackMode)) ?? .constant
+        speechEngine = (try? c.decodeIfPresent(SpeechEngineKind.self, forKey: .speechEngine)) ?? .paraformer
+        showSpeechDiagnostics = (try? c.decodeIfPresent(Bool.self, forKey: .showSpeechDiagnostics)) ?? false
+        islandIndicatorEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .islandIndicatorEnabled)) ?? true
         mirror = try c.decodeIfPresent(Bool.self, forKey: .mirror) ?? false
         horizontalPadding = try c.decodeIfPresent(Int.self, forKey: .horizontalPadding) ?? 8
         textAlign = try c.decodeIfPresent(String.self, forKey: .textAlign) ?? "left"
@@ -97,6 +111,14 @@ struct SettingsData: Codable, Equatable {
 final class AppSettings: ObservableObject {
     private static let storageKey = "prompter_settings"
     private let defaults: UserDefaults
+    private static var islandCalibrationKey: String { "prompter_island_calibration_\(IslandIndicatorGeometry.currentModel)" }
+    @Published var islandCalibration: IslandIndicatorCalibration {
+        didSet {
+            if let encoded = try? JSONEncoder().encode(islandCalibration.normalized) {
+                defaults.set(encoded, forKey: Self.islandCalibrationKey)
+            }
+        }
+    }
     private var pendingSave: Task<Void, Never>?
     @Published var data: SettingsData {
         didSet {
@@ -111,8 +133,11 @@ final class AppSettings: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        islandCalibration = defaults.data(forKey: Self.islandCalibrationKey)
+            .flatMap { try? JSONDecoder().decode(IslandIndicatorCalibration.self, from: $0) }?.normalized ?? .init()
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-resetSettings") {
+            islandCalibration = .init()
             data = .defaults
             flush()
             return
@@ -121,6 +146,14 @@ final class AppSettings: ObservableObject {
         if let raw = defaults.data(forKey: Self.storageKey), let decoded = try? JSONDecoder().decode(SettingsData.self, from: raw) {
             data = decoded.normalized
         } else { data = .defaults }
+        #if DEBUG
+        if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("-speechEngine=") }),
+           let engine = SpeechEngineKind(rawValue: String(argument.dropFirst("-speechEngine=".count))) {
+            data.speechEngine = engine
+            data.playbackMode = .voice
+        }
+        if ProcessInfo.processInfo.arguments.contains("-speechDiagnostics") { data.showSpeechDiagnostics = true }
+        #endif
     }
 
     func flush() {

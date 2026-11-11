@@ -105,6 +105,34 @@ final class PlayerUITests: XCTestCase {
         snapshot("library-last-row-above-actions")
     }
 
+    func testSearchReopensAndKeepsQueryAfterEditing() {
+        launch()
+        let field = app.textFields["script.search"]
+        for _ in 0..<3 {
+            app.buttons["library.search"].tap()
+            XCTAssertTrue(field.waitForExistence(timeout: 3))
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+            app.buttons["library.search.cancel"].tap()
+            XCTAssertFalse(field.exists)
+            XCTAssertFalse(app.keyboards.firstMatch.exists)
+        }
+        app.buttons["library.search"].tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        field.typeText("VIP")
+        expectation(for: NSPredicate { _, _ in
+            self.app.buttons.matching(identifier: "card").count == 1
+        }, evaluatedWith: app)
+        waitForExpectations(timeout: 5)
+        app.buttons.matching(identifier: "card.edit").firstMatch.tap()
+        XCTAssertTrue(app.buttons["editor.done"].waitForExistence(timeout: 3))
+        app.buttons["editor.done"].tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        XCTAssertEqual(field.value as? String, "VIP")
+        XCTAssertFalse(app.keyboards.firstMatch.exists, "返回列表保留搜索条件，但不自动抢回键盘焦点")
+        app.buttons["library.search.cancel"].tap()
+        waitForCount(4)
+    }
+
     private func dragPlayerBack(to fraction: CGFloat, hold: TimeInterval = 0.1) {
         let window = app.windows.firstMatch
         window.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.5))

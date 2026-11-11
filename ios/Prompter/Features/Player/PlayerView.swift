@@ -1,7 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// Black/gold controls appear while paused; tapping the text toggles playback.
+/// Black/gold controls appear while paused. Voice-mode touches temporarily
+/// suspend follow and rebase; constant-mode taps toggle playback.
 struct PlayerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
@@ -9,6 +10,9 @@ struct PlayerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var operations = ScriptOperations()
     @StateObject private var nodController = AirPodsNodController()
+    @StateObject private var speech = SpeechFollowController()
+    @State private var indicatorProgress = PromptReadingProgress()
+    @StateObject private var speechModels = SpeechModelStore()
     @EnvironmentObject private var settings: AppSettings
     let script: Script
 
@@ -54,18 +58,19 @@ struct PlayerView: View {
             Color.canvas.ignoresSafeArea()
             reader
             guideLines
+            runningSpeechStatus
             topBar
             bottomControlLayer
             toastView
             onboarding
-            PlayerSettingsDrawer(open: $showSettings, nodController: nodController) {
+            PlayerSettingsDrawer(open: $showSettings, nodController: nodController, speechModels: speechModels) {
                 showSettings = false; showOnboarding = true
             }
             mirrorOverlay.zIndex(10)
         }
         .background(NativePlayerNavigation(enabled: scenePhase == .active && !showSettings && !showMirror && !showOnboarding)
             .frame(width: 0, height: 0))
-        .statusBarHidden()
+        .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true // 拍摄中屏幕常亮
@@ -91,17 +96,31 @@ struct PlayerView: View {
             #endif
         }
         .onDisappear {
+            speech.stop()
+            speechModels.cancel()
             nodController.shutdown()
             UIApplication.shared.isIdleTimerDisabled = false
             toastTask?.cancel(); returnTask?.cancel(); settings.flush()
         }
         .onChange(of: script.content) { _, content in
+            isPlaying = false
             paragraphStarts = PrompterCore.paragraphStarts(content)
             keywordTracker.reset(); paragraphTracker.reset(); cancelCompletionReturn()
         }
         .onChange(of: activeIndex) { _, _ in checkAutoPause() }
         .onChange(of: isPlaying) { _, playing in
             if playing { checkAutoPause() }
+            else { speech.stop() }
+        }
+        .onChange(of: settings.data.speechEngine) { _, _ in isPlaying = false; speech.stop() }
+        .onChange(of: settings.data.playbackMode) { _, _ in isPlaying = false; speech.stop() }
+        .onChange(of: speech.errorMessage) { _, message in
+            if let message { isPlaying = false; showToast(message) }
+        }
+        .onChange(of: speech.reachedEnd) { _, reached in
+            if reached && isPlaying && settings.data.playbackMode == .voice {
+                handleReachEnd()
+            }
         }
         .onChange(of: settings.data.pauseKeyword) { _, _ in keywordTracker.reset() }
         .onChange(of: settings.data.automaticPause) { _, _ in keywordTracker.reset(); paragraphTracker.reset() }
@@ -114,6 +133,11 @@ struct PlayerView: View {
             UIApplication.shared.isIdleTimerDisabled = phase == .active
         }
         .task(id: isPlaying) { await runTimer() }
+        .task(id: voiceSessionEnabled) {
+            if voiceSessionEnabled {
+                await speech.start(content: script.content, startUTF16: activeIndex, modelDirectory: speechModels.directory, kind: settings.data.speechEngine)
+            } else { speech.stop() }
+        }
         .task(id: nodConfiguration) {
             nodController.configure(profile: nodConfiguration.profile, suspended: nodConfiguration.suspended)
         }
@@ -136,6 +160,20 @@ struct PlayerView: View {
 
     // MARK: 正文
 
+    private var selectedSpeechModelReady: Bool {
+        switch settings.data.speechEngine {
+        case .paraformer: return speechModels.ready
+        case .zipformer: return BundledSpeechModels.zipformer != nil
+        case .senseVoice: return BundledSpeechModels.senseVoice != nil
+        case .apple: return true // System language readiness is checked asynchronously before capture.
+        }
+    }
+
+    private var voiceSessionEnabled: Bool {
+        settings.data.playbackMode == .voice && isPlaying && selectedSpeechModelReady
+            && scenePhase == .active && !showSettings && !showMirror && !showOnboarding
+    }
+
     private struct NodConfiguration: Equatable {
         var profile: HeadGestureCalibration?
         var suspended: Bool
@@ -151,7 +189,17 @@ struct PlayerView: View {
             isPlaying: isPlaying,
             wordsPerMinute: settings.data.scrollSpeed,
             controller: engine,
+            voiceMode: settings.data.playbackMode == .voice,
+            voiceTarget: speech.target,
+            voiceAdvancing: speech.isAdvancing,
+            voiceAdvanceUntil: speech.advanceUntil,
+            voicePauseContinuation: speech.pauseContinuation,
+            voiceCruiseUntil: speech.cruiseUntil,
             onActiveIndex: { activeIndex = $0 },
+            onReadingProgress: { indicatorProgress.update($0) },
+            onVoiceViewport: { utf16, delta in
+                speech.updateRecognizedLinePosition(utf16: utf16, delta: delta, report: settings.data.showSpeechDiagnostics)
+            },
             onReachEnd: handleReachEnd,
             onAtBottom: { if !$0 { showReturnHint = false } },
             onTap: togglePlayback,
@@ -160,6 +208,14 @@ struct PlayerView: View {
                 showToast("字号 \(size) pt", kind: .readout, duration: nil)
             },
             onPinchEnd: { size in showToast("字号 \(size) pt", kind: .readout, duration: 0.6) },
+            onVoiceInteractionBegan: {
+                nodController.rearm()
+                speech.pauseForInteraction()
+            },
+            onVoiceResumeAt: { index in
+                guard voiceSessionEnabled else { return }
+                speech.requestResumeAfterInteraction(atUTF16: index)
+            },
             onUserDragPause: {
                 nodController.rearm()
                 if isPlaying { isPlaying = false } // 播放中拖动正文=回看，自动暂停并停表
@@ -198,18 +254,26 @@ struct PlayerView: View {
                         .accessibilityIdentifier("player.mirror")
                 }
                 Spacer(minLength: 0)
-                CapsuleBar {
-                    CapsuleButton(icon: script.isFilmed ? "checkmark.circle.fill" : "checkmark.circle",
-                                  label: script.isFilmed ? "取消已拍摄标记" : "标记为已拍摄",
-                                  active: script.isFilmed, action: toggleFilmed)
-                        .accessibilityIdentifier("player.filmed")
-                        .accessibilityValue(script.isFilmed ? "已拍摄" : "待拍摄")
-                    CapsuleDivider()
-                    CapsuleButton(icon: "slider.horizontal.3", label: "设置") { isPlaying = false; showSettings = true }
-                        .accessibilityIdentifier("player.settings")
+                if settings.data.playbackMode == .voice && isPlaying {
+                    CapsuleBar {
+                        CapsuleButton(icon: "pause.fill", label: "暂停语音跟随", action: togglePlayback)
+                            .accessibilityIdentifier("player.voicePause")
+                    }
+                } else {
+                    CapsuleBar {
+                        CapsuleButton(icon: script.isFilmed ? "checkmark.circle.fill" : "checkmark.circle",
+                                      label: script.isFilmed ? "取消已拍摄标记" : "标记为已拍摄",
+                                      active: script.isFilmed, action: toggleFilmed)
+                            .accessibilityIdentifier("player.filmed")
+                            .accessibilityValue(script.isFilmed ? "已拍摄" : "待拍摄")
+                        CapsuleDivider()
+                        CapsuleButton(icon: "slider.horizontal.3", label: "设置") { isPlaying = false; showSettings = true }
+                            .accessibilityIdentifier("player.settings")
+                    }
+                    .modifier(PlaybackControlVisibility(visible: !isPlaying))
                 }
-                .modifier(PlaybackControlVisibility(visible: !isPlaying))
             }
+            if settings.data.playbackMode == .voice && !isPlaying { speechStatus }
             Group {
                 if showReturnHint {
                     Text("已读完，点击时间回到顶部")
@@ -240,26 +304,52 @@ struct PlayerView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    // MARK: 阅读引导线（金色辉光竖条，左右各一）
+    private var speechStatus: some View {
+        Text(selectedSpeechModelReady ? speech.status : "请在设置中准备所选离线模型")
+            .font(.caption).foregroundStyle(Color.textSecondary)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(Color.surface, in: Capsule())
+            .accessibilityIdentifier("player.speechStatus")
+            .allowsHitTesting(false)
+    }
 
-    private var guideLines: some View {
-        HStack {
-            guideBar
-            Spacer()
-            guideBar
+    private var speechDiagnostics: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(settings.data.speechEngine.label).fontWeight(.medium)
+            Text(speech.speechDetected ? "说话检测：有语音" : "说话检测：静音")
+            Text("最近识别：" + (speech.lastRecognized.isEmpty ? "等待出字" : speech.lastRecognized))
+                .lineLimit(2).accessibilityIdentifier("speech.recognizedText")
+            Text(speech.lastRecognized.isEmpty ? "原稿匹配：等待识别" : (speech.lastMatchSucceeded ? "原稿匹配：成功" : "原稿匹配：未匹配"))
+            if let delta = speech.recognizedLineDelta {
+                Text(delta > 1 ? "已识别行仍在阅读区下方 \(Int(delta)) pt" : "已识别行已到阅读区或上方")
+                    .accessibilityIdentifier("speech.readingPosition")
+            }
         }
-        .padding(.horizontal, 12)
-        .animation(reduceMotion ? nil : AppMotion.playback) {
-            $0.opacity(isPlaying ? 1 : 0)
-        }
+        .font(.caption).foregroundStyle(Color.textSecondary)
+        .padding(10).frame(maxWidth: 520, alignment: .leading)
+        .background(Color.surface, in: RoundedRectangle(cornerRadius: 12))
         .allowsHitTesting(false)
     }
 
-    private var guideBar: some View {
-        Capsule()
-            .fill(Color.accentGold)
-            .frame(width: 4, height: 112)
-            .shadow(color: Color.accentGold.opacity(0.55), radius: 6)
+    private var runningSpeechStatus: some View {
+        VStack {
+            Spacer()
+            if settings.data.playbackMode == .voice && isPlaying {
+                if settings.data.showSpeechDiagnostics { speechDiagnostics }
+                speechStatus
+            }
+        }
+        .padding(.horizontal, 16).padding(.bottom, 12)
+        .allowsHitTesting(false)
+    }
+
+    // MARK: 前台镜头指示环；不使用系统实时活动或正文镜像坐标
+
+    private var guideLines: some View {
+        PlayerPromptIndicator(meter: speech.audioMeter, progress: indicatorProgress,
+                              feedback: { speech.indicatorFeedback }, playing: isPlaying && settings.data.playbackMode == .voice,
+                              visible: settings.data.islandIndicatorEnabled && scenePhase == .active && !showSettings && !showMirror && !showOnboarding,
+                              calibration: settings.islandCalibration)
     }
 
     // MARK: 底部控件（字号 / 速度，播放中自动隐藏）
@@ -300,8 +390,13 @@ struct PlayerView: View {
     @ViewBuilder private func parameters(fontTrack: CGFloat, speedTrack: CGFloat) -> some View {
         ParamGroup(label: "字号", value: settings.data.fontSize,
             range: PrompterCore.fontSizeMin...PrompterCore.fontSizeMax, step: 2, trackWidth: fontTrack) { settings.data.fontSize = $0 }
-        ParamGroup(label: "速度", value: settings.data.scrollSpeed,
+        if settings.data.playbackMode == .constant {
+            ParamGroup(label: "速度", value: settings.data.scrollSpeed,
             range: PrompterCore.speedMin...PrompterCore.speedMax, step: 1, trackWidth: speedTrack) { settings.data.scrollSpeed = $0 }
+        } else {
+            Text("语速自动跟随").font(.caption).foregroundStyle(Color.textSecondary)
+                .frame(minHeight: 44)
+        }
     }
 
     private func togglePlayback() {
@@ -310,6 +405,10 @@ struct PlayerView: View {
     }
 
     private func applyPlaybackToggle() {
+        if !isPlaying && settings.data.playbackMode == .voice && !selectedSpeechModelReady {
+            showSettings = true
+            return
+        }
         cancelCompletionReturn()
         if !isPlaying && engine.isAtTop { elapsed = 0 }
         isPlaying.toggle()
@@ -365,11 +464,11 @@ struct PlayerView: View {
                                 .font(.system(size: 20, weight: .bold))
                                 .foregroundStyle(Color.textPrimary)
                             VStack(spacing: 10) {
-                                onboardLine("轻点屏幕", "开始 / 暂停")
+                                onboardLine("轻点屏幕", settings.data.playbackMode == .voice ? "开始 / 暂停跟随 1.5 秒" : "开始 / 暂停")
                                 onboardLine("拖动文本", "回看上文")
                                 onboardLine("双指捏合", "调整字号")
                             }
-                            Text("轻点正文开始，再点一下暂停")
+                            Text(settings.data.playbackMode == .voice ? "松手 1.5 秒后按当前阅读区继续；右上角可持续暂停" : "轻点正文开始，再点一下暂停")
                                 .font(.system(size: 12))
                                 .foregroundStyle(Color.textMuted)
                                 .padding(.top, 8)
@@ -418,6 +517,7 @@ struct PlayerView: View {
 
     private func handleReachEnd() {
         guard !completed else { return }
+        indicatorProgress.complete()
         isPlaying = false
         switch settings.data.completion {
         case .restart:
@@ -442,7 +542,7 @@ struct PlayerView: View {
     }
 
     private func checkAutoPause() {
-        guard isPlaying else { return }
+        guard isPlaying, !speech.isInteractionPaused else { return }
         let keyword = settings.data.pauseKeyword
         if settings.data.automaticPause == .keyword, !keyword.isEmpty,
            keywordTracker.shouldPause(content: script.content, keyword: keyword, activeIndex: activeIndex) {
@@ -482,7 +582,7 @@ struct PlayerView: View {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
-            elapsed += 1
+            if settings.data.playbackMode == .constant || speech.isAdvancing { elapsed += 1 }
         }
     }
 

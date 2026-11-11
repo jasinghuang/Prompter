@@ -28,3 +28,18 @@ build/
 ios/Prompter.xcodeproj
 ios/DerivedData/
 ios/build/
+
+# Prepared by the iOS build script; keep the signed offline model out of Git.
+ios/Prompter/Resources/ParaformerModel/*
+!ios/Prompter/Resources/ParaformerModel/.gitkeep
+
+# Shared local speech detector prepared by the build script.
+ios/Prompter/Resources/SpeechSupport/*
+!ios/Prompter/Resources/SpeechSupport/.gitkeep
+
+# Optional model comparison weights.
+ios/Prompter/Resources/ZipformerModel/*
+!ios/Prompter/Resources/ZipformerModel/.gitkeep
+
+ios/Prompter/Resources/SenseVoiceModel/*
+!ios/Prompter/Resources/SenseVoiceModel/.gitkeep

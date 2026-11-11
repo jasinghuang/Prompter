@@ -2,10 +2,27 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>提词器</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>提词器稿件库</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.jasing.prompter.library</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -22,10 +39,16 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>用于拍摄前的化妆镜预览，仅本地显示，不录制、不上传。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>用于本地语音跟随提词，识别说到的位置和停顿。音频仅在本机处理，不录制、不上传。</string>
 	<key>NSMotionUsageDescription</key>
 	<string>开启 AirPods 点头控制后，读取耳机头部运动以识别点头，用于开始或暂停提词。运动数据仅在本机处理。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>用于对比 Apple 本地语音识别效果，仅使用设备离线识别，不将音频发送到服务器。</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
@@ -41,6 +64,28 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>提词器稿件库</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.jasing.prompter.library</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>prompter</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/vnd.jasing.prompter+json</string>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>

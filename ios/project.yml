@@ -11,12 +11,78 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     CODE_SIGN_STYLE: Automatic
     GENERATE_INFOPLIST_FILE: false
+packages:
+  sherpa-onnx:
+    url: https://github.com/k2-fsa/sherpa-onnx
+    exactVersion: 1.13.8
 targets:
   Prompter:
     type: application
     platform: iOS
     sources:
-      - Prompter
+      - path: Prompter
+        excludes:
+          - Resources/ParaformerModel
+          - Resources/SpeechSupport
+          - Resources/ZipformerModel
+          - Resources/SenseVoiceModel
+      - path: Prompter/Resources/ParaformerModel
+        type: folder
+        buildPhase: resources
+      - path: Prompter/Resources/SpeechSupport
+        type: folder
+        buildPhase: resources
+      - path: Prompter/Resources/ZipformerModel
+        type: folder
+        buildPhase: resources
+      - path: Prompter/Resources/SenseVoiceModel
+        type: folder
+        buildPhase: resources
+    preBuildScripts:
+      - name: Prepare SenseVoice comparison model
+        script: python3 "${SRCROOT}/scripts/prepare-sensevoice.py"
+        basedOnDependencyAnalysis: true
+        inputFiles:
+          - $(SRCROOT)/scripts/prepare-sensevoice.py
+          - $(SRCROOT)/scripts/sensevoice-model.json
+        outputFiles:
+          - $(SRCROOT)/Prompter/Resources/SenseVoiceModel/model.int8.onnx
+          - $(SRCROOT)/Prompter/Resources/SenseVoiceModel/tokens.txt
+          - $(SRCROOT)/Prompter/Resources/SenseVoiceModel/verified
+      - name: Prepare Zipformer comparison model
+        script: python3 "${SRCROOT}/scripts/prepare-zipformer.py"
+        basedOnDependencyAnalysis: true
+        inputFiles:
+          - $(SRCROOT)/scripts/prepare-zipformer.py
+          - $(SRCROOT)/scripts/zipformer-model.json
+        outputFiles:
+          - $(SRCROOT)/Prompter/Resources/ZipformerModel/encoder.int8.onnx
+          - $(SRCROOT)/Prompter/Resources/ZipformerModel/decoder.onnx
+          - $(SRCROOT)/Prompter/Resources/ZipformerModel/joiner.int8.onnx
+          - $(SRCROOT)/Prompter/Resources/ZipformerModel/tokens.txt
+          - $(SRCROOT)/Prompter/Resources/ZipformerModel/verified
+      - name: Prepare shared speech detector
+        script: python3 "${SRCROOT}/scripts/prepare-speech-support.py"
+        basedOnDependencyAnalysis: true
+        inputFiles:
+          - $(SRCROOT)/scripts/prepare-speech-support.py
+          - $(SRCROOT)/scripts/speech-support.json
+        outputFiles:
+          - $(SRCROOT)/Prompter/Resources/SpeechSupport/silero_vad.onnx
+      - name: Prepare offline speech model
+        script: python3 "${SRCROOT}/scripts/prepare-speech-fixture.py" --bundle
+        basedOnDependencyAnalysis: true
+        inputFiles:
+          - $(SRCROOT)/scripts/prepare-speech-fixture.py
+          - $(SRCROOT)/Prompter/Services/SpeechModelStore.swift
+        outputFiles:
+          - $(SRCROOT)/Prompter/Resources/ParaformerModel/encoder.int8.onnx
+          - $(SRCROOT)/Prompter/Resources/ParaformerModel/decoder.int8.onnx
+          - $(SRCROOT)/Prompter/Resources/ParaformerModel/tokens.txt
+          - $(SRCROOT)/Prompter/Resources/ParaformerModel/verified
+    dependencies:
+      - package: sherpa-onnx
+        product: sherpa-onnx
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jasing.prompter
@@ -24,12 +90,32 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: true
+        ENABLE_USER_SCRIPT_SANDBOXING: false
     info:
       path: Prompter/Info.plist
       properties:
         CFBundleDisplayName: 提词器
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: 提词器稿件库
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.jasing.prompter.library
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.jasing.prompter.library
+            UTTypeDescription: 提词器稿件库
+            UTTypeConformsTo:
+              - public.json
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - prompter
+              public.mime-type: application/vnd.jasing.prompter+json
+        LSSupportsOpeningDocumentsInPlace: false
         NSCameraUsageDescription: 用于拍摄前的化妆镜预览，仅本地显示，不录制、不上传。
+        NSSpeechRecognitionUsageDescription: 用于对比 Apple 本地语音识别效果，仅使用设备离线识别，不将音频发送到服务器。
+        NSMicrophoneUsageDescription: 用于本地语音跟随提词，识别说到的位置和停顿。音频仅在本机处理，不录制、不上传。
         NSMotionUsageDescription: 开启 AirPods 点头控制后，读取耳机头部运动以识别点头，用于开始或暂停提词。运动数据仅在本机处理。
+        CADisableMinimumFrameDurationOnPhone: true
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationLandscapeLeft
