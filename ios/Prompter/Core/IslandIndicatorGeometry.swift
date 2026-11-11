@@ -55,40 +55,21 @@ enum IslandIndicatorGeometry {
                       width: width, height: height)
     }
 
-    /// Top-center start, clockwise on screen. All three visual layers share it.
-    static func path(in rect: CGRect, progress: Double = 1) -> CGPath {
+    /// Top-center start, clockwise on screen. Both progress layers share it.
+    static func path(in rect: CGRect) -> CGPath {
         let r = min(rect.width, rect.height) / 2
         let path = CGMutablePath()
-        let fraction = PromptIndicatorState.bounded(progress)
-        var remaining = (2 * (rect.width + rect.height - 4 * r) + 2 * .pi * r) * fraction
-        var point = CGPoint(x: rect.midX, y: rect.minY)
         path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        func line(to end: CGPoint) {
-            let distance = hypot(end.x - point.x, end.y - point.y)
-            guard distance > 0, remaining > 0 else { return }
-            let amount = min(1, remaining / distance)
-            path.addLine(to: CGPoint(x: point.x + (end.x - point.x) * amount,
-                                    y: point.y + (end.y - point.y) * amount))
-            point = end; remaining -= distance
-        }
-        func arc(center: CGPoint, start: CGFloat) {
-            guard remaining > 0, r > 0 else { return }
-            let distance = r * .pi / 2
-            let end = start + .pi / 2 * min(1, remaining / distance)
-            path.addArc(center: center, radius: r, startAngle: start, endAngle: end, clockwise: false)
-            point = CGPoint(x: center.x + r * cos(end), y: center.y + r * sin(end))
-            remaining -= distance
-        }
-        line(to: CGPoint(x: rect.maxX - r, y: rect.minY))
-        arc(center: CGPoint(x: rect.maxX - r, y: rect.minY + r), start: -.pi / 2)
-        line(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
-        arc(center: CGPoint(x: rect.maxX - r, y: rect.maxY - r), start: 0)
-        line(to: CGPoint(x: rect.minX + r, y: rect.maxY))
-        arc(center: CGPoint(x: rect.minX + r, y: rect.maxY - r), start: .pi / 2)
-        line(to: CGPoint(x: rect.minX, y: rect.minY + r))
-        arc(center: CGPoint(x: rect.minX + r, y: rect.minY + r), start: .pi)
-        line(to: CGPoint(x: rect.midX, y: rect.minY))
-        if fraction == 1 { path.closeSubpath() }
+        path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
+        path.addArc(center: CGPoint(x: rect.maxX - r, y: rect.minY + r), radius: r, startAngle: -.pi / 2, endAngle: 0, clockwise: false)
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+        path.addArc(center: CGPoint(x: rect.maxX - r, y: rect.maxY - r), radius: r, startAngle: 0, endAngle: .pi / 2, clockwise: false)
+        path.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+        path.addArc(center: CGPoint(x: rect.minX + r, y: rect.maxY - r), radius: r, startAngle: .pi / 2, endAngle: .pi, clockwise: false)
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        path.addArc(center: CGPoint(x: rect.minX + r, y: rect.minY + r), radius: r, startAngle: .pi, endAngle: .pi * 1.5, clockwise: false)
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.closeSubpath()
         return path
     }
 }

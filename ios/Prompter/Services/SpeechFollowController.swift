@@ -142,13 +142,6 @@ private final class SpeechRecognitionPipeline {
 
 @MainActor
 final class SpeechFollowController: ObservableObject {
-    let audioMeter = SpeechAudioMeter()
-    private var lastAlignedAt: TimeInterval?
-    var indicatorFeedback: PromptSpeechFeedback {
-        let now = ProcessInfo.processInfo.systemUptime
-        return .init(speaking: speechDetected && lastMatchSucceeded && !inputCheckPending && now - lastAudio < 0.25,
-                     alignedAt: lastAlignedAt, interactionPaused: isInteractionPaused)
-    }
     @Published private(set) var status = "轻点正文开始语音跟随"
     @Published private(set) var isAdvancing = false
     @Published private(set) var advanceUntil: TimeInterval?
@@ -317,7 +310,6 @@ final class SpeechFollowController: ObservableObject {
         guard sessionID != nil else { return }
         lastRecognized = ""
         lastMatchSucceeded = false
-        lastAlignedAt = nil
         interactionRevision = UUID()
         interactionResume?.cancel(); interactionResume = nil
         pendingResumeUTF16 = nil
@@ -412,7 +404,6 @@ final class SpeechFollowController: ObservableObject {
                 target = .init(utf16End: match.utf16End, tokensPerSecond: timing.tokensPerSecond)
                 matched = true
                 lastMatchSucceeded = true
-                lastAlignedAt = ProcessInfo.processInfo.systemUptime
                 settlement.matched(offset: match.utf16End, final: result.isFinal,
                                    reachedEnd: match.reachedEnd, at: ProcessInfo.processInfo.systemUptime)
             } else {
@@ -495,8 +486,6 @@ final class SpeechFollowController: ObservableObject {
     }
 
     private func detachEngine() {
-        audioMeter.stop()
-        lastAlignedAt = nil
         if let engine {
             if hasInputTap { engine.inputNode.removeTap(onBus: 0) }
             engine.stop()
@@ -516,9 +505,6 @@ final class SpeechFollowController: ObservableObject {
         guard format.sampleRate > 0, format.channelCount > 0, format.commonFormat == .pcmFormatFloat32 else {
             throw SpeechCaptureError.input
         }
-        let levelInput = audioMeter.input
-        let levelCapture = captureID
-        audioMeter.start(capture: levelCapture)
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             guard let channels = buffer.floatChannelData, buffer.frameLength > 0 else { return }
             let frames = Int(buffer.frameLength)
@@ -531,8 +517,6 @@ final class SpeechFollowController: ObservableObject {
                 }
             }
             let capturedAt = ProcessInfo.processInfo.systemUptime
-            let rms = sqrt(samples.reduce(Float(0)) { $0 + $1 * $1 } / Float(frames))
-            levelInput.push(rms: rms, at: capturedAt, capture: levelCapture)
             pipeline.submit(samples: samples, sampleRate: buffer.format.sampleRate, capturedAt: capturedAt)
         }
         hasInputTap = true

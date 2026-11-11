@@ -7,7 +7,7 @@ struct IslandIndicatorSettings: View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("横屏镜头指示环", isOn: $settings.data.islandIndicatorEnabled)
                 .accessibilityIdentifier("settings.islandIndicator")
-            Text("金色为底轨，绿色表示当前阅读进度。语音匹配有效时随声音柔和发光；竖屏隐藏。")
+            Text("金色为底轨，绿色表示当前阅读进度。横屏显示，竖屏隐藏。")
                 .font(.caption).foregroundStyle(Color.textSecondary)
             if settings.data.islandIndicatorEnabled {
                 Button("调整与灵动岛的贴合") { calibrating = true }
@@ -28,7 +28,7 @@ private struct IslandCalibrationView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
                 if geometry.size.width > geometry.size.height {
-                    PromptIslandOverlay(state: .init(progress: 0.65, pulse: 0.25), visible: true, calibration: draft)
+                    PromptIslandOverlay(readingProgress: 0.65, visible: true, calibration: draft)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .ignoresSafeArea().allowsHitTesting(false)
                 }

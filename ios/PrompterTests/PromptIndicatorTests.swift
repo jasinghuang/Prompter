@@ -3,56 +3,6 @@ import CoreGraphics
 @testable import Prompter
 
 final class PromptIndicatorTests: XCTestCase {
-    func testPulseRequiresFreshVoiceAlignmentAndPlayback() {
-        func state(_ audio: Double? = 10, _ match: Double? = 10, _ speaking: Bool = true,
-                   _ playing: Bool = true, _ paused: Bool = false) -> PromptIndicatorState {
-            .make(progress: 0.4, level: 0.8, sampleAt: audio, alignedAt: match, speaking: speaking,
-                  playing: playing, interactionPaused: paused, completed: false, at: 10.1)
-        }
-        XCTAssertEqual(state().pulse, 0.8)
-        XCTAssertEqual(state(9).pulse, 0)
-        XCTAssertEqual(state(10, 8).pulse, 0)
-        XCTAssertEqual(state(nil).pulse, 0)
-        XCTAssertEqual(state(10, nil).pulse, 0)
-        XCTAssertEqual(state(10, 10, false).pulse, 0)
-        XCTAssertEqual(state(10, 10, true, false).pulse, 0)
-        XCTAssertEqual(state(10, 10, true, true, true).pulse, 0)
-        XCTAssertEqual(state().progress, 0.4, "Loudness never changes reading progress")
-    }
-
-    func testIndicatorClampsInvalidSignalsAndCompletionDoesNotPulseAsSpeech() {
-        let state = PromptIndicatorState.make(progress: .nan, level: .infinity, sampleAt: 10, alignedAt: 10,
-                                              speaking: true, playing: true, interactionPaused: false, completed: false, at: 10)
-        XCTAssertEqual(state.progress, 0); XCTAssertEqual(state.pulse, 0)
-        let complete = PromptIndicatorState.make(progress: 0.98, level: 1, sampleAt: 10, alignedAt: 10,
-                                                 speaking: true, playing: true, interactionPaused: false, completed: true, at: 10)
-        XCTAssertEqual(complete.progress, 1); XCTAssertEqual(complete.pulse, 0)
-    }
-
-    func testQuietSpeechHasVisibleEnvelopeAndDecayIsSlowerThanAttack() {
-        var envelope = SpeechLevelEnvelope()
-        for _ in 0..<4 { _ = envelope.update(rms: 0.001, deltaTime: 0.05) }
-        let quiet = envelope.level
-        XCTAssertGreaterThan(quiet, 0.2, "The old -50dB display floor would make this valid quiet voice invisible")
-        let after = envelope.update(rms: 0, deltaTime: 0.05)
-        XCTAssertGreaterThan(after, quiet * 0.7)
-        XCTAssertLessThan(after, quiet)
-        for _ in 0..<80 { _ = envelope.update(rms: 0, deltaTime: 0.05) }
-        XCTAssertEqual(envelope.level, 0)
-    }
-
-    func testMeterMailboxRejectsOldCaptureAfterStopAndRestart() {
-        let input = SpeechLevelInput(); let old = UUID(); let new = UUID()
-        input.begin(old); input.push(rms: 0.01, at: 1, capture: old)
-        XCTAssertEqual(input.latest()?.time, 1)
-        input.begin(new); input.push(rms: 0.1, at: 2, capture: old)
-        XCTAssertNil(input.latest())
-        input.push(rms: 0.002, at: 3, capture: new)
-        XCTAssertEqual(input.latest()?.time, 3)
-        input.begin(nil); input.push(rms: 1, at: 4, capture: new)
-        XCTAssertNil(input.latest())
-    }
-
     func testIPhone16ProGeometryRotatesToBothEdgesAndHidesInPortrait() throws {
         let size = CGSize(width: 874, height: 402)
         let left = try XCTUnwrap(IslandIndicatorGeometry.frame(size: size, cameraOnLeft: true, model: "iPhone17,1"))

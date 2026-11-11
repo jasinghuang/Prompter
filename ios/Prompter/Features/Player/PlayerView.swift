@@ -346,8 +346,7 @@ struct PlayerView: View {
     // MARK: 前台镜头指示环；不使用系统实时活动或正文镜像坐标
 
     private var guideLines: some View {
-        PlayerPromptIndicator(meter: speech.audioMeter, progress: indicatorProgress,
-                              feedback: { speech.indicatorFeedback }, playing: isPlaying && settings.data.playbackMode == .voice,
+        PlayerPromptIndicator(progress: indicatorProgress,
                               visible: settings.data.islandIndicatorEnabled && scenePhase == .active && !showSettings && !showMirror && !showOnboarding,
                               calibration: settings.islandCalibration)
     }
