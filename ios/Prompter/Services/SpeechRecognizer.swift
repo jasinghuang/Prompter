@@ -46,3 +46,12 @@ enum SpeechEngineError: LocalizedError {
 protocol SpeechGatedRecognizer: LocalSpeechRecognizer {
     func accept(_ samples: [Float], speech: Bool) throws -> SpeechRecognitionResult?
 }
+
+/// Native recognizers own asynchronous system services beyond C-model lifetime.
+protocol SpeechRecognizerShutdown: AnyObject {
+    func shutdown() async
+}
+
+protocol SpeechRecognizerReadiness: AnyObject {
+    var readiness: Task<Void, Error> { get }
+}

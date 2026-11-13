@@ -2,7 +2,7 @@ import AVFoundation
 import Foundation
 
 enum SpeechCaptureError: LocalizedError, Equatable {
-    case permission, model, input, overloaded, interrupted, inputChanged, mediaServices
+    case permission, model, input, overloaded, interrupted, inputChanged, mediaServices, recognitionUnresponsive, recognitionEnded, startupTimedOut
     var errorDescription: String? {
         switch self {
         case .permission: return "麦克风权限未开启，请在系统设置中允许提词器使用麦克风。"
@@ -12,6 +12,9 @@ enum SpeechCaptureError: LocalizedError, Equatable {
         case .interrupted: return "音频会话被系统中断，已暂停。轻点正文重新开始。"
         case .inputChanged: return "录音设备已切换，已暂停。确认麦克风后轻点正文继续。"
         case .mediaServices: return "系统音频服务已重置，已暂停。轻点正文重新开始。"
+        case .recognitionUnresponsive: return "听到了说话，但听写长时间没有返回文字，已暂停。轻点正文重新启动听写。"
+        case .recognitionEnded: return "听写服务已停止，已暂停。轻点正文重新启动听写。"
+        case .startupTimedOut: return "本地听写未能及时启动，已暂停。轻点正文重试，或选择其他本地引擎。"
         }
     }
 }
@@ -24,7 +27,7 @@ struct SpeechFollowTarget: Equatable {
 /// Serial inference and conversion, with a bounded input queue. No ONNX work or
 /// audio conversion runs on the UI/audio render thread. A slow device fails
 /// explicitly instead of accumulating seconds of stale recognition results.
-private final class SpeechRecognitionPipeline {
+final class SpeechRecognitionPipeline: @unchecked Sendable {
     struct Event {
         var capturedAt: TimeInterval
         var epoch: UInt64
@@ -33,10 +36,14 @@ private final class SpeechRecognitionPipeline {
         var threshold: Float
         var result: SpeechRecognitionResult?
     }
+    // Decoder/shutdown ownership stays on this queue; the lock protects the
+    // capture-side flags. Callbacks are installed before preparation begins.
     private static let inferenceQueue = DispatchQueue(label: "prompter.local-speech", qos: .userInitiated)
     private let queue = SpeechRecognitionPipeline.inferenceQueue
     private let lock = NSLock()
     private var stopped = false
+    private var cleanupRequested = false
+    private var shutdownTask: Task<Void, Never>?
     private var pending = 0
     private var suspended = false
     private var epoch: UInt64 = 0
@@ -65,14 +72,38 @@ private final class SpeechRecognitionPipeline {
                     guard let appleFactory else { throw SpeechEngineError.offlineUnavailable }
                     self.recognizer = try appleFactory()
                 }
+                if let ready = (self.recognizer as? any SpeechRecognizerReadiness)?.readiness {
+                    Task {
+                        let result = await ready.result
+                        self.queue.async {
+                            self.lock.lock(); let stopped = self.stopped; self.lock.unlock()
+                            completion(stopped ? .failure(CancellationError()) : result)
+                        }
+                    }
+                    return
+                }
                 completion(.success(()))
             } catch { completion(.failure(error)) }
         }
     }
 
     func stop() {
-        lock.lock(); stopped = true; lock.unlock()
-        queue.async { self.recognizer = nil; self.voiceDetector = nil; self.resampler = SpeechAudioResampler() }
+        lock.lock()
+        guard !cleanupRequested else { lock.unlock(); return }
+        stopped = true; cleanupRequested = true
+        lock.unlock()
+        queue.async {
+            let native = self.recognizer as? any SpeechRecognizerShutdown
+            self.recognizer = nil; self.voiceDetector = nil; self.resampler = SpeechAudioResampler()
+            self.shutdownTask = Task { await native?.shutdown() }
+        }
+    }
+
+    func waitUntilStopped() async {
+        let shutdown: Task<Void, Never>? = await withCheckedContinuation { continuation in
+            queue.async { continuation.resume(returning: self.shutdownTask) }
+        }
+        await shutdown?.value
     }
 
     func suspend() {
@@ -95,14 +126,32 @@ private final class SpeechRecognitionPipeline {
             guard valid else { completion(.failure(CancellationError())); return }
             do { try self.recognizer?.resetForReposition() }
             catch { completion(.failure(error)); return }
-            self.resampler = SpeechAudioResampler()
-            self.voiceDetector?.reset()
-            self.lock.lock()
-            let stillValid = !self.stopped && self.epoch == version
-            if stillValid { self.suspended = false }
-            self.lock.unlock()
-            completion(stillValid ? .success(version) : .failure(CancellationError()))
+            if let ready = (self.recognizer as? any SpeechRecognizerReadiness)?.readiness {
+                Task {
+                    let result = await ready.result
+                    self.queue.async {
+                        switch result {
+                        case .success: self.finishResume(version: version, completion: completion)
+                        case .failure(let error): completion(.failure(error))
+                        }
+                    }
+                }
+            } else {
+                self.finishResume(version: version, completion: completion)
+            }
         }
+    }
+
+    private func finishResume(version: UInt64, completion: (Result<UInt64, Error>) -> Void) {
+        lock.lock()
+        let valid = !stopped && epoch == version
+        if valid {
+            resampler = SpeechAudioResampler()
+            voiceDetector?.reset()
+            suspended = false
+        }
+        lock.unlock()
+        completion(valid ? .success(version) : .failure(CancellationError()))
     }
 
     func submit(samples: [Float], sampleRate: Double, capturedAt: TimeInterval) {
@@ -152,11 +201,13 @@ final class SpeechFollowController: ObservableObject {
     @Published private(set) var reachedEnd = false
     @Published private(set) var isInteractionPaused = false
     @Published private(set) var speechDetected = false
+    @Published private(set) var isListening = false
     @Published private(set) var lastRecognized = ""
     @Published private(set) var lastMatchSucceeded = false
     @Published private(set) var recognizedLineDelta: Double?
     private var capture: SpeechAudioCapture?
     private var pipeline: SpeechRecognitionPipeline?
+    private var pipelinePrepared = false
     private var sessionID: UUID?
     private let audioSession: SpeechAudioSessionCoordinator
     private var observers: [NSObjectProtocol] = []
@@ -166,6 +217,10 @@ final class SpeechFollowController: ObservableObject {
     private var captureID = UUID()
     private var recoveryBudget = SpeechCaptureRecoveryBudget()
     private var clock: Task<Void, Never>?
+    private var startupWatchdog: Task<Void, Never>?
+    private var pendingRecognizerStop: Task<Void, Never>?
+    private var recognitionHealth = SpeechRecognitionHealth()
+    private var recognitionTimeout: TimeInterval = 10
     private var matcher = SpeechScriptMatcher(content: "")
     private var timing = SpeechFollowTiming()
     private var settlement = SpeechFollowSettlement()
@@ -184,18 +239,21 @@ final class SpeechFollowController: ObservableObject {
     private var pendingResumeUTF16: Int?
     private var interactionResume: Task<Void, Never>?
     private let requestPermission: () async -> Bool
+    private let startupTimeout: Duration
 
     init(requestPermission: @escaping () async -> Bool = {
         await withCheckedContinuation { continuation in
             AVAudioApplication.requestRecordPermission { continuation.resume(returning: $0) }
         }
-    }, audioSession: SpeechAudioSessionCoordinator? = nil) {
+    }, audioSession: SpeechAudioSessionCoordinator? = nil, startupTimeout: Duration = .seconds(20)) {
         self.requestPermission = requestPermission
         self.audioSession = audioSession ?? .shared
+        self.startupTimeout = startupTimeout
     }
 
     func start(content: String, startUTF16: Int, modelDirectory: URL, kind: SpeechEngineKind = .paraformer) async {
         stop()
+        let previousShutdown = pendingRecognizerStop
         let id = UUID()
         sessionID = id
         errorMessage = nil
@@ -217,6 +275,8 @@ final class SpeechFollowController: ObservableObject {
         audioPackets = 0
         voicePackets = 0
         recoveryBudget = SpeechCaptureRecoveryBudget()
+        recognitionTimeout = kind == .senseVoice ? 15 : 10
+        recognitionHealth = .init(timeout: recognitionTimeout)
         captureLog("starting engine=\(kind.rawValue) startOffset=\(startUTF16) scriptTokens=\(matcher.script.tokens.count)")
         status = "正在开启本地识别…"
         let allowed = await requestPermission()
@@ -224,17 +284,28 @@ final class SpeechFollowController: ObservableObject {
         guard !Task.isCancelled else { stop(); return }
         guard allowed else { fail(SpeechCaptureError.permission); return }
         do {
+            armStartupWatchdog(session: id)
+            if previousShutdown != nil { status = "正在释放上次听写会话…" }
+            await previousShutdown?.value
+            await audioSession.waitForIdle()
+            guard sessionID == id else { return }
+            guard !Task.isCancelled else { stop(); return }
             var appleFactory: (() throws -> any LocalSpeechRecognizer)?
             if kind == .apple {
+                // System language downloads may take longer than service startup.
+                startupWatchdog?.cancel(); startupWatchdog = nil
                 status = "正在准备 Apple 中文离线资源…"
                 appleFactory = try await AppleSpeechPreparation.prepare { [weak self] progress in
                     Task { @MainActor in
-                        guard let self, self.sessionID == id else { return }
+                        guard let self, self.sessionID == id, self.pipeline == nil else { return }
+                        if progress == nil { self.armStartupWatchdog(session: id) }
                         self.status = progress.map { "正在准备 Apple 中文离线资源 \(Int(min(1, max(0, $0)) * 100))%" } ?? "正在启动 Apple 本地识别…"
                     }
                 }
-                guard sessionID == id, !Task.isCancelled else { return }
+                guard sessionID == id else { return }
+                guard !Task.isCancelled else { stop(); return }
             }
+            armStartupWatchdog(session: id)
             let pipeline = SpeechRecognitionPipeline()
             self.pipeline = pipeline
             if isInteractionPaused { pipeline.suspend() }
@@ -255,6 +326,8 @@ final class SpeechFollowController: ObservableObject {
             }
             guard sessionID == id else { pipeline.stop(); return }
             guard !Task.isCancelled else { stop(); return }
+            pipelinePrepared = true
+            armStartupWatchdog(session: id)
             try await audioSession.activate(owner: id)
             guard sessionID == id, !Task.isCancelled else {
                 audioSession.release(owner: id)
@@ -264,7 +337,8 @@ final class SpeechFollowController: ObservableObject {
             try await beginCapture(pipeline: pipeline, session: id)
             if isInteractionPaused, let index = pendingResumeUTF16 { await resumeAfterInteraction(atUTF16: index) }
             guard sessionID == id, !Task.isCancelled else { return }
-            status = isInteractionPaused ? "手动调整中 · 松手 1.5 秒后恢复" : "等待朗读 · 音频仅在本机处理"
+            startupWatchdog?.cancel(); startupWatchdog = nil
+            status = isInteractionPaused ? "手动调整中 · 松手 1.5 秒后恢复" : isListening ? "等待朗读 · 音频仅在本机处理" : "正在等待麦克风输入…"
             clock = Task { [weak self] in
                 while !Task.isCancelled {
                     do { try await Task.sleep(for: .milliseconds(80)) } catch { return }
@@ -288,18 +362,35 @@ final class SpeechFollowController: ObservableObject {
         isInteractionPaused = false
         recognitionEpoch = nil
         clock?.cancel(); clock = nil
+        startupWatchdog?.cancel(); startupWatchdog = nil
         inputCheck?.cancel(); inputCheck = nil
         inputCheckPending = false
         inputState = nil
         observers.forEach { NotificationCenter.default.removeObserver($0) }; observers = []
         let stoppedCapture = detachEngine()
-        pipeline?.stop(); pipeline = nil
-        if let owner { audioSession.release(owner: owner, after: { await stoppedCapture?.waitUntilStopped() }) }
+        let stoppedPipeline = pipeline
+        stoppedPipeline?.stop(); pipeline = nil
+        pipelinePrepared = false
+        if let stoppedPipeline {
+            let previous = pendingRecognizerStop
+            pendingRecognizerStop = Task {
+                await previous?.value
+                await stoppedPipeline.waitUntilStopped()
+            }
+        }
+        let shutdown = pendingRecognizerStop
+        if let owner {
+            audioSession.release(owner: owner, after: {
+                await stoppedCapture?.waitUntilStopped()
+                await shutdown?.value
+            })
+        }
         isAdvancing = false
         advanceUntil = nil
         pauseContinuation = nil
         cruiseUntil = nil
         speechDetected = false
+        if isListening { isListening = false }
         if target != nil { target = nil }
         if recognizedLineDelta != nil { recognizedLineDelta = nil }
         status = errorMessage ?? "轻点正文开始语音跟随"
@@ -311,6 +402,7 @@ final class SpeechFollowController: ObservableObject {
         if lastMatchSucceeded { lastMatchSucceeded = false }
         interactionRevision = UUID()
         interactionResume?.cancel(); interactionResume = nil
+        if isListening { startupWatchdog?.cancel(); startupWatchdog = nil }
         pendingResumeUTF16 = nil
         isInteractionPaused = true
         recognitionEpoch = nil
@@ -327,6 +419,7 @@ final class SpeechFollowController: ObservableObject {
         viewportOffset = nil; viewportDelta = nil
         inputHasVoice = false
         speechDetected = false
+        recognitionHealth = .init(timeout: recognitionTimeout)
         status = "手动调整中 · 松手 1.5 秒后恢复"
     }
 
@@ -341,9 +434,10 @@ final class SpeechFollowController: ObservableObject {
 
     private func resumeAfterInteraction(atUTF16 index: Int) async {
         guard let id = sessionID, isInteractionPaused else { return }
-        guard let pipeline else { pendingResumeUTF16 = index; return }
+        guard let pipeline, pipelinePrepared else { pendingResumeUTF16 = index; return }
         pendingResumeUTF16 = nil
         let revision = interactionRevision
+        armStartupWatchdog(session: id)
         matcher = SpeechScriptMatcher(content: scriptContent, startUTF16: index)
         timing = SpeechFollowTiming()
         settlement = SpeechFollowSettlement()
@@ -355,11 +449,13 @@ final class SpeechFollowController: ObservableObject {
         if recognizedLineDelta != nil { recognizedLineDelta = nil }
         reachedEnd = false
         lastResultAt = 0
+        recognitionHealth = .init(timeout: recognitionTimeout)
         do {
             let epoch = try await withCheckedThrowingContinuation { continuation in
                 pipeline.resume { continuation.resume(with: $0) }
             }
             guard sessionID == id, interactionRevision == revision, !Task.isCancelled else { return }
+            startupWatchdog?.cancel(); startupWatchdog = nil
             recognitionEpoch = epoch
             isInteractionPaused = false
             lastAudio = ProcessInfo.processInfo.systemUptime
@@ -378,8 +474,20 @@ final class SpeechFollowController: ObservableObject {
         status = error.localizedDescription
     }
 
+    private func armStartupWatchdog(session id: UUID) {
+        startupWatchdog?.cancel()
+        let timeout = startupTimeout
+        startupWatchdog = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: timeout) } catch { return }
+            guard let self, self.sessionID == id else { return }
+            self.fail(SpeechCaptureError.startupTimedOut)
+        }
+    }
+
     private func receive(_ event: SpeechRecognitionPipeline.Event) {
         guard !isInteractionPaused, recognitionEpoch == event.epoch else { return }
+        if !isListening { isListening = true }
+        recognitionHealth.observeAudio(at: event.capturedAt, voice: event.voice)
         audioPackets += 1
         if event.voice { voicePackets += 1 }
         if audioPackets == 1 || audioPackets % 100 == 0 {
@@ -394,6 +502,7 @@ final class SpeechFollowController: ObservableObject {
             timing.observeVoice(at: event.capturedAt)
         }
         if let result = event.result, !result.text.isEmpty {
+            recognitionHealth.receivedText()
             // Deduplicate UI notifications only: identical text may carry a
             // new final result, so matching and timing still consume it below.
             if lastRecognized != result.text { lastRecognized = result.text }
@@ -452,6 +561,7 @@ final class SpeechFollowController: ObservableObject {
         }
         let now = ProcessInfo.processInfo.systemUptime
         if now - lastAudio > 3 { fail(SpeechCaptureError.input); return }
+        if recognitionHealth.hasTimedOut(at: now) { fail(SpeechCaptureError.recognitionUnresponsive); return }
         // ASR pursuit and the low-speed floor have separate authorization.
         // Speech can maintain the floor between batches; native frames bound
         // its lookahead and deadline without advancing the recognition cursor.
@@ -478,7 +588,9 @@ final class SpeechFollowController: ObservableObject {
             captureLog("advance=\(advance) target=\(target?.utf16End ?? -1) voice=\(inputHasVoice) settling=\(settling)")
         }
         let text: String
-        if advance { text = inputHasVoice ? "语音跟随中" : settling ? "正在对齐已识别文字" : "短暂停顿 · 缓慢续滚" }
+        if !isListening { text = "正在等待麦克风输入…" }
+        else if recognitionHealth.isWaitingForText(at: now) { text = "已听到说话，等待听写返回文字…" }
+        else if advance { text = inputHasVoice ? "语音跟随中" : settling ? "正在对齐已识别文字" : "短暂停顿 · 缓慢续滚" }
         else if timing.lastVoice != nil && !inputHasVoice { text = "停顿中 · 继续朗读即可跟随" }
         else if lastResultAt > 0 && !matched { text = "等待匹配原稿 · 请读当前附近的文字" }
         else { text = "等待朗读 · 音频仅在本机处理" }
@@ -502,6 +614,8 @@ final class SpeechFollowController: ObservableObject {
         guard sessionID == id, !Task.isCancelled else { throw CancellationError() }
         let generation = UUID()
         captureID = generation
+        recognitionHealth = .init(timeout: recognitionTimeout)
+        if isListening { isListening = false }
         let capture = SpeechAudioCapture()
         self.capture = capture
         let started = try await capture.start { samples, rate, capturedAt in

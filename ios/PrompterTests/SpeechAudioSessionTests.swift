@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import Prompter
 
 @MainActor
@@ -36,6 +37,29 @@ private final class ControlledAudioSession: SpeechAudioSessionBackend {
 
 @MainActor
 final class SpeechAudioSessionTests: XCTestCase {
+    func testStartupTimeoutDoesNotClaimListeningAndLateActivationCannotReviveIt() async throws {
+        let backend = ControlledAudioSession()
+        let started = expectation(description: "audio activation waiting")
+        backend.activationStarted = { started.fulfill() }
+        let coordinator = SpeechAudioSessionCoordinator(backend: backend)
+        let controller = SpeechFollowController(requestPermission: { true }, audioSession: coordinator,
+                                                startupTimeout: .seconds(2))
+        let failed = expectation(description: "startup timeout shown")
+        let observation = controller.$errorMessage.dropFirst().sink { if $0 != nil { failed.fulfill() } }
+        let model = try XCTUnwrap(Bundle.main.url(forResource: "ParaformerModel", withExtension: nil))
+        let starting = Task { await controller.start(content: "测试听写服务启动", startUTF16: 0, modelDirectory: model) }
+        await fulfillment(of: [started], timeout: 5)
+        XCTAssertFalse(controller.isListening)
+        await fulfillment(of: [failed], timeout: 5)
+        XCTAssertEqual(controller.errorMessage, SpeechCaptureError.startupTimedOut.localizedDescription)
+        backend.finishActivation()
+        await starting.value
+        await coordinator.waitForIdle()
+        withExtendedLifetime(observation) { XCTAssertFalse(controller.isListening) }
+        XCTAssertFalse(controller.isAdvancing)
+        XCTAssertEqual(backend.events, ["activate", "deactivate"])
+    }
+
     func testDeactivationWaitsForEngineTeardownBeforeNextActivation() async throws {
         let backend = ControlledAudioSession()
         backend.holdFirstActivation = false

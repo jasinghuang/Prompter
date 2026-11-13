@@ -340,7 +340,7 @@ struct PlayerView: View {
     private var speechDiagnostics: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(settings.data.speechEngine.label).fontWeight(.medium)
-            Text(speech.speechDetected ? "说话检测：有语音" : "说话检测：静音")
+            Text(speech.isInteractionPaused ? "说话检测：手动调整中" : !speech.isListening ? "说话检测：未在监听" : speech.speechDetected ? "说话检测：有语音" : "说话检测：静音")
             Text("最近识别：" + (speech.lastRecognized.isEmpty ? "等待出字" : speech.lastRecognized))
                 .lineLimit(2).accessibilityIdentifier("speech.recognizedText")
             Text(speech.lastRecognized.isEmpty ? "原稿匹配：等待识别" : (speech.lastMatchSucceeded ? "原稿匹配：成功" : "原稿匹配：未匹配"))

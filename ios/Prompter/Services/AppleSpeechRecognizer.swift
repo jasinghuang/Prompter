@@ -53,7 +53,6 @@ enum AppleSpeechPreparation {
             }
             let analyzer = SpeechAnalyzer(modules: [transcriber])
             progress(nil)
-            try await analyzer.prepareToAnalyze(in: format)
             return { try AppleAnalyzerRecognizer(locale: locale, format: format, analyzer: analyzer, transcriber: transcriber) }
         }
         // Older devices use the legacy API only when it explicitly supports
@@ -67,7 +66,7 @@ enum AppleSpeechPreparation {
 }
 
 @available(iOS 26.0, *)
-private final class AppleAnalyzerRecognizer: LocalSpeechRecognizer {
+private final class AppleAnalyzerRecognizer: LocalSpeechRecognizer, SpeechRecognizerShutdown, SpeechRecognizerReadiness {
     private let locale: Locale
     private let format: AVAudioFormat
     private let mailbox = SpeechResultMailbox()
@@ -83,17 +82,26 @@ private final class AppleAnalyzerRecognizer: LocalSpeechRecognizer {
         self.locale = locale
         self.format = format
         session = try Session(analyzer: analyzer, transcriber: transcriber, format: format, mailbox: mailbox,
-                              generation: mailbox.reset(), segment: segment, prepared: true)
+                              generation: mailbox.reset(), segment: segment)
     }
     deinit { session?.stop() }
 
+    var readiness: Task<Void, Error> { session?.preparation ?? Task { throw CancellationError() } }
+
+    func shutdown() async {
+        let previous = session
+        session = nil
+        await previous?.stop().value
+    }
+
     func resetForReposition() throws {
-        session?.stop()
+        let previousStop = session?.stop()
         let version = mailbox.reset()
         segment += 1
         let transcriber = Self.makeTranscriber(locale)
         session = try Session(analyzer: SpeechAnalyzer(modules: [transcriber]), transcriber: transcriber,
-                              format: format, mailbox: mailbox, generation: version, segment: segment, prepared: false)
+                              format: format, mailbox: mailbox, generation: version, segment: segment,
+                              after: previousStop)
     }
     func accept(_ samples: [Float]) throws -> SpeechRecognitionResult? {
         let result = try mailbox.take()
@@ -109,15 +117,27 @@ private final class AppleAnalyzerRecognizer: LocalSpeechRecognizer {
         private var frame: Int64 = 0
         private var analysisTask: Task<Void, Never>?
         private var resultTask: Task<Void, Never>?
+        private var cleanupTask: Task<Void, Never>?
+        let preparation: Task<Void, Error>
 
         init(analyzer: SpeechAnalyzer, transcriber: SpeechTranscriber, format: AVAudioFormat,
-             mailbox: SpeechResultMailbox, generation: UUID, segment: Int, prepared: Bool) throws {
+             mailbox: SpeechResultMailbox, generation: UUID, segment: Int,
+             after previousStop: Task<Void, Never>? = nil) throws {
             self.analyzer = analyzer
             self.format = format
             converter = try AppleSpeechPCMConverter(output: format)
             let stream = AsyncStream.makeStream(of: AnalyzerInput.self, bufferingPolicy: .bufferingOldest(64))
             input = stream.continuation
+            let preparation = Task {
+                await previousStop?.value
+                try Task.checkCancellation()
+                try await analyzer.prepareToAnalyze(in: format)
+                try Task.checkCancellation()
+            }
+            self.preparation = preparation
             resultTask = Task {
+                await previousStop?.value
+                guard !Task.isCancelled else { return }
                 var transcript = SpeechTranscriptAssembler()
                 do {
                     for try await result in transcriber.results {
@@ -134,11 +154,12 @@ private final class AppleAnalyzerRecognizer: LocalSpeechRecognizer {
                             mailbox.append(hypothesis, generation: generation)
                         }
                     }
+                    if !Task.isCancelled { mailbox.fail(SpeechCaptureError.recognitionEnded, generation: generation) }
                 } catch { if !Task.isCancelled { mailbox.fail(error, generation: generation) } }
             }
             analysisTask = Task {
                 do {
-                    if !prepared { try await analyzer.prepareToAnalyze(in: format) }
+                    try await preparation.value
                     try Task.checkCancellation()
                     try await analyzer.start(inputSequence: stream.stream)
                 } catch { if !Task.isCancelled { mailbox.fail(error, generation: generation) } }
@@ -155,11 +176,23 @@ private final class AppleAnalyzerRecognizer: LocalSpeechRecognizer {
             @unknown default: throw SpeechEngineError.offlineUnavailable
             }
         }
-        func stop() {
+        @discardableResult
+        func stop() -> Task<Void, Never> {
+            if let cleanupTask { return cleanupTask }
             input.finish()
+            preparation.cancel()
             analysisTask?.cancel(); resultTask?.cancel()
             let analyzer = analyzer
-            Task { await analyzer.cancelAndFinishNow() }
+            let analysis = analysisTask, results = resultTask
+            let preparation = preparation
+            let task = Task {
+                await analyzer.cancelAndFinishNow()
+                _ = try? await preparation.value
+                await analysis?.value
+                await results?.value
+            }
+            cleanupTask = task
+            return task
         }
     }
 }
@@ -199,7 +232,7 @@ final class AppleSpeechPCMConverter {
 }
 
 /// Compatibility path for devices that cannot use SpeechTranscriber.
-private final class AppleLegacyRecognizer: LocalSpeechRecognizer {
+private final class AppleLegacyRecognizer: LocalSpeechRecognizer, SpeechRecognizerShutdown {
     private let recognizer: SFSpeechRecognizer
     private let mailbox = SpeechResultMailbox()
     private var request: SFSpeechAudioBufferRecognitionRequest?
@@ -216,6 +249,7 @@ private final class AppleLegacyRecognizer: LocalSpeechRecognizer {
         try resetForReposition()
     }
     deinit { request?.endAudio(); task?.cancel() }
+    func shutdown() async { request?.endAudio(); task?.cancel(); request = nil; task = nil; _ = mailbox.reset() }
     func resetForReposition() throws {
         let generation = mailbox.reset()
         request?.endAudio(); task?.cancel()
