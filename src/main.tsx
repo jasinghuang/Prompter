@@ -6,7 +6,7 @@ import { detectStandalone, detectIOS, shouldUseSolidGlass } from './lib/pwa';
 import './index.css';
 
 if (import.meta.env.PROD) {
-  registerSW('/Prompter/sw.js');
+  registerSW(`${import.meta.env.BASE_URL}sw.js`);
 }
 
 // iOS PWA 花屏规避：首帧渲染前挂上 glass-solid，避免先渲染毛玻璃再闪变

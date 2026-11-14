@@ -1,45 +1,12 @@
-# 参考实现（非本项目源码，仅作开发参考）
-ref_code/
-
-# 头脑风暴可视化临时文件
-.superpowers/
-
-# 开发工具临时文件
-.playwright-mcp/
-.impeccable/
-*.png
-
-# 依赖与构建产物
+# Dependencies and generated output
 node_modules/
 dist/
 build/
 
-# 环境变量
+# Local configuration and developer artifacts
 .env
-.env.local
-
-# 文档截图（允许提交）
-!docs/images/*.png
-
-# 系统文件
+.env.*
 .DS_Store
-
-# iOS
-ios/Prompter.xcodeproj
-ios/DerivedData/
-ios/build/
-
-# Prepared by the iOS build script; keep the signed offline model out of Git.
-ios/Prompter/Resources/ParaformerModel/*
-!ios/Prompter/Resources/ParaformerModel/.gitkeep
-
-# Shared local speech detector prepared by the build script.
-ios/Prompter/Resources/SpeechSupport/*
-!ios/Prompter/Resources/SpeechSupport/.gitkeep
-
-# Optional model comparison weights.
-ios/Prompter/Resources/ZipformerModel/*
-!ios/Prompter/Resources/ZipformerModel/.gitkeep
-
-ios/Prompter/Resources/SenseVoiceModel/*
-!ios/Prompter/Resources/SenseVoiceModel/.gitkeep
+.playwright-mcp/
+.superpowers/
+.impeccable/

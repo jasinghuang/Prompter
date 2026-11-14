@@ -1,8 +1,12 @@
-# 提词器 · Perhaps
+# 提词器 · PWA
 
 手机提词器 —— 把手机横放架在三脚架上，大字号文字匀速滚动，省去背稿。
 
 **纯前端、零后端**，浏览器打开即用。支持 PWA 全屏 + 离线。
+
+iOS 原生版独立维护于 [Prompter-iOS](https://github.com/jasinghuang/Prompter-iOS)。
+
+仓库已由 `Prompter` 更名为 `Prompter-PWA`。旧桌面入口需要从新地址重新添加；本地稿件按浏览器来源保存，请使用原浏览器且不要清理网站数据。
 
 ---
 
@@ -57,7 +61,7 @@
 
 ### 推荐：PWA（全屏 + 离线）
 
-1. iPhone Safari 打开 **<https://jasinghuang.github.io/Prompter/>**
+1. iPhone Safari 打开 **<https://jasinghuang.github.io/Prompter-PWA/>**
 2. 点底部「分享」→「添加到主屏幕」
 3. 从桌面图标启动 → 全屏无浏览器外壳，断网也能用
 
@@ -68,7 +72,7 @@
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 229 个单元测试
+npm test         # 230 个单元测试
 npm run build    # 输出 dist/（单文件 HTML）
 ```
 
@@ -92,9 +96,8 @@ Push 到 `main` 自动通过 GitHub Actions 部署到 GitHub Pages。
 
 ```
 ├── index.html
-├── vite.config.ts           # base /Prompter/ + singlefile 打包
+├── vite.config.ts           # base /Prompter-PWA/ + singlefile 打包
 ├── public/                  # PWA 图标、manifest、Service Worker
-│   └── preview-design.html  # 设计方案预览页（开发用）
 ├── scripts/                 # 图标生成脚本
 └── src/
     ├── main.tsx             # SW 注册 + iOS PWA 玻璃降级判定

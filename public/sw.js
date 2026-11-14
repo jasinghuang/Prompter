@@ -1,7 +1,7 @@
 // 提词器 Service Worker — 离线缓存
 // 发布内容变更时 bump CACHE 版本号以触发更新与旧缓存清理
-const CACHE = 'prompter-v1';
-const SCOPE = '/Prompter/';
+const CACHE = 'prompter-pwa-v2';
+const SCOPE = '/Prompter-PWA/';
 const PRECACHE = [
   SCOPE,
   SCOPE + 'index.html',
