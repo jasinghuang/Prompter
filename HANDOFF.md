@@ -14,6 +14,8 @@
 
 仓库改名涉及 Vite `base`、manifest 的 `start_url` / `scope`、Service Worker 预缓存路径和 README 地址；修改时须一起核对。应用的 SW 注册路径由 `import.meta.env.BASE_URL` 派生。缓存版本为 `prompter-pwa-v2`。
 
+`vite-plugin-singlefile` 的默认配置会把实际 `base` 改成 `./`，因此注册路径最终相对于当前页面解析。`npm run preview` 在本机根路径提供文件，不能用其 SPA 回退结果证明生产子路径中的 manifest 或 SW 可用；应在真正的 `/Prompter-PWA/` 静态目录下验证。
+
 旧 `/Prompter/` 桌面入口可能需要重新添加。稿件仍使用原 localStorage 键，按浏览器来源保存；请勿通过清理网站数据解决入口问题。
 
 ## 清理边界
@@ -26,4 +28,5 @@
 
 - 拆分前后均为 29 个测试文件、230 项测试通过；现有测试中的 React act、jsdom 媒体和 Node localStorage 警告在拆分前已存在。
 - 生产构建通过；单文件 HTML 约 323 kB，gzip 约 92 kB。
+- GitHub Pages 部署成功，新地址的 HTML、manifest scope、SW 和全部 manifest 图标均已通过线上 HTTP 核验。
 - 拆分前 Git bundle、原始引用和清理清单位于本机 `~/.codex/backups/prompter-split-2026-11-14/`，不随项目发布。
