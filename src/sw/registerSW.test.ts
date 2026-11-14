@@ -4,7 +4,7 @@ import { registerSW } from './registerSW';
 describe('registerSW', () => {
   it('不支持 serviceWorker 时静默跳过', async () => {
     // jsdom 默认不提供 navigator.serviceWorker
-    await expect(registerSW('/Prompter-PWA/sw.js')).resolves.toBeUndefined();
+    await expect(registerSW('/Prompter/sw.js')).resolves.toBeUndefined();
   });
 
   it('支持时调用 register 并传入 URL', async () => {
@@ -13,8 +13,8 @@ describe('registerSW', () => {
       value: { register },
       configurable: true,
     });
-    await registerSW('/Prompter-PWA/sw.js');
-    expect(register).toHaveBeenCalledWith('/Prompter-PWA/sw.js');
+    await registerSW('/Prompter/sw.js');
+    expect(register).toHaveBeenCalledWith('/Prompter/sw.js');
   });
 
   it('register 抛错时不传播', async () => {
@@ -23,6 +23,6 @@ describe('registerSW', () => {
       value: { register },
       configurable: true,
     });
-    await expect(registerSW('/Prompter-PWA/sw.js')).resolves.toBeUndefined();
+    await expect(registerSW('/Prompter/sw.js')).resolves.toBeUndefined();
   });
 });

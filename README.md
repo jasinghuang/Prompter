@@ -6,7 +6,7 @@
 
 iOS 原生版独立维护于 [Prompter-iOS](https://github.com/jasinghuang/Prompter-iOS)。
 
-仓库已由 `Prompter` 更名为 `Prompter-PWA`。旧桌面入口需要从新地址重新添加；本地稿件按浏览器来源保存，请使用原浏览器且不要清理网站数据。
+PWA 仓库及访问地址沿用原来的 `Prompter` 名称。本地稿件按浏览器来源保存，请使用原浏览器且不要清理网站数据。
 
 ---
 
@@ -61,7 +61,7 @@ iOS 原生版独立维护于 [Prompter-iOS](https://github.com/jasinghuang/Promp
 
 ### 推荐：PWA（全屏 + 离线）
 
-1. iPhone Safari 打开 **<https://jasinghuang.github.io/Prompter-PWA/>**
+1. iPhone Safari 打开 **<https://jasinghuang.github.io/Prompter/>**
 2. 点底部「分享」→「添加到主屏幕」
 3. 从桌面图标启动 → 全屏无浏览器外壳，断网也能用
 
@@ -96,7 +96,7 @@ Push 到 `main` 自动通过 GitHub Actions 部署到 GitHub Pages。
 
 ```
 ├── index.html
-├── vite.config.ts           # base /Prompter-PWA/ + singlefile 打包
+├── vite.config.ts           # base /Prompter/ + singlefile 打包
 ├── public/                  # PWA 图标、manifest、Service Worker
 ├── scripts/                 # 图标生成脚本
 └── src/

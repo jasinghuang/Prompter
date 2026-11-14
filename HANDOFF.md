@@ -1,22 +1,22 @@
-# Prompter-PWA 维护交接
+# Prompter 维护交接
 
 ## 项目边界
 
 2026-11-14 从双端仓库拆分。当前目录是独立 Git 仓库；同级 `../Prompter-iOS/` 是另一仓库。父目录 `提词器/` 只负责收纳，不要在父目录执行 Git 初始化。
 
-- GitHub：`https://github.com/jasinghuang/Prompter-PWA`
-- Pages：`https://jasinghuang.github.io/Prompter-PWA/`
+- GitHub：`https://github.com/jasinghuang/Prompter`
+- Pages：`https://jasinghuang.github.io/Prompter/`
 - 保留原仓库完整历史，历史提交中的 `ios/` 属于拆分前记录；当前版本仅维护 PWA。
 
 ## 构建和地址
 
 在本目录运行 `npm ci`、`npm test`、`npm run build`。GitHub Actions 从 `main` 部署 `dist/`。
 
-仓库改名涉及 Vite `base`、manifest 的 `start_url` / `scope`、Service Worker 预缓存路径和 README 地址；修改时须一起核对。应用的 SW 注册路径由 `import.meta.env.BASE_URL` 派生。缓存版本为 `prompter-pwa-v2`。
+仓库改名涉及 Vite `base`、manifest 的 `start_url` / `scope`、Service Worker 预缓存路径和 README 地址；修改时须一起核对。应用的 SW 注册路径由 `import.meta.env.BASE_URL` 派生。缓存版本为 `prompter-v3`。
 
-`vite-plugin-singlefile` 的默认配置会把实际 `base` 改成 `./`，因此注册路径最终相对于当前页面解析。`npm run preview` 在本机根路径提供文件，不能用其 SPA 回退结果证明生产子路径中的 manifest 或 SW 可用；应在真正的 `/Prompter-PWA/` 静态目录下验证。
+`vite-plugin-singlefile` 的默认配置会把实际 `base` 改成 `./`，因此注册路径最终相对于当前页面解析。`npm run preview` 在本机根路径提供文件，不能用其 SPA 回退结果证明生产子路径中的 manifest 或 SW 可用；应在真正的 `/Prompter/` 静态目录下验证。
 
-旧 `/Prompter/` 桌面入口可能需要重新添加。稿件仍使用原 localStorage 键，按浏览器来源保存；请勿通过清理网站数据解决入口问题。
+PWA 已恢复原来的 `Prompter` 仓库名称及 `/Prompter/` 访问路径。曾从临时 `/Prompter-PWA/` 地址安装的桌面入口需要重新添加。稿件仍使用原 localStorage 键，按浏览器来源保存；请勿通过清理网站数据解决入口问题。
 
 ## 清理边界
 
