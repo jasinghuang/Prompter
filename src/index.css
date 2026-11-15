@@ -60,6 +60,13 @@ body {
 
 .word { display: inline; }
 
+/* 提词阅读区辉光：视口中心 ±1 行（约 2 行）的文字发光，金色柔光、行切换时缓入缓出。
+   由 Teleprompter.computeActive 在滚动/播放 tick 中增删 class */
+.reading-glow {
+  text-shadow: 0 0 22px rgba(212, 164, 50, 0.38), 0 0 46px rgba(212, 164, 50, 0.16);
+  transition: text-shadow 0.25s ease;
+}
+
 .mirror-mode { transform: scaleX(-1); }
 
 .teleprompter-touch {

@@ -111,6 +111,9 @@ export function Teleprompter({
   // 双指捏合：手势快照存 ref（字号变化触发 effect 重挂载时不丢失）+ 轻点抑制冷却 + 反馈胶囊
   const pinchRef = useRef<{ startDist: number; startFontSize: number } | null>(null);
   const fontSizeRef = useRef(settings.fontSize);
+  // 阅读区辉光：行高（字号×行距）与当前发光 span 集合
+  const lineHRef = useRef(settings.fontSize * settings.lineHeight);
+  const glowRef = useRef<HTMLElement[]>([]);
   const suppressTapUntilRef = useRef(0);
   const [pinchFontSize, setPinchFontSize] = useState<number | null>(null);
   const pinchToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -118,6 +121,10 @@ export function Teleprompter({
   useEffect(() => {
     fontSizeRef.current = settings.fontSize;
   }, [settings.fontSize]);
+
+  useEffect(() => {
+    lineHRef.current = settings.fontSize * settings.lineHeight;
+  }, [settings.fontSize, settings.lineHeight]);
 
   const charCount = useMemo(() => countReadableChars(script.content), [script.content]);
 
@@ -129,17 +136,26 @@ export function Teleprompter({
     if (!vp) return;
     const mid = scrollTop + vp.clientHeight / 2;
     const spans = spansRef.current;
+    const band = lineHRef.current; // 阅读带：中心 ±1 行 ≈ 中间 2 行文字
     let idx = -1;
+    const glow: HTMLElement[] = [];
     for (const s of spans) {
-      if (s.offsetTop + s.offsetHeight / 2 >= mid) {
-        idx = Number(s.dataset.idx);
-        break;
-      }
+      const c = s.offsetTop + s.offsetHeight / 2;
+      if (idx === -1 && c >= mid) idx = Number(s.dataset.idx);
+      if (c > mid + band) break;
+      if (c >= mid - band) glow.push(s);
     }
     if (idx === -1 && spans.length) idx = Number(spans[spans.length - 1].dataset.idx);
     if (idx >= 0 && idx !== activeIndexRef.current) {
       activeIndexRef.current = idx;
       setActiveIndex(idx);
+    }
+    // 阅读区辉光：仅对发生变化的 span 增删 class，滚动 tick 中不做整表重绘
+    const prev = glowRef.current;
+    if (prev.length !== glow.length || prev.some((el, i) => el !== glow[i])) {
+      for (const el of prev) if (!glow.includes(el)) el.classList.remove('reading-glow');
+      for (const el of glow) el.classList.add('reading-glow');
+      glowRef.current = glow;
     }
   }, []);
 
@@ -158,6 +174,7 @@ export function Teleprompter({
         vp.scrollTop = target.offsetTop - vp.clientHeight / 2 + target.offsetHeight / 2;
         scrollRef.current = vp.scrollTop;
       }
+      computeActive(vp.scrollTop);
     };
     measure();
     if (typeof ResizeObserver !== 'undefined') {
@@ -421,7 +438,7 @@ export function Teleprompter({
           paddingRight: 'calc(1rem + env(safe-area-inset-right))',
         }}
       >
-        {/* 左胶囊：返回 + 录制状态/计时（暂停时双竖线，播放中红点）+ 前置镜子 */}
+        {/* 左胶囊：返回 + 录制状态/计时（暂停时双竖线，播放中红点）+ 标记已拍摄 + 前置镜子 */}
         <Capsule>
           <CapsuleButton label="返回" onClick={handleBack}>
             <ChevronLeft size={18} />
@@ -448,6 +465,18 @@ export function Teleprompter({
               {formatTime(elapsedSeconds)}
             </span>
           </button>
+          {/* 标记已拍摄紧邻计时：拍完一条顺手一点，播放中也可直接标记 */}
+          <CapsuleDivider />
+          <CapsuleButton
+            label={isFilmed ? '取消已拍摄标记' : '标记为已拍摄'}
+            active={isFilmed}
+            onClick={() => {
+              onToggleFilmed();
+              showPauseToast(isFilmed ? '已取消已拍摄标记' : '已标记拍摄 ✓');
+            }}
+          >
+            <CircleCheck size={18} strokeWidth={2.4} />
+          </CapsuleButton>
           {!isLandscape && (
             <>
               <CapsuleDivider />
@@ -460,44 +489,26 @@ export function Teleprompter({
 
         <div className="min-w-0 flex-1" />
 
-        {/* 右胶囊：标记已拍摄 / 设置 —— 播放中自动隐藏（防误触/不抢正文视线）；编辑回列表页做（对齐 iOS） */}
+        {/* 右侧：设置 —— 播放中自动隐藏（防误触/不抢正文视线） */}
         <div
           className={`transition-all duration-300 ${
             isPlaying ? 'pointer-events-none -translate-y-2 opacity-0' : 'translate-y-0 opacity-100'
           }`}
         >
-          <Capsule>
-            <CapsuleButton
-              label={isFilmed ? '取消已拍摄标记' : '标记为已拍摄'}
-              active={isFilmed}
-              onClick={() => {
-                onToggleFilmed();
-                showPauseToast(isFilmed ? '已取消已拍摄标记' : '已标记拍摄 ✓');
-              }}
-            >
-              <CircleCheck size={18} strokeWidth={2.4} />
-            </CapsuleButton>
-            <CapsuleDivider />
-            <CapsuleButton label="设置" onClick={() => setShowSettings(true)}>
-              <SlidersHorizontal size={18} strokeWidth={2.4} />
-            </CapsuleButton>
-          </Capsule>
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            aria-label="设置"
+            title="设置"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/[0.07] bg-[rgba(19,19,22,0.72)] text-white/65 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
+          >
+            <SlidersHorizontal size={18} strokeWidth={2.4} />
+          </button>
         </div>
       </div>
 
-      {/* ── Reading Guide Lines (soft glass) ── */}
-      <div
-        className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2"
-        style={{ left: 'calc(0.75rem + env(safe-area-inset-left))' }}
-      >
-        <div className="h-28 w-1 rounded-full" style={{ background: '#D4A432', boxShadow: '0 0 12px 1px rgba(212,164,50,0.55)' }} />
-      </div>
-      <div
-        className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2"
-        style={{ right: 'calc(0.75rem + env(safe-area-inset-right))' }}
-      >
-        <div className="h-28 w-1 rounded-full" style={{ background: '#D4A432', boxShadow: '0 0 12px 1px rgba(212,164,50,0.55)' }} />
-      </div>
+      {/* 阅读区标记不再是两侧竖线：视口中心 ±1 行内的文字加金色辉光（.reading-glow），
+          由 computeActive 在滚动/播放 tick 中切换；样式见 index.css */}
 
       {/* ── Reading Viewport ── */}
       <div

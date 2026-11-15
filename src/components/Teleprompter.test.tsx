@@ -70,7 +70,7 @@ describe('Teleprompter 读完行为', () => {
     expect(screen.queryByLabelText('关闭镜子')).toBeNull();
   });
 
-  it('横屏：镜子入口移至右下大圆钮，顶栏左胶囊瘦身为「返回｜时间」', async () => {
+  it('横屏：镜子入口移至右下大圆钮，顶栏左胶囊瘦身为「返回｜时间｜已拍」', async () => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
       matches: query === '(orientation: landscape)',
       media: query,
@@ -93,7 +93,7 @@ describe('Teleprompter 读完行为', () => {
     }
   });
 
-  it('暂停时计时旁为双竖线暂停图标，播放中右上角操作胶囊自动隐藏', () => {
+  it('暂停时计时旁为双竖线暂停图标，播放中右上角设置按钮自动隐藏', () => {
     renderTel();
     // 暂停态：时间格（点击回顶）内是 CirclePause 图标
     const timeCell = screen.getByLabelText('回到顶部');
@@ -104,13 +104,13 @@ describe('Teleprompter 读完行为', () => {
     fireEvent.pointerUp(vp, { clientY: 100 });
     // 播放中：时间格切换为 play 图标 + 右上角操作胶囊淡出且不可点
     expect(screen.getByLabelText('回到顶部').querySelector('svg')).not.toBeNull();
-    const settingsWrap = screen.getByLabelText('设置').parentElement!.parentElement!;
+    const settingsWrap = screen.getByLabelText('设置').parentElement!; // 设置按钮直接位于自动隐藏容器内
     expect(settingsWrap.className).toContain('opacity-0');
     expect(settingsWrap.className).toContain('pointer-events-none');
     // 再轻点暂停 → 胶囊恢复
     fireEvent.pointerDown(vp, { clientY: 100 });
     fireEvent.pointerUp(vp, { clientY: 100 });
-    expect(screen.getByLabelText('设置').parentElement!.parentElement!.className).not.toContain('opacity-0');
+    expect(screen.getByLabelText('设置').parentElement!.className).not.toContain('opacity-0');
   });
 
   it('手动返回仅调用 onBack', () => {
@@ -175,7 +175,7 @@ describe('Teleprompter 回到顶部（点击顶栏时间，对齐 iOS）', () =>
     fireEvent.click(screen.getByLabelText('回到顶部'));
     expect(vp.scrollTop).toBe(0);
     // 播放被暂停（再轻点恢复播放；归零由 resetTimer 单元行为保证）
-    expect(screen.getByLabelText('设置').parentElement!.parentElement!.className).not.toContain('opacity-0');
+    expect(screen.getByLabelText('设置').parentElement!.className).not.toContain('opacity-0');
     expect(h.onBack).not.toHaveBeenCalled();
   });
 });
