@@ -22,7 +22,6 @@ interface Props {
   onIndexChange: (i: number) => void;
   onChangeSettings: (patch: Partial<TeleprompterSettings>) => void;
   onBack: () => void;
-  onCompleted: () => void;
   /** 当前稿件是否已标记拍摄 */
   isFilmed: boolean;
   /** 标记/取消标记拍摄（播放页「已完成」按钮） */
@@ -54,7 +53,6 @@ export function Teleprompter({
   onIndexChange,
   onChangeSettings,
   onBack,
-  onCompleted,
   isFilmed,
   onToggleFilmed,
 }: Props) {
@@ -80,8 +78,6 @@ export function Teleprompter({
     return () => mq.removeEventListener?.('change', onChange);
   }, []);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [completed, setCompleted] = useState(false);
-  const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showPauseToast = useCallback((msg: string) => {
     setPauseReason(msg);
@@ -92,7 +88,6 @@ export function Teleprompter({
   useEffect(() => {
     return () => {
       if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-      if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
       if (pinchToastTimerRef.current) clearTimeout(pinchToastTimerRef.current);
     };
   }, []);
@@ -207,21 +202,9 @@ export function Teleprompter({
     getMaxOffset,
     onTick: computeActive,
     onReachEnd: () => {
-      if (completed) return; // 深度防御：useAutoScroll 的 ended 标志已保证单次播放周期触发一次
+      // 读完即停（不标记/不返回），提示条引导点击时间回顶（对齐 iOS）
       setIsPlaying(false);
-      if (settings.completeAction === 'restart') {
-        scrollToIndex(0); // 回到开头并暂停，不标记/不提示/不返回
-        return;
-      }
-      if (settings.completeAction !== 'list') {
-        // none：读完即停（不标记/不返回），提示条引导点击时间回顶（对齐 iOS）
-        setShowReturnHint(true);
-        return;
-      }
-      setCompleted(true);
-      onCompleted();
-      if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
-      completionTimerRef.current = setTimeout(() => onBack(), 1200);
+      setShowReturnHint(true);
     },
   });
 
@@ -330,7 +313,6 @@ export function Teleprompter({
     resetTimer();
     setPauseReason(null);
     if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-    if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
     setShowReturnHint(false);
     scrollToIndex(0);
   };
@@ -590,13 +572,6 @@ export function Teleprompter({
       {pinchFontSize !== null && (
         <div className="absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-[#D4A432]">
           字号 {pinchFontSize}px
-        </div>
-      )}
-
-      {/* ── Completed Notice ── */}
-      {completed && (
-        <div className="absolute inset-x-0 top-20 z-40 mx-auto w-fit rounded-full border border-white/10 glass-surface px-4 py-2.5 text-center text-xs text-green-400">
-          ✓ 已读完·已标记拍摄
         </div>
       )}
 

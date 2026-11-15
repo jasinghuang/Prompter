@@ -29,7 +29,6 @@ function renderTel(settings: TeleprompterSettings = DEFAULT_SETTINGS) {
     onIndexChange: vi.fn(),
     onChangeSettings: vi.fn(),
     onBack: vi.fn(),
-    onCompleted: vi.fn(),
     onToggleFilmed: vi.fn(),
   };
   render(
@@ -40,7 +39,6 @@ function renderTel(settings: TeleprompterSettings = DEFAULT_SETTINGS) {
       onIndexChange={handlers.onIndexChange}
       onChangeSettings={handlers.onChangeSettings}
       onBack={handlers.onBack}
-      onCompleted={handlers.onCompleted}
       isFilmed={false}
       onToggleFilmed={handlers.onToggleFilmed}
     />
@@ -48,52 +46,12 @@ function renderTel(settings: TeleprompterSettings = DEFAULT_SETTINGS) {
   return handlers;
 }
 
-const LIST_MODE: TeleprompterSettings = { ...DEFAULT_SETTINGS, completeAction: 'list' };
-
-describe('Teleprompter 读完动作', () => {
-  it('list：onReachEnd 触发 onCompleted 并显示提示', () => {
-    const h = renderTel(LIST_MODE);
+describe('Teleprompter 读完行为', () => {
+  it('读完：停止播放，不标记/不返回，提示条引导点时间回顶（对齐 iOS）', () => {
+    const h = renderTel();
     act(() => reachEnd!());
-    expect(h.onCompleted).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/已读完/)).toBeInTheDocument();
-  });
-
-  it('list：1.2s 后自动调用 onBack', () => {
-    vi.useFakeTimers();
-    const h = renderTel(LIST_MODE);
-    act(() => reachEnd!());
-    expect(h.onBack).not.toHaveBeenCalled();
-    act(() => { vi.advanceTimersByTime(1200); });
-    expect(h.onBack).toHaveBeenCalledTimes(1);
-    vi.useRealTimers();
-  });
-
-  it('none（默认）：读完停止播放，不标记/不返回，提示条引导点时间回顶（对齐 iOS）', () => {
-    const h = renderTel(); // DEFAULT_SETTINGS.completeAction = 'none'
-    act(() => reachEnd!());
-    expect(h.onCompleted).not.toHaveBeenCalled();
     expect(h.onBack).not.toHaveBeenCalled();
     expect(screen.getByText('已读完，点击时间回到顶部')).toBeInTheDocument();
-  });
-
-  it('restart：滚动回到开头，不标记/不提示/不返回', () => {
-    const h = renderTel({ ...DEFAULT_SETTINGS, completeAction: 'restart' });
-    const vp = document.querySelector('.teleprompter-touch') as HTMLElement;
-    vp.scrollTop = 500; // 模拟已滚到末尾
-    act(() => reachEnd!());
-    expect(vp.scrollTop).toBe(0);
-    expect(h.onCompleted).not.toHaveBeenCalled();
-    expect(h.onBack).not.toHaveBeenCalled();
-    expect(screen.queryByText(/已读完/)).toBeNull();
-    expect(screen.getByLabelText('回到顶部')).toBeInTheDocument(); // 暂停在开头
-  });
-
-  it('restart：可重复触发，第二次读完同样不标记/不返回', () => {
-    const h = renderTel({ ...DEFAULT_SETTINGS, completeAction: 'restart' });
-    act(() => reachEnd!());
-    act(() => reachEnd!());
-    expect(h.onCompleted).not.toHaveBeenCalled();
-    expect(h.onBack).not.toHaveBeenCalled();
   });
 
   it('顶栏圆形「标记已拍摄」按钮：点击回调并弹 toast', () => {
@@ -155,12 +113,11 @@ describe('Teleprompter 读完动作', () => {
     expect(screen.getByLabelText('设置').parentElement!.parentElement!.className).not.toContain('opacity-0');
   });
 
-  it('手动返回不触发 onCompleted', () => {
-    const h = renderTel(LIST_MODE);
+  it('手动返回仅调用 onBack', () => {
+    const h = renderTel();
     act(() => {
       screen.getByLabelText('返回').click();
     });
-    expect(h.onCompleted).not.toHaveBeenCalled();
     expect(h.onBack).toHaveBeenCalledTimes(1);
   });
 });
@@ -219,7 +176,7 @@ describe('Teleprompter 回到顶部（点击顶栏时间，对齐 iOS）', () =>
     expect(vp.scrollTop).toBe(0);
     // 播放被暂停（再轻点恢复播放；归零由 resetTimer 单元行为保证）
     expect(screen.getByLabelText('设置').parentElement!.parentElement!.className).not.toContain('opacity-0');
-    expect(h.onCompleted).not.toHaveBeenCalled();
+    expect(h.onBack).not.toHaveBeenCalled();
   });
 });
 
@@ -316,7 +273,6 @@ describe('Teleprompter 双指捏合调字号', () => {
           onIndexChange={vi.fn()}
           onChangeSettings={(patch) => setSettings((s) => ({ ...s, ...patch }))}
           onBack={vi.fn()}
-          onCompleted={vi.fn()}
           isFilmed={false}
           onToggleFilmed={vi.fn()}
         />
@@ -347,7 +303,6 @@ describe('Teleprompter 双指捏合调字号', () => {
           onIndexChange={vi.fn()}
           onChangeSettings={(patch) => setSettings((s) => ({ ...s, ...patch }))}
           onBack={vi.fn()}
-          onCompleted={vi.fn()}
           isFilmed={false}
           onToggleFilmed={vi.fn()}
         />

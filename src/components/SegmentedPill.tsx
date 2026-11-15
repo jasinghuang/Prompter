@@ -14,7 +14,7 @@ interface Props<T extends string> {
 
 /**
  * 药丸分段选择器：白色药丸在选项间滑动（反色激活），选中项黑字、未选中弱化。
- * （CF10，从 AutoPauseControl 的 ModePillGroup 抽出，供读完动作等复用）
+ * （供编辑页拆分方式选择等复用）
  */
 export function SegmentedPill<T extends string>({ value, options, onSelect, className }: Props<T>) {
   const containerRef = useRef<HTMLDivElement | null>(null);

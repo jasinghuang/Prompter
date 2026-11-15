@@ -44,68 +44,15 @@ describe('SettingsPanel', () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ mirror: true }));
   });
 
-  it('读完动作：点击「返回列表」调用 onChange({ completeAction: "list" })', () => {
-    const onChange = vi.fn();
-    render(<SettingsPanel {...baseProps} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: '返回列表' }));
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ completeAction: 'list' }));
-  });
-
-  it('读完动作：点击「回到开头」调用 onChange({ completeAction: "restart" })', () => {
-    const onChange = vi.fn();
-    render(<SettingsPanel {...baseProps} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: '回到开头' }));
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ completeAction: 'restart' }));
-  });
-
-  it('读完动作：点击「不开启」调用 onChange({ completeAction: "none" })', () => {
-    const onChange = vi.fn();
-    render(<SettingsPanel {...baseProps} settings={{ ...DEFAULT_SETTINGS, completeAction: 'list' }} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: '不开启' }));
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ completeAction: 'none' }));
-  });
-
-  it('读完动作：药丸式分段选择器，选项按钮不含图标', () => {
-    render(<SettingsPanel {...baseProps} />);
-    const section = screen.getByText('读完动作').parentElement!;
-    const group = section.querySelector('[data-segmented-pill]');
-    expect(group).toBeTruthy();
-    expect(group!.className).toContain('rounded-full'); // 药丸容器
-    const buttons = Array.from(group!.querySelectorAll('button'));
-    expect(buttons).toHaveLength(3);
-    for (const b of buttons) {
-      expect(b.querySelector('svg')).toBeNull(); // 无图标
-    }
-  });
-
-  it('读完动作：当前选中项高亮（选中返回列表时 pill 定位到该按钮）', () => {
-    render(<SettingsPanel {...baseProps} settings={{ ...DEFAULT_SETTINGS, completeAction: 'list' }} />);
-    const group = screen.getByText('读完动作').parentElement!.querySelector('[data-segmented-pill]')!;
-    const selected = group.querySelector('[data-pill-value="list"]');
-    expect(selected?.className).toContain('text-[#0A0A0B]'); // 选中项反色：白底黑字
-    const unselected = group.querySelector('[data-pill-value="none"]');
-    expect(unselected?.className).toContain('text-white/35'); // 未选中项弱化
-  });
-
   it('所有区块标题统一：text-sm font-semibold 白字，无 white/50', () => {
     render(<SettingsPanel {...baseProps} />);
-    const titles = ['字号', '字间距', '行距', '两边间距', '滚动速度', '对齐方式', '镜像翻转', '读完动作'];
+    const titles = ['字号', '字间距', '行距', '两边间距', '滚动速度', '对齐方式', '镜像翻转'];
     for (const t of titles) {
       const el = screen.getByText(t);
       expect(el.className).toContain('text-sm');
       expect(el.className).toContain('font-semibold');
       expect(el.className).toContain('text-white');
       expect(el.className).not.toContain('text-white/50');
-    }
-  });
-
-  it('读完动作选项文字为 text-xs，比标题（text-sm）小一级', () => {
-    render(<SettingsPanel {...baseProps} />);
-    const group = screen.getByText('读完动作').parentElement!.querySelector('[data-segmented-pill]')!;
-    const buttons = Array.from(group.querySelectorAll('button'));
-    expect(buttons).toHaveLength(3);
-    for (const b of buttons) {
-      expect(b.className).toContain('text-xs');
     }
   });
 

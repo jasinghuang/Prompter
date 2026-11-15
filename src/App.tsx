@@ -150,7 +150,6 @@ export default function App() {
           onIndexChange={(i) => { setPrompterIndex(i); savePosition(active.id, i); }}
           onChangeSettings={updateSettings}
           onBack={() => setView('list')}
-          onCompleted={() => markFilmed(active.id)}
           isFilmed={filmedIds.has(active.id)}
           onToggleFilmed={() => toggleFilmed(active.id)}
         />

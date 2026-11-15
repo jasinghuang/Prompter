@@ -18,13 +18,11 @@ export function saveScripts(scripts: Script[]): void {
   localStorage.setItem(SCRIPTS_KEY, JSON.stringify(scripts));
 }
 
-/** 迁移旧版设置：autoReturnOnComplete(boolean) → completeAction('none' | 'list')；
- *  自动暂停（pauseKeyword/pauseOnParagraph）已随功能移除，清理残留字段 */
+/** 迁移旧版设置：已移除功能的字段一律清理
+ *  （autoReturnOnComplete/completeAction 读完动作、pauseKeyword/pauseOnParagraph 自动暂停） */
 function migrateSettings(parsed: Record<string, unknown>): void {
-  if (typeof parsed.autoReturnOnComplete === 'boolean' && parsed.completeAction === undefined) {
-    parsed.completeAction = parsed.autoReturnOnComplete ? 'list' : 'none';
-  }
   delete parsed.autoReturnOnComplete;
+  delete parsed.completeAction;
   delete parsed.pauseKeyword;
   delete parsed.pauseOnParagraph;
 }

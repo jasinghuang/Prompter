@@ -1,7 +1,6 @@
-import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight, Flag } from 'lucide-react';
-import { TeleprompterSettings, TextAlign, CompleteAction, FONT_SIZE_MIN, FONT_SIZE_MAX, LETTER_SPACING_MIN, LETTER_SPACING_MAX, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, PADDING_MIN, PADDING_MAX } from '../types';
+import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { TeleprompterSettings, TextAlign, FONT_SIZE_MIN, FONT_SIZE_MAX, LETTER_SPACING_MIN, LETTER_SPACING_MAX, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, PADDING_MIN, PADDING_MAX } from '../types';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
-import { SegmentedPill } from './SegmentedPill';
 import { Toggle } from './Toggle';
 
 interface Props {
@@ -80,12 +79,6 @@ const ALIGN_OPTIONS: { value: TextAlign; Icon: typeof AlignLeft; label: string }
   { value: 'left', Icon: AlignLeft, label: '左对齐' },
   { value: 'center', Icon: AlignCenter, label: '居中对齐' },
   { value: 'right', Icon: AlignRight, label: '右对齐' },
-];
-
-const COMPLETE_ACTION_OPTIONS: { value: CompleteAction; label: string }[] = [
-  { value: 'none', label: '不开启' },
-  { value: 'list', label: '返回列表' },
-  { value: 'restart', label: '回到开头' },
 ];
 
 export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
@@ -196,18 +189,6 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
             checked={settings.mirror}
             onChange={(v) => onChange({ mirror: v })}
           />
-
-          {/* Complete Action */}
-          <div className="border-t border-white/5 pt-5 space-y-2">
-            <span className="flex items-center gap-2 text-sm font-semibold text-white">
-              <Flag size={16} className="text-white/30" />读完动作
-            </span>
-            <SegmentedPill
-              value={settings.completeAction}
-              options={COMPLETE_ACTION_OPTIONS}
-              onSelect={(v) => onChange({ completeAction: v })}
-            />
-          </div>
         </div>
       </div>
     </div>

@@ -42,7 +42,7 @@ PWA 仓库及访问地址沿用原来的 `Prompter` 名称。本地稿件按浏�
 
 ### 提词设置
 
-字号、字间距、行距、两边间距、滚动速度全部可调。支持左/中/右对齐、镜像翻转（分光镜反射）、读完动作（停在原地 / 返回列表并标记已拍摄 / 回到开头重读）。
+字号、字间距、行距、两边间距、滚动速度全部可调。支持左/中/右对齐、镜像翻转（分光镜反射）。读完自动停在末尾，提示条引导一键回到顶部。
 
 ### 键盘快捷键
 
@@ -68,7 +68,7 @@ PWA 仓库及访问地址沿用原来的 `Prompter` 名称。本地稿件按浏�
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 210 个单元测试
+npm test         # 198 个单元测试
 npm run build    # 输出 dist/（单文件 HTML）
 ```
 
@@ -144,7 +144,6 @@ Push 到 `main` 自动通过 GitHub Actions 部署到 GitHub Pages。
 | `prompter_filmed` | 已拍摄稿件 id |
 | `prompter_pos_{id}` | 每篇阅读进度（字 index，缩放后仍准确） |
 | `prompter_sort` | 排序偏好 |
-| `prompter_recent` | 最近使用（搜索框快捷入口） |
 | `prompter_scroll` | 列表滚动位置 |
 | `prompter_onboarded` / `prompter_aths_dismissed` | 引导标记 |
 

@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { Search, Plus, FileText, ArrowUpDown, Trash2, Clock, Star, Folder, FolderPlus, Check, ChevronDown, X, FolderInput } from 'lucide-react';
+import { Search, Plus, FileText, ArrowUpDown, Trash2, Star, Folder, FolderPlus, Check, ChevronDown, X, FolderInput } from 'lucide-react';
 import { Script } from '../types';
 import { countReadableChars } from '../lib/tokens';
 import { SwipeableCard } from './SwipeableCard';
@@ -36,16 +36,6 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'chars', label: '字数' },
 ];
 
-const RECENT_KEY = 'prompter_recent';
-function loadRecent(): string[] {
-  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
-}
-function saveRecent(id: string) {
-  const prev = loadRecent().filter((x) => x !== id);
-  prev.unshift(id);
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify(prev.slice(0, 3))); } catch { /* noop */ }
-}
-
 const SORT_KEY = 'prompter_sort';
 const SCROLL_KEY = 'prompter_scroll';
 function loadSort(): { sort: SortKey; asc: boolean } {
@@ -67,7 +57,6 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
   const [sort, setSort] = useState<SortKey>(initPrefs.sort);
   const [asc, setAsc] = useState<boolean>(initPrefs.asc);
   const [confirmClear, setConfirmClear] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
   // 文件夹/星标过滤与移动弹层（受控：App 传入时跨视图保持，否则内部管理）
   const [innerFilter, setInnerFilter] = useState<Filter>('all');
   const filter = filterProp ?? innerFilter;
@@ -181,14 +170,7 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
     prevRects.current = next;
   });
 
-  const recentScripts = useMemo(() => {
-    if (!searchFocused || query) return [];
-    const ids = loadRecent();
-    return ids.map((id) => scripts.find((s) => s.id === id)).filter(Boolean) as Script[];
-  }, [searchFocused, query, scripts]);
-
   const handleOpen = useCallback((id: string) => {
-    saveRecent(id);
     try { localStorage.setItem(SCROLL_KEY, String(window.scrollY)); } catch { /* noop */ }
     onOpen(id);
   }, [onOpen]);
@@ -343,8 +325,6 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
             <input
               placeholder="搜索标题或正文"
               value={query}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
               onChange={(e) => setQuery(e.target.value)}
               className="h-[var(--ctl-1-h)] w-full rounded-full border border-[#26262B] bg-[#131316] pl-10 pr-11 text-sm text-white placeholder-white/30 transition-colors focus:border-[#D4A432]/40 focus:outline-none"
             />
@@ -356,22 +336,6 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
               >
                 <X size={15} />
               </button>
-            )}
-            {/* Recent quick-access */}
-            {searchFocused && !query && recentScripts.length > 0 && (
-              <div className="absolute left-0 top-full mt-2 w-72 rounded-xl border border-white/10 glass-surface py-1.5 shadow-xl">
-                <div className="px-3 pb-1.5 pt-0.5 text-[10px] text-white/30">最近使用</div>
-                {recentScripts.map((s) => (
-                  <button
-                    key={s.id}
-                    onMouseDown={(e) => { e.preventDefault(); handleOpen(s.id); }}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-                  >
-                    <Clock size={12} className="shrink-0 text-white/30" />
-                    <span className="truncate">{s.title}</span>
-                  </button>
-                ))}
-              </div>
             )}
           </div>
         )}
