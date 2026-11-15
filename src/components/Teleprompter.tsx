@@ -490,15 +490,17 @@ export function Teleprompter({
         </div>
       </div>
 
-      {/* ── 阅读区辉光带：固定在视口中央的金色柔光，垫在文字下方（DOM 先于正文 → 绘制在其后）。
-          不随滚动变化 → 滚动期间零额外绘制；高度随字号/行距自适应（约 2 行 + 渐隐余量） ── */}
+      {/* ── Reading Zone Frame —— 金色矩形线框框住阅读区（约 2 行高、宽随两边间距对齐文字栏；
+          随字号/行距/边距自适应；静态元素，滚动零开销） ── */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2"
+        className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2 rounded-2xl"
         style={{
-          height: `${Math.round(settings.fontSize * settings.lineHeight * 2.8)}px`,
-          background:
-            'linear-gradient(180deg, transparent 0%, rgba(212,164,50,0.10) 28%, rgba(255,216,138,0.17) 50%, rgba(212,164,50,0.10) 72%, transparent 100%)',
+          height: `${Math.round(settings.fontSize * settings.lineHeight * 2)}px`,
+          left: pad,
+          right: pad,
+          border: '1.5px solid rgba(212,164,50,0.5)',
+          boxShadow: '0 0 14px rgba(212,164,50,0.18), inset 0 0 14px rgba(212,164,50,0.08)',
         }}
       />
 
