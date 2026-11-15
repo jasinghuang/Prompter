@@ -60,11 +60,19 @@ body {
 
 .word { display: inline; }
 
-/* 提词阅读区辉光：视口中心 ±1 行（约 2 行）的文字发光，金色柔光、行切换时缓入缓出。
+/* 提词阅读区辉光：视口中心 ±1 行（约 2 行）的文字发光。
+   强度对齐列表卡片金边微光（card-hello）：字色偏暖金 + 三层光晕
+   （贴字热核 → 中层 → 远层）。
+   注意：不要给 text-shadow 加 transition —— 它是 paint 级属性，无法 GPU 合成，
+   过渡会让换行期间每帧重绘大字号模糊阴影，滚动时掉帧。
+   静态类切换只触发一次栅格化，之后滚动走合成器不再重绘。
    由 Teleprompter.computeActive 在滚动/播放 tick 中增删 class */
 .reading-glow {
-  text-shadow: 0 0 22px rgba(212, 164, 50, 0.38), 0 0 46px rgba(212, 164, 50, 0.16);
-  transition: text-shadow 0.25s ease;
+  color: #FFEDC2;
+  text-shadow:
+    0 0 8px rgba(255, 216, 138, 0.6),
+    0 0 22px rgba(212, 164, 50, 0.5),
+    0 0 50px rgba(212, 164, 50, 0.28);
 }
 
 .mirror-mode { transform: scaleX(-1); }
