@@ -111,9 +111,6 @@ export function Teleprompter({
   // 双指捏合：手势快照存 ref（字号变化触发 effect 重挂载时不丢失）+ 轻点抑制冷却 + 反馈胶囊
   const pinchRef = useRef<{ startDist: number; startFontSize: number } | null>(null);
   const fontSizeRef = useRef(settings.fontSize);
-  // 阅读区辉光：行高（字号×行距）与当前发光 span 集合
-  const lineHRef = useRef(settings.fontSize * settings.lineHeight);
-  const glowRef = useRef<HTMLElement[]>([]);
   const suppressTapUntilRef = useRef(0);
   const [pinchFontSize, setPinchFontSize] = useState<number | null>(null);
   const pinchToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -121,10 +118,6 @@ export function Teleprompter({
   useEffect(() => {
     fontSizeRef.current = settings.fontSize;
   }, [settings.fontSize]);
-
-  useEffect(() => {
-    lineHRef.current = settings.fontSize * settings.lineHeight;
-  }, [settings.fontSize, settings.lineHeight]);
 
   const charCount = useMemo(() => countReadableChars(script.content), [script.content]);
 
@@ -136,26 +129,17 @@ export function Teleprompter({
     if (!vp) return;
     const mid = scrollTop + vp.clientHeight / 2;
     const spans = spansRef.current;
-    const band = lineHRef.current; // 阅读带：中心 ±1 行 ≈ 中间 2 行文字
     let idx = -1;
-    const glow: HTMLElement[] = [];
     for (const s of spans) {
-      const c = s.offsetTop + s.offsetHeight / 2;
-      if (idx === -1 && c >= mid) idx = Number(s.dataset.idx);
-      if (c > mid + band) break;
-      if (c >= mid - band) glow.push(s);
+      if (s.offsetTop + s.offsetHeight / 2 >= mid) {
+        idx = Number(s.dataset.idx);
+        break;
+      }
     }
     if (idx === -1 && spans.length) idx = Number(spans[spans.length - 1].dataset.idx);
     if (idx >= 0 && idx !== activeIndexRef.current) {
       activeIndexRef.current = idx;
       setActiveIndex(idx);
-    }
-    // 阅读区辉光：仅对发生变化的 span 增删 class，滚动 tick 中不做整表重绘
-    const prev = glowRef.current;
-    if (prev.length !== glow.length || prev.some((el, i) => el !== glow[i])) {
-      for (const el of prev) if (!glow.includes(el)) el.classList.remove('reading-glow');
-      for (const el of glow) el.classList.add('reading-glow');
-      glowRef.current = glow;
     }
   }, []);
 
@@ -174,7 +158,6 @@ export function Teleprompter({
         vp.scrollTop = target.offsetTop - vp.clientHeight / 2 + target.offsetHeight / 2;
         scrollRef.current = vp.scrollTop;
       }
-      computeActive(vp.scrollTop);
     };
     measure();
     if (typeof ResizeObserver !== 'undefined') {
@@ -507,8 +490,17 @@ export function Teleprompter({
         </div>
       </div>
 
-      {/* 阅读区标记不再是两侧竖线：视口中心 ±1 行内的文字加金色辉光（.reading-glow），
-          由 computeActive 在滚动/播放 tick 中切换；样式见 index.css */}
+      {/* ── 阅读区辉光带：固定在视口中央的金色柔光，垫在文字下方（DOM 先于正文 → 绘制在其后）。
+          不随滚动变化 → 滚动期间零额外绘制；高度随字号/行距自适应（约 2 行 + 渐隐余量） ── */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2"
+        style={{
+          height: `${Math.round(settings.fontSize * settings.lineHeight * 2.8)}px`,
+          background:
+            'linear-gradient(180deg, transparent 0%, rgba(212,164,50,0.10) 28%, rgba(255,216,138,0.17) 50%, rgba(212,164,50,0.10) 72%, transparent 100%)',
+        }}
+      />
 
       {/* ── Reading Viewport ── */}
       <div
