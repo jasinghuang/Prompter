@@ -490,19 +490,19 @@ export function Teleprompter({
         </div>
       </div>
 
-      {/* ── Reading Zone Frame —— 金色矩形线框框住阅读区（约 2 行高、宽随两边间距对齐文字栏；
-          随字号/行距/边距自适应；静态元素，滚动零开销） ── */}
+      {/* ── Reading Guide Lines —— 中线两侧金色发光竖线标记阅读区（静态元素，滚动零开销） ── */}
       <div
-        aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2 rounded-2xl"
-        style={{
-          height: `${Math.round(settings.fontSize * settings.lineHeight * 2)}px`,
-          left: pad,
-          right: pad,
-          border: '1.5px solid rgba(212,164,50,0.5)',
-          boxShadow: '0 0 14px rgba(212,164,50,0.18), inset 0 0 14px rgba(212,164,50,0.08)',
-        }}
-      />
+        className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2"
+        style={{ left: 'calc(0.75rem + env(safe-area-inset-left))' }}
+      >
+        <div className="h-28 w-1 rounded-full" style={{ background: '#D4A432', boxShadow: '0 0 12px 1px rgba(212,164,50,0.55)' }} />
+      </div>
+      <div
+        className="pointer-events-none absolute top-1/2 z-10 -translate-y-1/2"
+        style={{ right: 'calc(0.75rem + env(safe-area-inset-right))' }}
+      >
+        <div className="h-28 w-1 rounded-full" style={{ background: '#D4A432', boxShadow: '0 0 12px 1px rgba(212,164,50,0.55)' }} />
+      </div>
 
       {/* ── Reading Viewport ── */}
       <div
