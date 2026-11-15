@@ -9,35 +9,19 @@ vi.mock('../hooks/useAutoScroll', () => ({
   useAutoScroll: vi.fn(),
 }));
 
-// mock 自动暂停钩子，暴露 reset 供测试断言（restart 时重置命中记录）
-vi.mock('../hooks/usePauseOnKeyword', () => ({
-  usePauseOnKeyword: vi.fn(),
-}));
-vi.mock('../hooks/usePauseOnParagraph', () => ({
-  usePauseOnParagraph: vi.fn(),
-}));
-
 import { useAutoScroll } from '../hooks/useAutoScroll';
-import { usePauseOnKeyword } from '../hooks/usePauseOnKeyword';
-import { usePauseOnParagraph } from '../hooks/usePauseOnParagraph';
 
 const script: Script = { id: '1', title: '测试稿', content: '一二三四五', createdAt: 1, updatedAt: 1 };
 let reachEnd: (() => void) | null = null;
-let resetKeywordPause = vi.fn();
-let resetParagraphPause = vi.fn();
 
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem('prompter_onboarded', '1'); // 跳过 onboarding 遮罩
   reachEnd = null;
-  resetKeywordPause = vi.fn();
-  resetParagraphPause = vi.fn();
   vi.mocked(useAutoScroll).mockImplementation((opts: any) => {
     reachEnd = opts.onReachEnd;
     return { current: 0 } as any;
   });
-  vi.mocked(usePauseOnKeyword).mockReturnValue(resetKeywordPause);
-  vi.mocked(usePauseOnParagraph).mockReturnValue(resetParagraphPause);
 });
 
 function renderTel(settings: TeleprompterSettings = DEFAULT_SETTINGS) {
@@ -110,13 +94,6 @@ describe('Teleprompter 读完动作', () => {
     act(() => reachEnd!());
     expect(h.onCompleted).not.toHaveBeenCalled();
     expect(h.onBack).not.toHaveBeenCalled();
-  });
-
-  it('restart：重置自动暂停命中记录，重读时暂停重新生效', () => {
-    renderTel({ ...DEFAULT_SETTINGS, completeAction: 'restart' });
-    act(() => reachEnd!());
-    expect(resetKeywordPause).toHaveBeenCalledTimes(1);
-    expect(resetParagraphPause).toHaveBeenCalledTimes(1);
   });
 
   it('顶栏圆形「标记已拍摄」按钮：点击回调并弹 toast', () => {

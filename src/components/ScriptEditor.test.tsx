@@ -12,10 +12,6 @@ const makeProps = (over: Record<string, unknown> = {}) => ({
   folder: undefined,
   folders: ['口播', 'vlog'] as string[],
   onFolderChange: vi.fn(),
-  pauseKeyword: '',
-  onPauseKeywordChange: vi.fn(),
-  pauseOnParagraph: false,
-  onPauseOnParagraphChange: vi.fn(),
   splitMode: 'paragraph' as const,
   splitKeyword: '',
   onSplitModeChange: vi.fn(),
@@ -63,13 +59,6 @@ describe('ScriptEditor', () => {
     render(<ScriptEditor {...makeProps({ onBack })} />);
     fireEvent.click(screen.getByTitle('返回'));
     expect(onBack).toHaveBeenCalled();
-  });
-
-  it('「自动暂停」标题为白色（非 white/50）', () => {
-    render(<ScriptEditor {...makeProps()} />);
-    const el = screen.getByText('自动暂停');
-    expect(el.className).toContain('text-white');
-    expect(el.className).not.toContain('text-white/50');
   });
 
   it('标题输入框 placeholder 使用 white/30', () => {
@@ -181,7 +170,7 @@ describe('ScriptEditor', () => {
     const onFolderChange = vi.fn();
     render(<ScriptEditor {...makeProps({ onFolderChange })} />);
     // 未分组 chip 高亮
-    expect(screen.getByText('未分组').className).toContain('bg-white/15');
+    expect(screen.getByText('未分组').className).toContain('bg-white');
     fireEvent.click(screen.getByText('口播'));
     expect(onFolderChange).toHaveBeenCalledWith('口播');
   });
@@ -189,7 +178,7 @@ describe('ScriptEditor', () => {
   it('分组行：当前文件夹高亮，点「未分组」回调 null', () => {
     const onFolderChange = vi.fn();
     render(<ScriptEditor {...makeProps({ folder: 'vlog', onFolderChange })} />);
-    expect(screen.getByText('vlog').className).toContain('bg-white/15');
+    expect(screen.getByText('vlog').className).toContain('bg-white');
     fireEvent.click(screen.getByText('未分组'));
     expect(onFolderChange).toHaveBeenCalledWith(null);
   });

@@ -6,8 +6,6 @@ import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
 import { formatTime } from '../lib/format';
 import { useTimer } from '../hooks/useTimer';
 import { useAutoScroll } from '../hooks/useAutoScroll';
-import { usePauseOnKeyword } from '../hooks/usePauseOnKeyword';
-import { usePauseOnParagraph } from '../hooks/usePauseOnParagraph';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useTransientFlag } from '../hooks/useTransientFlag';
 import { computePinchFontSize } from '../lib/pinch';
@@ -212,8 +210,6 @@ export function Teleprompter({
       if (completed) return; // 深度防御：useAutoScroll 的 ended 标志已保证单次播放周期触发一次
       setIsPlaying(false);
       if (settings.completeAction === 'restart') {
-        resetKeywordPause(); // 重读时自动暂停重新生效
-        resetParagraphPause();
         scrollToIndex(0); // 回到开头并暂停，不标记/不提示/不返回
         return;
       }
@@ -253,45 +249,12 @@ export function Teleprompter({
     return () => vp.removeEventListener('scroll', onScroll);
   }, [computeActive]);
 
-  const paragraphStarts = useMemo(() => {
-    const starts = new Set<number>();
-    const chars = Array.from(script.content);
-    for (let i = 1; i < chars.length; i++) {
-      if (chars[i] === '\n' && chars[i - 1] === '\n') {
-        let j = i + 1;
-        while (j < chars.length && chars[j] === '\n') j++;
-        if (j < chars.length) starts.add(j);
-      }
-    }
-    return starts;
-  }, [script.content]);
-
-  const handlePause = useCallback((msg: string) => {
-    setIsPlaying(false);
-    showPauseToast(msg);
-  }, [showPauseToast]);
-
   // 调速（键盘 ↑↓）：夹紧范围 + toast 反馈
   const changeSpeed = useCallback((delta: number) => {
     const next = Math.min(SPEED_MAX, Math.max(SPEED_MIN, settings.scrollSpeed + delta));
     onChangeSettings({ scrollSpeed: next });
     showPauseToast(`速度 ${next} 字/分`);
   }, [settings.scrollSpeed, onChangeSettings, showPauseToast]);
-
-  const resetKeywordPause = usePauseOnKeyword({
-    isPlaying,
-    activeIndex,
-    content: script.content,
-    keyword: settings.pauseKeyword,
-    onPause: handlePause,
-  });
-  const resetParagraphPause = usePauseOnParagraph({
-    isPlaying,
-    activeIndex,
-    paragraphStarts,
-    enabled: settings.pauseOnParagraph,
-    onPause: handlePause,
-  });
 
   const dismissOnboarding = useCallback(() => {
     setShowOnboarding(false);
@@ -361,13 +324,10 @@ export function Teleprompter({
     onIndexChange(activeIndexRef.current);
     onBack();
   };
-  // 点击顶栏时间=回到顶部（对齐 iOS returnToTop）：暂停、计时归零（新一条开拍）、
-  // 重置自动暂停命中、清提示，回正文开头
+  // 点击顶栏时间=回到顶部（对齐 iOS returnToTop）：暂停、计时归零（新一条开拍）、清提示，回正文开头
   const handleBackToTop = () => {
     setIsPlaying(false);
     resetTimer();
-    resetKeywordPause();
-    resetParagraphPause();
     setPauseReason(null);
     if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
     if (completionTimerRef.current) clearTimeout(completionTimerRef.current);

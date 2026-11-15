@@ -40,10 +40,6 @@ PWA 仓库及访问地址沿用原来的 `Prompter` 名称。本地稿件按浏�
 - **按空行**：每段空行拆为独立稿件，标题自动取每段第一行
 - **按关键词**：在每个关键词出现处之前切分，新段以关键词开头
 
-### 自动暂停
-
-设置自动暂停模式：**关键词**（滚动到指定词自动停）或**空行**（每段结束自动停）。暂停时顶部弹出提示，3 秒自动消失。
-
 ### 提词设置
 
 字号、字间距、行距、两边间距、滚动速度全部可调。支持左/中/右对齐、镜像翻转（分光镜反射）、读完动作（停在原地 / 返回列表并标记已拍摄 / 回到开头重读）。
@@ -72,7 +68,7 @@ PWA 仓库及访问地址沿用原来的 `Prompter` 名称。本地稿件按浏�
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 230 个单元测试
+npm test         # 210 个单元测试
 npm run build    # 输出 dist/（单文件 HTML）
 ```
 
@@ -87,7 +83,7 @@ Push 到 `main` 自动通过 GitHub Actions 部署到 GitHub Pages。
 - **零运行时依赖**（仅 React 与图标库）：无路由库、无状态管理库、无动画库——三视图状态机手写、FLIP 动画手写、撤销系统手写
 - **PWA**：自写 Service Worker（导航 network-first 带 3s 超时兜底、静态资源 cache-first）+ manifest 横屏全屏；`vite-plugin-singlefile` 把整个应用打进一个 HTML
 - **平台 API**：getUserMedia（前置化妆镜）、Wake Lock（屏幕常亮，含卸载竞态处理）、`beforeinstallprompt`、ResizeObserver、Pointer Events（长按多选/捏合字号）
-- **设计系统**：CSS 变量统一管理颜色/圆角/阴影与**控件层级阶梯**（T1 主操作 44px → T2 内容导航 40px → T3 工具 32px → T4 元信息 12px 文字），列表/播放/编辑三页共用同一套 token
+- **设计系统（暗房 2.0）**：CSS 变量统一管理颜色/圆角与**控件层级阶梯**（T1 主操作 44px → T2 内容导航 40px → T3 工具 32px → T4 元信息 12px 文字）。全部表面**无 backdrop-filter**——细线（hairline）+ 表面明度分层，层级靠亮度不靠阴影；chip 反色激活（白底黑字），金色收敛到主 CTA、星标、时长徽章与提词导光线
 - **组件复用**：`CapsuleButton`（胶囊控件体系）、`SegmentedPill`、`FilterChip` 等跨页共享，保证设计语言一致
 
 ---
@@ -121,18 +117,17 @@ Push 到 `main` 自动通过 GitHub Actions 部署到 GitHub Pages。
     │   ├── useSwipeAction.ts#   卡片滑动手势（划右标记/划左删除）
     │   ├── useWakeLock.ts   #   屏幕常亮
     │   ├── useTimer.ts      #   计时器
-    │   ├── usePauseOn*.ts   #   关键词/空行自动暂停
     │   └── useTransientFlag / useDebouncedCallback
     ├── sw/registerSW.ts
     └── components/
         ├── Teleprompter.tsx     # 提词主视图（双胶囊顶栏/中央提示/自动隐藏）
         ├── ScriptList.tsx       # 列表（筛选/排序/长按多选/FLIP 动画）
         ├── SwipeableCard.tsx    # 卡片（滑动/长按多选/高亮定位）
-        ├── ScriptEditor.tsx     # 编辑（分组行/智能拆分/自动暂停）
+        ├── ScriptEditor.tsx     # 编辑（分组行/智能拆分主按钮）
         ├── CapsuleButton.tsx    # 胶囊控件体系（跨页共享）
         ├── Controls.tsx         # 播放页底部滑块栏
         ├── SettingsPanel.tsx    # 设置抽屉
-        ├── AutoPauseControl.tsx / SegmentedPill.tsx / Toggle.tsx
+        ├── SegmentedPill.tsx / Toggle.tsx
         └── AddToHomeScreenPrompt.tsx
 ```
 
@@ -159,7 +154,6 @@ Push 到 `main` 自动通过 GitHub Actions 部署到 GitHub Pages。
 
 | 限制 | 说明 |
 |------|------|
-| iOS PWA 花屏 | WebKit 的 `backdrop-filter` 在 standalone 模式有渲染 bug（静止画面花屏、旋转屏幕才消失），PWA 内自动降级为无模糊玻璃（`html.glass-solid`），浏览器不受影响 |
 | iOS 屏幕常亮 | Wake Lock API 在 iOS Safari 的 `file://` 下不可用，网页版正常 |
 | 跨设备同步 | 不支持，各设备 localStorage 独立 |
 | iOS 全屏 | 仅 PWA「添加到主屏幕」可全屏 |

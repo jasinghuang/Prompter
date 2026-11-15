@@ -346,7 +346,7 @@ export function ScriptList({ scripts, filmedIds, speed, highlightId, filter: fil
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
               onChange={(e) => setQuery(e.target.value)}
-              className="h-[var(--ctl-1-h)] w-full rounded-full border border-white/10 bg-white/5 pl-10 pr-11 text-sm text-white placeholder-white/30 transition-colors focus:border-[#D4A432]/40 focus:bg-white/10 focus:outline-none"
+              className="h-[var(--ctl-1-h)] w-full rounded-full border border-[#26262B] bg-[#131316] pl-10 pr-11 text-sm text-white placeholder-white/30 transition-colors focus:border-[#D4A432]/40 focus:outline-none"
             />
             {query && (
               <button
@@ -703,13 +703,13 @@ function MenuOption({ icon, label, checked, onClick }: {
   );
 }
 
-/** 过滤 chip（T2 内容导航 · 40px/14px）。选中态与排序 chips 一致（bg-white/15 高亮）。编辑页分组行复用 */
+/** 过滤 chip（T2 内容导航 · 40px/14px）。选中态白色反色（亮度层级：白=激活、灰=闲置）。编辑页分组行复用 */
 export function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
-      className={`flex h-[var(--ctl-2-h)] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors ${
-        active ? 'bg-white/15 text-white' : 'chip-glass text-white/45 hover:text-white/80'
+      className={`flex h-[var(--ctl-2-h)] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm transition-colors ${
+        active ? 'bg-white font-semibold text-[#0A0A0B]' : 'chip-glass font-medium text-white/45 hover:text-white/80'
       }`}
     >
       {children}

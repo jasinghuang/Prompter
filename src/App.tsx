@@ -165,10 +165,6 @@ export default function App() {
         folder={active.folder}
         folders={folders}
         onFolderChange={(f) => moveToFolder(active.id, f)}
-        pauseKeyword={settings.pauseKeyword}
-        onPauseKeywordChange={(kw) => updateSettings({ pauseKeyword: kw })}
-        pauseOnParagraph={settings.pauseOnParagraph}
-        onPauseOnParagraphChange={(v) => updateSettings({ pauseOnParagraph: v })}
         splitMode={settings.splitMode}
         onSplitModeChange={(m) => updateSettings({ splitMode: m })}
         splitKeyword={settings.splitKeyword}

@@ -30,10 +30,6 @@ export interface TeleprompterSettings {
   horizontalPadding: number;
   /** 文本对齐，默认 left */
   textAlign: TextAlign;
-  /** 自动暂停关键词（空字符串 = 不启用），默认 '' */
-  pauseKeyword: string;
-  /** 遇到空行自动暂停（段落分隔），默认 false */
-  pauseOnParagraph: boolean;
   /** 读完动作，默认 none */
   completeAction: CompleteAction;
   /** 智能拆分模式，默认 paragraph（按空行） */
@@ -50,8 +46,6 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
   mirror: false,
   horizontalPadding: 8,
   textAlign: 'left',
-  pauseKeyword: '',
-  pauseOnParagraph: false,
   completeAction: 'none',
   splitMode: 'paragraph',
   splitKeyword: '',

@@ -1,7 +1,6 @@
 import { Settings, Minimize2, Type, AlignJustify, FlipHorizontal, Gauge, MoveHorizontal, Move, AlignLeft, AlignCenter, AlignRight, Flag } from 'lucide-react';
 import { TeleprompterSettings, TextAlign, CompleteAction, FONT_SIZE_MIN, FONT_SIZE_MAX, LETTER_SPACING_MIN, LETTER_SPACING_MAX, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, PADDING_MIN, PADDING_MAX } from '../types';
 import { SPEED_MIN, SPEED_MAX } from '../lib/speed';
-import { AutoPauseControl } from './AutoPauseControl';
 import { SegmentedPill } from './SegmentedPill';
 import { Toggle } from './Toggle';
 
@@ -207,15 +206,6 @@ export function SettingsPanel({ open, settings, onChange, onClose }: Props) {
               value={settings.completeAction}
               options={COMPLETE_ACTION_OPTIONS}
               onSelect={(v) => onChange({ completeAction: v })}
-            />
-          </div>
-
-          {/* Auto Pause */}
-          <div className="border-t border-white/5 pt-5">
-            <AutoPauseControl
-              keyword={settings.pauseKeyword}
-              paragraph={settings.pauseOnParagraph}
-              onChange={onChange}
             />
           </div>
         </div>

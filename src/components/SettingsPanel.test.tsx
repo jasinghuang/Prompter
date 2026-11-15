@@ -82,14 +82,14 @@ describe('SettingsPanel', () => {
     render(<SettingsPanel {...baseProps} settings={{ ...DEFAULT_SETTINGS, completeAction: 'list' }} />);
     const group = screen.getByText('读完动作').parentElement!.querySelector('[data-segmented-pill]')!;
     const selected = group.querySelector('[data-pill-value="list"]');
-    expect(selected?.className).toContain('text-white'); // 选中项白色文字
+    expect(selected?.className).toContain('text-[#0A0A0B]'); // 选中项反色：白底黑字
     const unselected = group.querySelector('[data-pill-value="none"]');
     expect(unselected?.className).toContain('text-white/35'); // 未选中项弱化
   });
 
   it('所有区块标题统一：text-sm font-semibold 白字，无 white/50', () => {
     render(<SettingsPanel {...baseProps} />);
-    const titles = ['字号', '字间距', '行距', '两边间距', '滚动速度', '对齐方式', '镜像翻转', '读完动作', '自动暂停'];
+    const titles = ['字号', '字间距', '行距', '两边间距', '滚动速度', '对齐方式', '镜像翻转', '读完动作'];
     for (const t of titles) {
       const el = screen.getByText(t);
       expect(el.className).toContain('text-sm');

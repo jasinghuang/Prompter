@@ -13,7 +13,7 @@ interface Props<T extends string> {
 }
 
 /**
- * 药丸分段选择器：白色药丸在选项间滑动，选中项白色文字、未选中弱化。
+ * 药丸分段选择器：白色药丸在选项间滑动（反色激活），选中项黑字、未选中弱化。
  * （CF10，从 AutoPauseControl 的 ModePillGroup 抽出，供读完动作等复用）
  */
 export function SegmentedPill<T extends string>({ value, options, onSelect, className }: Props<T>) {
@@ -37,7 +37,7 @@ export function SegmentedPill<T extends string>({ value, options, onSelect, clas
       className={`relative flex items-center rounded-full glass-button py-0.5 pl-0.5 pr-0 ${className ?? ''}`}
     >
       <div
-        className="absolute top-0.5 rounded-full bg-white/15 transition-all duration-300 ease-out"
+        className="absolute top-0.5 rounded-full bg-white transition-all duration-300 ease-out"
         style={{
           height: 'calc(100% - 4px)',
           left: `${pillRect.left}px`,
@@ -50,7 +50,7 @@ export function SegmentedPill<T extends string>({ value, options, onSelect, clas
           data-pill-value={v}
           onClick={() => onSelect(v)}
           className={`relative z-10 flex-1 text-center whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors ${
-            value === v ? 'text-white' : 'text-white/35 hover:text-white/60'
+            value === v ? 'font-semibold text-[#0A0A0B]' : 'text-white/35 hover:text-white/60'
           }`}
         >
           {label}

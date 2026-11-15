@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { ChevronLeft, Folder, Plus, Scissors } from 'lucide-react';
 import { Script, SplitMode } from '../types';
 import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
-import { AutoPauseControl } from './AutoPauseControl';
 import { SegmentedPill } from './SegmentedPill';
 import { FilterChip } from './ScriptList';
 import { Capsule, CapsuleButton } from './CapsuleButton';
@@ -20,10 +19,6 @@ interface Props {
   folders: string[];
   /** 选择/新建分组；null = 移出到未分组 */
   onFolderChange: (folder: string | null) => void;
-  pauseKeyword: string;
-  onPauseKeywordChange: (kw: string) => void;
-  pauseOnParagraph: boolean;
-  onPauseOnParagraphChange: (v: boolean) => void;
   splitMode: SplitMode;
   onSplitModeChange: (m: SplitMode) => void;
   splitKeyword: string;
@@ -39,10 +34,6 @@ export function ScriptEditor({
   folder,
   folders,
   onFolderChange,
-  pauseKeyword,
-  onPauseKeywordChange,
-  pauseOnParagraph,
-  onPauseOnParagraphChange,
   splitMode,
   onSplitModeChange,
   splitKeyword,
@@ -146,8 +137,8 @@ export function ScriptEditor({
           </div>
         </div>
 
-        {/* Toolbar: Smart Split — mode pill + keyword input + action */}
-        <div className="border-b border-white/5 py-2.5">
+        {/* Toolbar: Smart Split — mode pill + keyword input + action（编辑页唯一主按钮，40px T2 级金色） */}
+        <div className="border-b border-white/5 py-3">
           <div className="flex items-center gap-2">
             <SegmentedPill
               value={splitMode}
@@ -167,25 +158,12 @@ export function ScriptEditor({
             <button
               onClick={() => onSplit(content)}
               disabled={splitDisabled}
-              className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4A432] px-3.5 py-1.5 text-sm font-bold text-[#0A0A0B] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex h-10 shrink-0 items-center gap-2 rounded-full bg-[#D4A432] px-[18px] text-sm font-bold tracking-[0.02em] text-[#0A0A0B] shadow-[0_2px_10px_rgba(212,164,50,0.28)] transition-all active:scale-95 active:shadow-none disabled:cursor-not-allowed disabled:opacity-30 disabled:shadow-none"
             >
-              <Scissors size={12} />
+              <Scissors size={15} />
               智能拆分
             </button>
           </div>
-        </div>
-
-        {/* Toolbar: AutoPause */}
-        <div className="border-b border-white/5 py-2.5">
-          <AutoPauseControl
-            inline
-            keyword={pauseKeyword}
-            paragraph={pauseOnParagraph}
-            onChange={(patch) => {
-              if (patch.pauseKeyword !== undefined) onPauseKeywordChange(patch.pauseKeyword);
-              if (patch.pauseOnParagraph !== undefined) onPauseOnParagraphChange(patch.pauseOnParagraph);
-            }}
-          />
         </div>
 
         {/* Content Textarea */}

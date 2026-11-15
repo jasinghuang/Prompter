@@ -103,12 +103,12 @@ export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SET
   };
 
   const baseStyle = selectMode && isSelected
-    ? 'glass-card border-[#D4A432]/60'
+    ? 'border-[#D4A432]/60 bg-[#141417]'
     : isFilmed
       ? 'border-green-500/30 bg-green-500/[0.06]'
       : highlighted
-        ? 'glass-card border-[#D4A432]/45 shadow-[0_0_22px_rgba(212,164,50,0.14)]'
-        : 'border-[#D4A432]/15 glass-card hover:border-[#D4A432]/50 hover:bg-white/[0.07]';
+        ? 'border-[#D4A432]/45 bg-[#141417] shadow-[0_0_22px_rgba(212,164,50,0.14)]'
+        : 'border-[#26262B] bg-[#141417] hover:border-[#3A3A42] hover:bg-[#17171B]';
 
   return (
     <div
@@ -237,8 +237,7 @@ export function SwipeableCard({ script, isFilmed, charCount, speed = DEFAULT_SET
             {new Date(script.updatedAt).toLocaleDateString()}
             <span className="text-white/15">|</span>
             <span>{charCount}字</span>
-            <span className="text-white/15">|</span>
-            <span>约{formatTime(estimateDurationSeconds(charCount, speed))}</span>
+            <span className="ml-0.5 rounded-full bg-[#D4A432]/15 px-2 py-0.5 font-medium tabular-nums text-[#D4A432]">约{formatTime(estimateDurationSeconds(charCount, speed))}</span>
           </div>
           <div className={`ml-auto flex shrink-0 items-center gap-1.5${selectMode ? ' pointer-events-none opacity-30' : ''}`}>
             <button
